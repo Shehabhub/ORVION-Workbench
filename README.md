@@ -49,8 +49,8 @@ graduates to its repository home (or Claude memory) through the normal lifecycle
 | `~\.claude\projects\*ORVION/CRM*\memory`, `~\.claude\settings.json`, `statusline.ps1` | Claude memory and hooks | no | yes | no | same (never overwrites) |
 | `~\.codex\sessions` | Codex transcripts | no | via `sessions\raw` | no | archive copy |
 | `Documents\ORVION-Owner-Review` (1.4 GB) | owner packets; **live**: `cr-da-execution-2026-10-19\owner-publish/promote.ps1`, `wave1-2026-10-19\GATE-1-PACKET.md` | no | legacy | no | legacy copy |
-| `Documents\ORVION-Sandbox` (1.4 GB) | previous tool copy (`lib\`, superseded by this folder), evidence, run configs for SPEC-290..293 | no | legacy (git clones skipped) | its clones | legacy copy |
-| `Documents\ORVION-Owner-Tools` | 2026-10-16 owner launchers + logs; `supabase-founder.json` holds URLs only | no | legacy | after the owner retires it | legacy copy |
+| `Documents\ORVION-Sandbox` (1.4 GB) | evidence, sandboxes and run configs for SPEC-290..293 (its old `lib\` copy was deleted 2026-10-20 after every script was repointed here) | no | legacy (git clones skipped) | its clones | legacy copy |
+| `Documents\ORVION-Owner-Tools` | the owner's **working** Platinum release adapters (`Owner-Publish/Promote.ps1`, used 2026-10-18) + logs; its README explains; same name as this folder by history only | no | legacy | no: merged by the wave-2 release interface | legacy copy |
 | `Documents\ORVION-drafts-backup`, `Documents\Windows-Memory-Config` | 2026-10-12 Draft copies; 2026-10-18 WSL memory config | no | legacy | no | legacy copy |
 | `%TEMP%\orvion-*` | test leftovers | no | no | yes | — |
 | GitHub tokens (`gh`, `%APPDATA%\GitHub CLI`), Supabase CLI login | credentials | never | **never** | — | `gh auth login` for PlatPlusHub and Shehabhub |
