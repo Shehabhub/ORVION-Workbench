@@ -48,16 +48,23 @@ if($Add){
 $views=foreach($g in @(Read-Events|Group-Object pattern)){
     $r=@($g.Group|Sort-Object at);$z=$r[-1]
     [pscustomobject]@{pattern=$g.Name;status=$z.status;sessions=@($r.session|Select-Object -Unique).Count;last=([datetime]$z.at).ToUniversalTime().ToString('yyyy-MM-dd')
-        summary=$z.summary;tool=@($r.tool|Where-Object{$_})[-1];action=@($r.action|Where-Object{$_})[-1];evidence=@($r.evidence|Where-Object{$_})[-1]
+        summary=$z.summary;sessionList=@($r.session);tool=@($r.tool|Where-Object{$_})[-1];action=@($r.action|Where-Object{$_})[-1];evidence=@($r.evidence|Where-Object{$_})[-1]
         words=@([regex]::Matches((($r|ForEach-Object{"$($_.pattern-replace'-',' ') $($_.summary) $($_.tool) $($_.action) $($_.tags)"})-join' ').ToLower(),'[a-z0-9$]{3,}')|ForEach-Object Value|Select-Object -Unique)}
 }
 function Test-WordMatch([string]$Term,[string[]]$Vocabulary){  # exact, or a shared stem of 4+ letters (exit/exits, watch/watcher)
     foreach($w in $Vocabulary){if($w-eq$Term-or($Term.Length-ge4-and$w.Length-ge4-and($w.StartsWith($Term)-or$Term.StartsWith($w)))){return $true}};$false
 }
-function Format-View($v){
+function Format-View($v,[switch]$WithSession){
     $use=@(if($v.tool){"use $($v.tool)"};if($v.action){$v.action})-join'; '
-    "[$($v.status) x$($v.sessions) $($v.last)] $($v.pattern): $($v.summary)$(if($use){" -> $use"})$(if($v.evidence){" (evidence: $($v.evidence))"})"
+    $line="[$($v.status) x$($v.sessions) $($v.last)] $($v.pattern): $($v.summary)$(if($use){" -> $use"})$(if($v.evidence){" (evidence: $($v.evidence))"})"
+    # the newest occurrence whose transcript is archived (an older one may predate the archive)
+    $s=if($WithSession){@($v.sessionList|ForEach-Object{$script:sessionIndex[$_]}|Where-Object{$_})[-1]}
+    if($s){$line+="`n    raw record: session $($s.id.Substring(0,8)) $(([datetime]$s.start).ToUniversalTime().ToString('yyyy-MM-dd')) `"$($s.title)`" -> $(Join-Path $Root $s.raw)"}
+    $line
 }
+# The session index links an event to its full raw transcript (written by Sync-Sessions.ps1).
+$sessionIndex=@{};$ix=Join-Path $Root 'sessions\index.jsonl'
+if($Find-and(Test-Path $ix)){foreach($l in [IO.File]::ReadAllLines($ix)){if($l){$o=$l|ConvertFrom-Json;$sessionIndex[$o.id]=$o}}}
 if($Find){
     $stop='the','and','for','with','that','this','from','into','then','run','use','new','all','any','our','its','are','was','not','but','when'
     $words=@([regex]::Matches($Find.ToLower(),'[a-z0-9$]{3,}')|ForEach-Object Value|Where-Object{$_-notin$stop}|Select-Object -Unique)
@@ -67,7 +74,7 @@ if($Find){
     $hits=@($hits|Sort-Object @{e='s';Descending=$true},@{e={$_.v.sessions};Descending=$true})
     if($hits.Count){$best=$hits[0].s;$hits=@($hits|Where-Object{$_.s-ge0.4*$best}|Select-Object -First $Top)}
     if(!$hits.Count){"EVENTS: nothing recorded matches this task.";exit 0}
-    "EVENTS relevant to this task ($($hits.Count) of $(@($views).Count) patterns):";$hits|ForEach-Object{Format-View $_.v};exit 0
+    "EVENTS relevant to this task ($($hits.Count) of $(@($views).Count) patterns):";$hits|ForEach-Object{Format-View $_.v -WithSession};exit 0
 }
 $live=@($views|Where-Object{$_.status-in'open','deferred'-or$_.sessions-ge2}|Sort-Object @{e={$_.status-in'open','deferred'};Descending=$true},@{e='sessions';Descending=$true},@{e='last';Descending=$true}|Select-Object -First $Top)
 if($live.Count){"EVENTS open or recurring (top $($live.Count) of $(@($views).Count); for a task run Events.ps1 -Find '<task>'):";$live|ForEach-Object{Format-View $_}}

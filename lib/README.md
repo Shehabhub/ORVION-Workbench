@@ -27,7 +27,7 @@ wave-2 tooling contract tracks these tools in each repository and names them in 
 | `Events.ps1 -Find '<task>'` / `-Brief` / `-Add` | improvement memory: relevant past failures, discoveries, decisions; watchers record alarms |
 | `Sync-Sessions.ps1` | verbatim archive of every ORVION session + `sessions\index.jsonl` (hook runs it at start and end) |
 | `Backup-Workspace.ps1 -Destination <usb>` / `Restore-Workspace.ps1 -From <backup>` | everything a clone cannot restore; encrypted drive required; restore never overwrites |
-| `test-sync-sessions-secrets.ps1` | self-check of the archive's secret detector |
+| `..\tests.ps1` | every check: hazard scan of all scripts + each `test-*.ps1` (pre-commit runs it) |
 
 ## Contract lifecycle
 | Tool | Purpose |

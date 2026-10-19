@@ -7,25 +7,32 @@ through their own Boot, contracts and certification; everything here only drives
 
 | Folder | What | Git | Backup | Sensitive |
 |---|---|---|---|---|
-| `lib\` | agent tools; index: `lib\README.md` | no (until the wave-2 tooling contract tracks them) | yes | no |
+| `lib\`, `tests.ps1` | agent tools (index: `lib\README.md`) and their checks | local Git repo (no remote yet) | yes | no |
 | `sessions\raw\` | every ORVION agent session, verbatim (Claude Code + Codex) | never | yes, encrypted | **yes** |
 | `sessions\index.jsonl` | one line per session: id, title, repo cwd, branch, start/end, size, SPECs, raw path, sha256 | never | yes | low |
 | `events\events.jsonl` | improvement memory: what happened, how often, current disposition, evidence pointer | never | yes | low |
 | `work\` | evidence, runs, drafts scratch; `work\sandboxes\` = disposable clones | never | yes (not sandboxes) | low |
 
 ## Sessions (nothing summarized away)
-- `lib\Sync-Sessions.ps1` copies every session of the workspace into `sessions\raw\` at each session start and end
-  (user-level Claude hook, ORVION folders only). Append-only: a shrunk source is kept beside, never over, the copy.
+- `lib\Sync-Sessions.ps1 -Follow` (started by the session-start hook, one instance) copies every session of the workspace
+  into `sessions\raw\` once a minute while any Claude Code or Codex process runs, then a last pass when all are gone;
+  no session depends on its shutdown hook. Only complete lines are appended, after the archived bytes are proven to be
+  a prefix of the source; a killed pass is completed by the next one; a rewritten source keeps the old copy beside it.
+  Measured 2026-10-20: about 1 s and 1 s CPU per pass including PowerShell start, 0 bytes lost in the self-check cases.
   Claude Code deletes its own transcripts after 30 days: everything before 2026-10-11 (e.g. session `cbaf43d9`,
   2026-09-12) was already gone when the archive started on 2026-10-20.
-- Find a session: read `sessions\index.jsonl` (title, dates, SPECs). Search content: Grep over `sessions\raw\` (ripgrep
+- Find a session: read `sessions\INDEX.md` (newest first: task, minutes, prompts, tools, errors, compactions, agents,
+  events, most-discussed SPECs, raw path) or `sessions\index.jsonl`; `lib\Events.ps1 -Find` links each lesson to its session. Search content: Grep over `sessions\raw\` (ripgrep
   handles the size; never `grep -o` a wide window, see events `orphaned-search-process`).
 - Captured: messages, tool calls and results (large results in `tool-results\`), subagent transcripts, hook context,
   Monitor notifications. **Not captured**: hidden model reasoning (only what the client stores), anything a client
   never writes to disk, Codex sessions started outside the workspace, sessions deleted before 2026-10-20.
   Codex has no session hooks: its sessions are picked up at the next Claude session start or a manual sync.
-- `secretHits` in the index counts credential-shaped strings (values never printed). Measured 2026-10-20: 0 real
-  credentials in 49 sessions; the only JWTs are the local stack's public `supabase-demo` keys.
+- `secretHits` / `secretNames` in the index flag credential-shaped strings by name (values never printed or stored).
+  Measured 2026-10-20 across 49 sessions: one real secret, `CLAUDE_CODE_MESSAGING_TOKEN` in session 84ee17dc (a
+  per-session local pipe token, live only while that session runs); every other hit is the local Supabase stack's
+  published defaults or code. The raw history stays verbatim (integrity); protection is: never in Git, encrypted
+  backup only, BitLocker on C: (owner action).
 
 ## Improvement memory
 `lib\Events.ps1 -Brief` (printed at session start) lists open or recurring patterns; `-Find '<task>'` returns the few

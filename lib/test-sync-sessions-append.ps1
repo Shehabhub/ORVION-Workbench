@@ -17,13 +17,21 @@ try{
     Write-Bytes $src "{`"n`":4,`"half`":1}`n" -Append
     $null=Copy-Grown $src $dst
     Assert-That 'killed append is completed' ([IO.File]::ReadAllText($dst)-ceq[IO.File]::ReadAllText($src))
-    $row=[ordered]@{title='';cwd='';branch='';start='';end='';lines=0;specs=@();secretHits=0;secretNames=@();metaBytes=0}
+    $row=New-IndexRow 'claude' 'test'
     Update-Meta $row $dst 'claude';$inc1=$row.lines
     Write-Bytes $src "{`"timestamp`":`"2026-10-20T02:00:00Z`",`"x`":`"CLAUDE_CODE_MESSAGING_TOKEN=0123456789abcdef0123456789abcdef`"}`n" -Append
     $null=Copy-Grown $src $dst;Update-Meta $row $dst 'claude'
-    $full=[ordered]@{title='';cwd='';branch='';start='';end='';lines=0;specs=@();secretHits=0;secretNames=@();metaBytes=0};Update-Meta $full $dst 'claude'
+    $full=New-IndexRow 'claude' 'test';Update-Meta $full $dst 'claude'
     Assert-That 'incremental index equals a full read' ($inc1-eq4-and$row.lines-eq$full.lines-and$row.metaBytes-eq(Get-Item $dst).Length-and$row.end-eq$full.end-and"$($row.specs)"-eq'SPEC-123')
     Assert-That 'NAME=value credential named, value not stored' ("$($row.secretNames)"-eq'CLAUDE_CODE_MESSAGING_TOKEN'-and$row.secretHits-eq1-and(($row|ConvertTo-Json)-notmatch'0123456789abcdef'))
+    Write-Bytes $src ('{"type":"user","message":{"role":"user","content":"Fix the watcher ETA please"}}'+"`n"+'{"type":"user","isMeta":true,"message":{"role":"user","content":"meta, not a prompt"}}'+"`n"+'{"message":{"role":"user","content":"<task-notification>not a prompt</task-notification>"}}'+"`n"+'{"content":[{"type":"tool_use","id":"t1","name":"PowerShell","input":{}}]}'+"`n"+'{"content":[{"type":"tool_result","is_error":true}]}'+"`n") -Append
+    $null=Copy-Grown $src $dst;Update-Meta $row $dst 'claude'
+    Assert-That 'task, prompts, tools and errors are indexed' ($row.firstPrompt-eq'Fix the watcher ETA please'-and$row.prompts-eq1-and$row.toolCalls-eq1-and$row.tools['PowerShell']-eq1-and$row.errors-eq1)
+    $cx=Join-Path $t 'cx.jsonl'
+    Write-Bytes $cx ('{"type":"event_msg","payload":{"type":"user_message","client_id":"x","message":"Line one\nSPEC-200 \"quoted\""}}'+"`n"+'{"type":"response_item","payload":{"type":"custom_tool_call","id":"c","status":"completed","name":"exec"}}'+"`n"+'{"type":"response_item","payload":{"type":"function_call","id":"f","name":"js","namespace":"mcp__cua_repl"}}'+"`n"+'{"m":"SPEC-999 SPEC-200 SPEC-200"}'+"`n")
+    $cr=New-IndexRow 'codex' 'cx';Update-Meta $cr $cx 'codex'
+    Assert-That 'Codex prompt and tools indexed, title unescaped' ($cr.prompts-eq1-and$cr.firstPrompt-ceq'Line one SPEC-200 "quoted"'-and$cr.toolCalls-eq2-and$cr.tools['mcp__cua_repl.js']-eq1)
+    Assert-That 'most-mentioned SPEC ranks first' ($cr.specs[0]-eq'SPEC-200')
     Write-Bytes $src "{`"rewritten`":true}`n"
     $null=Copy-Grown $src $dst
     Assert-That 'rewritten source keeps the old copy beside' ([IO.File]::ReadAllText($dst)-ceq"{`"rewritten`":true}`n"-and@(Get-ChildItem (Split-Path $dst) -Filter 'dst.replaced-*').Count-eq1)

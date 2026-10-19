@@ -69,8 +69,12 @@ function Copy-Grown([string]$Src,[string]$Dst){
 }
 
 # Index metadata is read incrementally: each row remembers metaBytes, and only the archived bytes after it are read.
+function ConvertFrom-JsonText([string]$Text){  # a JSON string body as one readable line, at most 160 characters
+    $t=try{[string](ConvertFrom-Json ('"'+$Text.TrimEnd('\')+'"'))}catch{$Text}
+    (($t-replace'\s+',' ').Trim())-replace'^(.{160}).+$','$1...'
+}
 function Update-Meta($Row,[string]$Path,[string]$Client){
-    $specs=@{};foreach($s in @($Row.specs)){if($s){$specs[$s]=1}};$names=@{};foreach($s in @($Row.secretNames)){if($s){$names[$s]=1}}
+    $specs=$Row.specCounts;$names=@{};foreach($s in @($Row.secretNames)){if($s){$names[$s]=1}}
     $fs=Open-Shared $Path
     # Read only complete lines: a partial tail (a killed append) is read once the next pass completes it.
     $look=[int][Math]::Min(1MB,$fs.Length-$Row.metaBytes);$buf=New-Object byte[] $look;$fs.Position=$fs.Length-$look;$got=0
@@ -82,14 +86,25 @@ function Update-Meta($Row,[string]$Path,[string]$Client){
         $t=[regex]::Match($l,'"timestamp":"([^"]+)"');if($t.Success){if(!$Row.start){$Row.start=$t.Groups[1].Value};$Row.end=$t.Groups[1].Value}
         if(!$Row.cwd){$c=[regex]::Match($l,'"cwd":"([^"]+)"');if($c.Success){$Row.cwd=$c.Groups[1].Value-replace'\\\\','\'}}
         if(!$Row.branch){$b=[regex]::Match($l,'"gitBranch":"([^"]+)"');if($b.Success){$Row.branch=$b.Groups[1].Value}}
-        $a=[regex]::Match($l,'"aiTitle":"([^"]+)"');if($a.Success){$Row.title=$a.Groups[1].Value}
-        if($Client-eq'codex'-and!$Row.title-and$l.Contains('"type":"user_message"')){$u=[regex]::Match($l,'"message":"((?:[^"\\]|\\.){1,120})');if($u.Success){$Row.title=$u.Groups[1].Value}}
-        foreach($s in [regex]::Matches($l,'SPEC-\d{3}')){$specs[$s.Value]=1}
+        $a=[regex]::Match($l,'"aiTitle":"((?:[^"\\]|\\.)+)"');if($a.Success){$Row.title=ConvertFrom-JsonText $a.Groups[1].Value}
+        foreach($s in [regex]::Matches($l,'SPEC-\d{3}')){$specs[$s.Value]=1+$specs[$s.Value]}  # counted: the most discussed, not the highest, describe a session
+        # What happened, without reading the transcript: the task, how much work, what failed, whether it was compacted.
+        # Codex puts other keys between type and message/name (measured 2026-10-20), so match the payload type, then the field.
+        $prompt=if($Client-eq'codex'){if($l.Contains('"payload":{"type":"user_message"')){[regex]::Match($l,'"message":"((?:[^"\\]|\\.){1,400})')}}
+            elseif(!$l.Contains('"isMeta":true')){[regex]::Match($l,'"message":\{"role":"user","content":"(?!<(?:task-notification|local-command|command-))((?:[^"\\]|\\.){1,400})')}
+        if($prompt-and$prompt.Success){$Row.prompts++;if(!$Row.firstPrompt){$Row.firstPrompt=ConvertFrom-JsonText $prompt.Groups[1].Value}}
+        foreach($tm in [regex]::Matches($l,'"type":"tool_use","id":"[^"]+","name":"([^"]+)"')){$tool=$tm.Groups[1].Value;$Row.tools[$tool]=1+$Row.tools[$tool];$Row.toolCalls++}
+        if($Client-eq'codex'-and$l-match'"payload":\{"type":"(?:custom_tool_call|function_call)"'){
+            $nm=[regex]::Match($l,'"name":"([^"]+)"');$ns=[regex]::Match($l,'"namespace":"([^"]+)"')
+            if($nm.Success){$tool=if($ns.Success){"$($ns.Groups[1].Value).$($nm.Groups[1].Value)"}else{$nm.Groups[1].Value};$Row.tools[$tool]=1+$Row.tools[$tool];$Row.toolCalls++}
+        }
+        $Row.errors+=[regex]::Matches($l,'"is_error":true').Count
+        if($l.Contains('"subtype":"compact_boundary"')){$Row.compactions++}
         $hits=[regex]::Matches($l,$secret).Count+@([regex]::Matches($l,$jwt)|Where-Object{Test-RealJwt $_.Groups[1].Value}).Count
         $an=@(Get-AssignedSecretName $l);foreach($n in $an){$names[$n]=1}
         $Row.secretHits+=$hits+$an.Count
     }}finally{$sr.Close()}
-    $Row.specs=@($specs.Keys|Sort-Object);$Row.secretNames=@($names.Keys|Sort-Object)
+    $Row.specCounts=$specs;$Row.specs=@($specs.GetEnumerator()|Sort-Object Value -Descending|Select-Object -First 8|ForEach-Object Key);$Row.secretNames=@($names.Keys|Sort-Object)
 }
 
 function Invoke-Pass{
@@ -111,24 +126,54 @@ function Invoke-Pass{
     $script:sessions=$list
 }
 
+$schema=3  # bump when Update-Meta learns a field: every row is then re-read once from the start
+function New-IndexRow([string]$Client,[string]$Id){
+    [ordered]@{v=$schema;client=$Client;id=$Id;repo='';title='';firstPrompt='';cwd='';branch='';start='';end='';durationMin=0
+        prompts=0;toolCalls=0;tools=@{};errors=0;compactions=0;subagents=0;subagentTasks=@();events=0;specs=@();specCounts=@{}
+        secretHits=0;secretNames=@();bytes=0;lines=0;raw='';sha256='';metaBytes=0}
+}
 function Update-Index{
     $old=@{};if(Test-Path $indexPath){foreach($l in [IO.File]::ReadAllLines($indexPath)){if($l){$o=$l|ConvertFrom-Json -AsHashtable;$old["$($o.client)/$($o.id)"]=$o}}}
+    $evCount=@{};$evLog=Join-Path $Root 'events\events.jsonl'
+    if(Test-Path $evLog){foreach($l in [IO.File]::ReadAllLines($evLog)){$m=[regex]::Match($l,'"session":"([^"]+)"');if($m.Success){$evCount[$m.Groups[1].Value]=1+$evCount[$m.Groups[1].Value]}}}
     $rows=foreach($s in $script:sessions){
         if(!(Test-Path -LiteralPath $s.dst)){continue}
         $a=Get-Item -LiteralPath $s.dst;$r=$old["$($s.client)/$($s.id)"]
-        if(!$r-or!$r.Contains('metaBytes')-or$r.metaBytes-gt$a.Length){  # new, pre-incremental, or replaced: read from the start
-            $r=[ordered]@{client=$s.client;id=$s.id;title='';cwd='';branch='';start='';end='';bytes=0;lines=0;subagents=0;specs=@();secretHits=0;secretNames=@();raw='';sha256='';metaBytes=0}
+        if(!$r-or$r.v-ne$schema-or$r.metaBytes-gt$a.Length){  # new, older schema, or replaced: read from the start
+            $r=New-IndexRow $s.client $s.id
+
         }
         if($r.metaBytes-lt$a.Length){Update-Meta $r $a.FullName $s.client}
         $idle=([DateTime]::UtcNow-$a.LastWriteTimeUtc).TotalMinutes-ge10
         if($r.bytes-ne$a.Length){$r.sha256=''};if($idle-and!$r.sha256){$r.sha256=(Get-FileHash -LiteralPath $a.FullName).Hash}  # a live session has no final hash yet
         $r.bytes=$a.Length;$r.raw=$a.FullName.Substring($Root.Length+1)
-        $r.subagents=@(if($s.sub-and(Test-Path $s.sub)){Get-ChildItem $s.sub -Filter *.jsonl}).Count
+        $r.repo=if($r.cwd-match'\\GitHub\\([^\\]+)'){$Matches[1]}else{Split-Path $r.cwd -Leaf}
+        if($r.start-and$r.end){$r.durationMin=[int]([datetime]$r.end-[datetime]$r.start).TotalMinutes}
+        $sub=Join-Path (Split-Path $a.FullName) "$($s.id)\subagents"  # the archived copy: survives the source's 30-day deletion
+        $metas=@(if($s.client-eq'claude'-and(Test-Path $sub)){Get-ChildItem $sub -Filter *.meta.json})
+        $r.subagents=@(if(Test-Path $sub){Get-ChildItem $sub -Filter *.jsonl}).Count
+        $r.subagentTasks=@($metas|ForEach-Object{try{(Get-Content $_.FullName -Raw|ConvertFrom-Json).description}catch{}}|Where-Object{$_}|Select-Object -First 12)
+        $r.events=[int]$evCount[$s.id]
         [pscustomobject]$r
     }
     $rows=@($rows|Sort-Object start)
     $tmp="$indexPath.tmp";[IO.File]::WriteAllLines($tmp,[string[]]@($rows|ForEach-Object{$_|ConvertTo-Json -Compress -Depth 3}));Move-Item $tmp $indexPath -Force
+    Write-IndexPage $rows
     $rows
+}
+function Write-IndexPage($IndexRows){  # sessions\INDEX.md: the same index as one readable table, newest first
+    $md=[Collections.Generic.List[string]]::new()
+    $md.Add('# ORVION session index (generated by lib\Sync-Sessions.ps1; do not edit)');$md.Add('')
+    $md.Add("Updated $([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm')) UTC. $($IndexRows.Count) sessions. Raw transcripts: ``sessions\raw\`` (search with Grep; never ``grep -o`` a wide window).")
+    $md.Add('Machine-readable: `sessions\index.jsonl`. Events recorded in a session: `lib\Events.ps1 -Find <words>`.');$md.Add('')
+    $md.Add('| Start (UTC) | Min | Repo | Client | Title / first task | Prompts | Tools | Errors | Compact | Agents | Events | SPECs | MB | Raw |')
+    $md.Add('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
+    foreach($r in @($IndexRows|Sort-Object start -Descending)){
+        $title=(@($r.title,$r.firstPrompt)|Where-Object{$_}|Select-Object -First 1)-replace'\|','/'
+        $top=($r.tools.GetEnumerator()|Sort-Object Value -Descending|Select-Object -First 3|ForEach-Object{"$($_.Key) $($_.Value)"})-join', '
+        $md.Add("| $(if($r.start){([datetime]$r.start).ToUniversalTime().ToString('yyyy-MM-dd HH:mm')}) | $($r.durationMin) | $($r.repo) | $($r.client) | $title | $($r.prompts) | $($r.toolCalls)$(if($top){" ($top)"}) | $($r.errors) | $($r.compactions) | $($r.subagents) | $($r.events) | $(@($r.specs|Select-Object -First 4)-join' ') | $([math]::Round($r.bytes/1MB,1)) | ``$($r.raw)`` |")
+    }
+    $p=Join-Path $Root 'sessions\INDEX.md';[IO.File]::WriteAllLines("$p.tmp",$md);Move-Item "$p.tmp" $p -Force
 }
 
 if($Library){return}
