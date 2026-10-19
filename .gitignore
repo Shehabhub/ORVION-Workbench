@@ -1,0 +1,6 @@
+# Local data, never versioned: raw sessions are sensitive and large, the event log and work are machine history.
+# They are protected by Backup-Workspace.ps1 (encrypted drive only), not by Git.
+/sessions/
+/events/
+/work/
+*.tmp

@@ -1,0 +1,7 @@
+#!/bin/sh
+# Refuse a commit unless every tool check passes and nothing under the local-data folders is staged.
+if git diff --cached --name-only | grep -E '^(sessions|events|work)/' >/dev/null; then
+  echo "ORVION-Owner-Tools: local data (sessions/, events/, work/) is never committed" >&2
+  exit 1
+fi
+exec pwsh -NoProfile -File "$(git rev-parse --show-toplevel)/tests.ps1"
