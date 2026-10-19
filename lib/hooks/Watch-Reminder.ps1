@@ -23,7 +23,7 @@ try{
         if($hookEvent-eq'SessionEnd'){exit 0}
         $md=[IO.File]::ReadAllText((Join-Path $lib 'README.md'))
         $always=[regex]::Match($md,'(?s)## Always.*?(?=\n## )').Value
-        $events=(& (Join-Path $lib 'Events.ps1') -Brief)-join"`n"
+        $events=((& (Join-Path $lib 'Pulse.ps1'))+''+(& (Join-Path $lib 'Events.ps1') -Brief))-join"`n"  # the live state first, then the open lessons
         Send-Context ("ORVION AGENT TOOLS exist at $lib (index: README.md). Use them; never hand-write an alarm loop.`n"+$always.Replace('<lib>',$lib)+"`n"+$events+"`nBefore a task: pwsh -NoProfile -File `"$lib\Events.ps1`" -Find '<task in a few words>'. Record a failure, discovery or decision worth keeping with Events.ps1 -Add. Past sessions (task, size, tools, errors, SPECs, raw path): $(Split-Path $lib -Parent)\sessions\INDEX.md.")
         exit 0
     }

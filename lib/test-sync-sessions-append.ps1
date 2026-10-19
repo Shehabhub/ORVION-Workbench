@@ -26,7 +26,7 @@ try{
     Assert-That 'NAME=value credential named, value not stored' ("$($row.secretNames)"-eq'CLAUDE_CODE_MESSAGING_TOKEN'-and$row.secretHits-eq1-and(($row|ConvertTo-Json)-notmatch'0123456789abcdef'))
     Write-Bytes $src ('{"type":"user","message":{"role":"user","content":"Fix the watcher ETA please"}}'+"`n"+'{"type":"user","isMeta":true,"message":{"role":"user","content":"meta, not a prompt"}}'+"`n"+'{"message":{"role":"user","content":"<task-notification>not a prompt</task-notification>"}}'+"`n"+'{"content":[{"type":"tool_use","id":"t1","name":"PowerShell","input":{}}]}'+"`n"+'{"content":[{"type":"tool_result","is_error":true}]}'+"`n") -Append
     $null=Copy-Grown $src $dst;Update-Meta $row $dst 'claude'
-    Assert-That 'task, prompts, tools and errors are indexed' ($row.firstPrompt-eq'Fix the watcher ETA please'-and$row.prompts-eq1-and$row.toolCalls-eq1-and$row.tools['PowerShell']-eq1-and$row.errors-eq1)
+    Assert-That 'task, prompts, tools and errors are indexed' ($row.firstPrompt-eq'Fix the watcher ETA please'-and$row.lastPrompt-eq'Fix the watcher ETA please'-and$row.prompts-eq1-and$row.toolCalls-eq1-and$row.tools['PowerShell']-eq1-and$row.errors-eq1)
     $cx=Join-Path $t 'cx.jsonl'
     Write-Bytes $cx ('{"type":"event_msg","payload":{"type":"user_message","client_id":"x","message":"Line one\nSPEC-200 \"quoted\""}}'+"`n"+'{"type":"response_item","payload":{"type":"custom_tool_call","id":"c","status":"completed","name":"exec"}}'+"`n"+'{"type":"response_item","payload":{"type":"function_call","id":"f","name":"js","namespace":"mcp__cua_repl"}}'+"`n"+'{"m":"SPEC-999 SPEC-200 SPEC-200"}'+"`n")
     $cr=New-IndexRow 'codex' 'cx';Update-Meta $cr $cx 'codex'

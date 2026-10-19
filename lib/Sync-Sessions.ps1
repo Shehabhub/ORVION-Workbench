@@ -92,7 +92,7 @@ function Update-Meta($Row,[string]$Path,[string]$Client){
         # Codex puts other keys between type and message/name (measured 2026-10-20), so match the payload type, then the field.
         $prompt=if($Client-eq'codex'){if($l.Contains('"payload":{"type":"user_message"')){[regex]::Match($l,'"message":"((?:[^"\\]|\\.){1,400})')}}
             elseif(!$l.Contains('"isMeta":true')){[regex]::Match($l,'"message":\{"role":"user","content":"(?!<(?:task-notification|local-command|command-))((?:[^"\\]|\\.){1,400})')}
-        if($prompt-and$prompt.Success){$Row.prompts++;if(!$Row.firstPrompt){$Row.firstPrompt=ConvertFrom-JsonText $prompt.Groups[1].Value}}
+        if($prompt-and$prompt.Success){$Row.prompts++;$Row.lastPrompt=ConvertFrom-JsonText $prompt.Groups[1].Value;if(!$Row.firstPrompt){$Row.firstPrompt=$Row.lastPrompt}}  # first = the task, last = where it stopped
         foreach($tm in [regex]::Matches($l,'"type":"tool_use","id":"[^"]+","name":"([^"]+)"')){$tool=$tm.Groups[1].Value;$Row.tools[$tool]=1+$Row.tools[$tool];$Row.toolCalls++}
         if($Client-eq'codex'-and$l-match'"payload":\{"type":"(?:custom_tool_call|function_call)"'){
             $nm=[regex]::Match($l,'"name":"([^"]+)"');$ns=[regex]::Match($l,'"namespace":"([^"]+)"')
@@ -126,9 +126,9 @@ function Invoke-Pass{
     $script:sessions=$list
 }
 
-$schema=3  # bump when Update-Meta learns a field: every row is then re-read once from the start
+$schema=4  # bump when Update-Meta learns a field: every row is then re-read once from the start
 function New-IndexRow([string]$Client,[string]$Id){
-    [ordered]@{v=$schema;client=$Client;id=$Id;repo='';title='';firstPrompt='';cwd='';branch='';start='';end='';durationMin=0
+    [ordered]@{v=$schema;client=$Client;id=$Id;repo='';title='';firstPrompt='';lastPrompt='';cwd='';branch='';start='';end='';durationMin=0
         prompts=0;toolCalls=0;tools=@{};errors=0;compactions=0;subagents=0;subagentTasks=@();events=0;specs=@();specCounts=@{}
         secretHits=0;secretNames=@();bytes=0;lines=0;raw='';sha256='';metaBytes=0}
 }

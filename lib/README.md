@@ -24,6 +24,8 @@ wave-2 tooling contract tracks these tools in each repository and names them in 
 ## Workspace memory and recovery
 | Tool | Purpose |
 |---|---|
+| `Pulse.ps1` | the live state any arriving agent sees first (repos, pending candidates, running, host, waiting on the owner, last session, open lessons); session start prints it |
+| `Delegate.ps1 -Pattern <id> -Question '...'` / `-List` | the delegation road: a bounded brief for a cold agent (authority never grows), its verdict comes back as an event |
 | `Spider.ps1 '<entity or phrase>'` | one question across sessions, events, both repos' files and commits, memory and owner packets; ranked, values masked, ~4 s |
 | `Events.ps1 -Find '<task>'` / `-Brief` / `-Add` | improvement memory: relevant past failures, discoveries, decisions; watchers record alarms |
 | `Sync-Sessions.ps1` | verbatim archive of every ORVION session + `sessions\index.jsonl` (hook runs it at start and end) |
