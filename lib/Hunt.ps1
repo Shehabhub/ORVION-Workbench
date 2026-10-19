@@ -9,6 +9,7 @@
 #   tested      every tool has a self-check that names it
 #   mutants     known bugs planted in a temp copy of lib must make their self-check FAIL (a test that passes
 #               against broken code is a gap)
+#   capability  NEED (history shows a missing MCP server, hook or skill) and PRUNE (configured, never used) proposals
 #   lint        PSScriptAnalyzer bug-relevant rules, when installed (known false positives listed below)
 # -Quick skips mutants and lint (about 5 s instead of about 60 s).
 param([string]$Root=(Split-Path $PSScriptRoot -Parent),[switch]$Quick,[switch]$NoRecord,[object[]]$MutantSet)  # -MutantSet: test-hunt.ps1 only
@@ -94,6 +95,37 @@ if(!$Quick){
             if($LASTEXITCODE-eq0){Add-Finding GAP mutant-survived "$($m[3]) still passes with $($m[4]) broken in $($m[0]): the check does not guard it" 'test mutant survived self-check weak'}
         }
     }finally{if(Test-Path $t){Get-ChildItem $t -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}}
+    # capabilities: what the session history says is missing (NEED) or unused (PRUNE). Proposals only: installing or
+    # removing a plugin, MCP server, hook or skill stays the owner's decision.
+    $use=@{};$skillUse=@{};$gh=0;$docs=0;$sessions=@{}
+    if(Test-Path $raw){foreach($f in Get-ChildItem $raw -Recurse -File -Filter *.jsonl){
+        $sessions[$f.BaseName]=1
+        foreach($l in [IO.File]::ReadLines($f.FullName)){
+            if($l.IndexOf('"type":"tool_use"',[StringComparison]::Ordinal)-lt0-and$l.IndexOf('function_call',[StringComparison]::Ordinal)-lt0){continue}
+            foreach($m in [regex]::Matches($l,'"name":"mcp__([^"]+?)__[^"]+"|"namespace":"mcp__([^"]+)"')){$k="$($m.Groups[1].Value)$($m.Groups[2].Value)";$use[$k]=1+$use[$k]}  # Claude names / Codex namespaces
+            foreach($m in [regex]::Matches($l,'"name":"Skill","input":\{"skill":"([^"]+)"')){$skillUse[$m.Groups[1].Value]=1+$skillUse[$m.Groups[1].Value]}
+            $gh+=[regex]::Matches($l,'"command":"[^"]*\bgh api\b').Count
+            $docs+=[regex]::Matches($l,'"name":"WebFetch","input":\{"url":"https?://(?:docs\.|learn\.|developers\.|git-scm\.)').Count
+        }
+    }}
+    $configured=[ordered]@{}  # server -> where it is configured
+    foreach($r in 'CRM','ORVION'){$m=Join-Path (Split-Path $Root -Parent) "$r\.mcp.json";if(Test-Path $m){foreach($n in ((Get-Content $m -Raw|ConvertFrom-Json).mcpServers.PSObject.Properties.Name)){$configured[$n]=@($configured[$n])+"$r\.mcp.json"|Where-Object{$_}}}}
+    $cxCfg=Join-Path $env:USERPROFILE '.codex\config.toml'
+    if(Test-Path $cxCfg){foreach($n in (Select-String -Path $cxCfg -Pattern '^\[mcp_servers\.([^\].]+)\]'|ForEach-Object{$_.Matches[0].Groups[1].Value})){$configured["codex:$n"]='~\.codex\config.toml'}}
+    if($sessions.Count-ge10){
+        $idle=@($configured.Keys|Where-Object{!$use[($_-replace'^codex:','')]})
+        if($idle){Add-Finding PRUNE mcp-unused "$($idle.Count) configured MCP server(s) never called in $($sessions.Count) archived transcripts (each costs context every session): $($idle-join', ')" 'mcp server unused prune context'}
+    }
+    if($gh-ge50-and!$configured.Contains('github')){Add-Finding NEED mcp-github "agents called gh api $gh times by hand; Claude has no GitHub MCP server (Codex has $(@($configured.Keys|Where-Object{$_-like'codex:github*'})-join', ')); a per-account server must respect CTRL-19" 'mcp github gh api'}
+    $c7=[int]$use['context7']+[int]$use['claude_ai_Context7']
+    if($docs-ge15-and$c7-le5){Add-Finding NEED docs-by-hand "agents fetched documentation pages by hand $docs times while Context7 (installed) was called $c7 times: surface it at the point of need" 'docs documentation context7 webfetch library'}
+    $hookText=@(foreach($s in (Join-Path $env:USERPROFILE '.claude\settings.json'),(Join-Path (Split-Path $Root -Parent) 'CRM\.claude\settings.local.json'),(Join-Path (Split-Path $Root -Parent) 'ORVION\.claude\settings.local.json')){if(Test-Path $s){[IO.File]::ReadAllText($s)}})-join"`n"
+    $hookText+=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'hooks\Watch-Reminder.ps1'))
+    $recurring=@($events|Where-Object{$_.category-eq'failure'}|Group-Object pattern|Where-Object{@($_.Group.session|Select-Object -Unique).Count-ge2}|ForEach-Object{
+        $tool=@($_.Group.tool|Where-Object{$_})[-1];$act=@($_.Group.action|Where-Object{$_})[-1]
+        $toolName=if($tool){[IO.Path]::GetFileNameWithoutExtension(($tool-split'\s')[0])}else{''}
+        if(!$toolName-or!$hookText.Contains($toolName)){"$($_.Name) ($(@($_.Group.session|Select-Object -Unique).Count) sessions; rule: $act)"}})
+    if($recurring){Add-Finding NEED hook-candidates "lessons that recurred across sessions with no hook enforcing them at the point of action (reminders alone did not prevent the repeat): $($recurring-join' | ')" 'hook enforce recurring lesson point of action'}
     # lint: bug-relevant rules only; the listed hits were triaged as false positives on 2026-10-20
     if(Get-Module -ListAvailable PSScriptAnalyzer){
         Import-Module PSScriptAnalyzer
@@ -104,12 +136,12 @@ if(!$Quick){
     }else{Add-Finding GAP lint-unavailable 'PSScriptAnalyzer is not installed: Install-Module PSScriptAnalyzer -Scope CurrentUser' 'lint static analysis'}
 }
 
-$bugs=@($findings|Where-Object kind -eq BUG).Count;$gaps=@($findings|Where-Object kind -eq GAP).Count
-$summary="HUNT $([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm')) UTC$(if($Quick){' (quick)'}): $bugs bug(s), $gaps gap(s) in $([int]$sw.Elapsed.TotalSeconds) s"
+$bugs=@($findings|Where-Object kind -eq BUG).Count;$gaps=@($findings|Where-Object kind -eq GAP).Count;$props=@($findings|Where-Object kind -in NEED,PRUNE).Count
+$summary="HUNT $([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm')) UTC$(if($Quick){' (quick)'}): $bugs bug(s), $gaps gap(s), $props capability proposal(s) in $([int]$sw.Elapsed.TotalSeconds) s"
 $summary;$findings|ForEach-Object{"  $($_.kind) $($_.hound): $($_.text)"}
 New-Item -ItemType Directory (Join-Path $Root 'work') -Force|Out-Null
 [IO.File]::WriteAllLines((Join-Path $Root 'work\hunt-last.txt'),[string[]](@($summary)+@($findings|ForEach-Object{"  $($_.kind) $($_.hound): $($_.text)"})))
 if(!$NoRecord){foreach($x in $findings){
-    $null=& (Join-Path $PSScriptRoot 'Events.ps1') -Root $Root -Add -Pattern "hunt-$($x.hound)" -Source hunter -Session "hunter-$([DateTime]::UtcNow.ToString('yyyy-MM-dd'))" -Category $(if($x.kind-eq'BUG'){'failure'}else{'observation'}) -Severity $(if($x.kind-eq'BUG'){'high'}else{'warn'}) -Cause confirmed -Summary "$($x.kind): $($x.text)" -Tool 'Hunt.ps1' -Tags "hunt $($x.kind.ToLower()) $($x.tags)"
+    $null=& (Join-Path $PSScriptRoot 'Events.ps1') -Root $Root -Add -Pattern "hunt-$($x.hound)" -Source hunter -Session "hunter-$([DateTime]::UtcNow.ToString('yyyy-MM-dd'))" -Category $(if($x.kind-eq'BUG'){'failure'}elseif($x.kind-in'NEED','PRUNE'){'proposal'}else{'observation'}) -Severity $(if($x.kind-eq'BUG'){'high'}else{'warn'}) -Cause confirmed -Summary "$($x.kind): $($x.text)" -Tool 'Hunt.ps1' -Tags "hunt $($x.kind.ToLower()) $($x.tags)"
 }}
 exit [int]($bugs-gt0)
