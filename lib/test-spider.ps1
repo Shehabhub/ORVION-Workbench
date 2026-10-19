@@ -1,0 +1,28 @@
+# Self-check for Spider.ps1 on a temp workspace: it finds the query in a session, an event, a repository file, a commit
+# message and a note; it masks a credential value in the snippet; and a repository git cannot read refuses loudly.
+$ErrorActionPreference='Stop'
+$t=Join-Path ([IO.Path]::GetTempPath()) "orvion-spidercheck-$([guid]::NewGuid().ToString('N').Substring(0,6))"
+$fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
+function Invoke-Quiet{param([string]$Dir)& git -C $Dir @args 2>&1|Out-Null;if($LASTEXITCODE){throw "git $args failed"}}
+try{
+    $raw=Join-Path $t 'ws\sessions\raw\claude\p';New-Item -ItemType Directory $raw -Force|Out-Null
+    $tok='Z'+('9'*25)
+    Set-Content (Join-Path $raw 's1.jsonl') ("{`"timestamp`":`"2026-10-01T10:00:00Z`",`"x`":`"saw ZEBRA-42 with API_KEY=$tok here`"}")
+    '{"id":"s1","start":"2026-10-01T10:00:00Z","title":"zebra session","repo":"CRM","raw":"sessions\\raw\\claude\\p\\s1.jsonl"}'|Set-Content (Join-Path $t 'ws\sessions\index.jsonl')
+    & (Join-Path $PSScriptRoot 'Events.ps1') -Root (Join-Path $t 'ws') -Add -Pattern zebra-case -Session s1 -Summary 'ZEBRA-42 broke once' -Tags 'zebra-42'|Out-Null
+    Set-Content (Join-Path $t 'ws\README.md') 'Notes about ZEBRA-42.'
+    $repo=Join-Path $t 'repo';New-Item -ItemType Directory $repo|Out-Null;Invoke-Quiet $repo init -q
+    Set-Content (Join-Path $repo 'a.md') "ZEBRA-42 is fixed`nZEBRA-42 again";Invoke-Quiet $repo add -A
+    Invoke-Quiet $repo -c user.name=t -c user.email=t@t commit -q -m 'Fix ZEBRA-42'
+    $out=@(& (Join-Path $PSScriptRoot 'Spider.ps1') 'ZEBRA-42' -Root (Join-Path $t 'ws') -Repos $repo -ReviewRoot (Join-Path $t 'none'))
+    $text=$out-join"`n"
+    Assert-That 'session found with its task' ($text-match'== sessions: 1 mention it'-and$text-match'zebra session')
+    Assert-That 'credential value masked in the snippet' ($text-match'API_KEY=<masked>'-and$text-notmatch$tok)
+    Assert-That 'event found' ($text-match'zebra-case')
+    Assert-That 'repository file and commit found' ($text-match'files: 1 \(a\.md 2\)'-and$text-match'Fix ZEBRA-42')
+    Assert-That 'note found' ($text-match'== notes: \d+ files.*README\.md')
+    $broken=Join-Path $t 'broken';New-Item -ItemType Directory $broken|Out-Null;Set-Content (Join-Path $broken '.git') 'gitdir: C:/does/not/exist'
+    $refused=try{& (Join-Path $PSScriptRoot 'Spider.ps1') 'ZEBRA-42' -Root (Join-Path $t 'ws') -Repos $broken -ReviewRoot (Join-Path $t 'none')|Out-Null;$false}catch{"$_"-match'SPIDER_GIT_FAILED'}
+    Assert-That 'an unreadable repository refuses, never reads as no match' $refused
+}finally{if(Test-Path $t){Get-ChildItem $t -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}}
+if($fail){throw "SPIDER_SELFCHECK_FAILED $fail"};'SPIDER_SELFCHECK PASS'

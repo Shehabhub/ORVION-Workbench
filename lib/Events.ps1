@@ -49,28 +49,32 @@ $views=foreach($g in @(Read-Events|Group-Object pattern)){
     $r=@($g.Group|Sort-Object at);$z=$r[-1]
     [pscustomobject]@{pattern=$g.Name;status=$z.status;sessions=@($r.session|Select-Object -Unique).Count;last=([datetime]$z.at).ToUniversalTime().ToString('yyyy-MM-dd')
         summary=$z.summary;sessionList=@($r.session);tool=@($r.tool|Where-Object{$_})[-1];action=@($r.action|Where-Object{$_})[-1];evidence=@($r.evidence|Where-Object{$_})[-1]
-        words=@([regex]::Matches((($r|ForEach-Object{"$($_.pattern-replace'-',' ') $($_.summary) $($_.tool) $($_.action) $($_.tags)"})-join' ').ToLower(),'[a-z0-9$]{3,}')|ForEach-Object Value|Select-Object -Unique)}
+        tagWords=@([regex]::Matches((($r|ForEach-Object{"$($_.pattern-replace'-',' ') $($_.tags)"})-join' ').ToLower(),'[a-z0-9$_]{2,}')|ForEach-Object Value|Select-Object -Unique)
+        words=@([regex]::Matches((($r|ForEach-Object{"$($_.pattern-replace'-',' ') $($_.summary) $($_.tool) $($_.action) $($_.tags)"})-join' ').ToLower(),'[a-z0-9$_]{2,}')|ForEach-Object Value|Select-Object -Unique)}
 }
-function Test-WordMatch([string]$Term,[string[]]$Vocabulary){  # exact, or a shared stem of 4+ letters (exit/exits, watch/watcher)
-    foreach($w in $Vocabulary){if($w-eq$Term-or($Term.Length-ge4-and$w.Length-ge4-and($w.StartsWith($Term)-or$Term.StartsWith($w)))){return $true}};$false
+function Test-WordMatch([string]$Term,[string[]]$Vocabulary){  # 2 exact, 1 a shared stem of 4+ letters (exit/exits, watch/watcher), 0 none
+    if($Vocabulary-contains$Term){return 2}
+    foreach($w in $Vocabulary){if($Term.Length-ge4-and$w.Length-ge4-and($w.StartsWith($Term)-or$Term.StartsWith($w))){return 1}};0
 }
 function Format-View($v,[switch]$WithSession){
     $use=@(if($v.tool){"use $($v.tool)"};if($v.action){$v.action})-join'; '
     $line="[$($v.status) x$($v.sessions) $($v.last)] $($v.pattern): $($v.summary)$(if($use){" -> $use"})$(if($v.evidence){" (evidence: $($v.evidence))"})"
     # the newest occurrence whose transcript is archived (an older one may predate the archive)
     $s=if($WithSession){@($v.sessionList|ForEach-Object{$script:sessionIndex[$_]}|Where-Object{$_})[-1]}
-    if($s){$line+="`n    raw record: session $($s.id.Substring(0,8)) $(([datetime]$s.start).ToUniversalTime().ToString('yyyy-MM-dd')) `"$($s.title)`" -> $(Join-Path $Root $s.raw)"}
+    if($s){$line+="`n    raw record: session $($s.id.Substring(0,[Math]::Min(8,$s.id.Length))) $(([datetime]$s.start).ToUniversalTime().ToString('yyyy-MM-dd')) `"$($s.title)`" -> $(Join-Path $Root $s.raw)"}
     $line
 }
 # The session index links an event to its full raw transcript (written by Sync-Sessions.ps1).
 $sessionIndex=@{};$ix=Join-Path $Root 'sessions\index.jsonl'
 if($Find-and(Test-Path $ix)){foreach($l in [IO.File]::ReadAllLines($ix)){if($l){$o=$l|ConvertFrom-Json;$sessionIndex[$o.id]=$o}}}
 if($Find){
-    $stop='the','and','for','with','that','this','from','into','then','run','use','new','all','any','our','its','are','was','not','but','when'
-    $words=@([regex]::Matches($Find.ToLower(),'[a-z0-9$]{3,}')|ForEach-Object Value|Where-Object{$_-notin$stop}|Select-Object -Unique)
+    $stop='the','and','for','with','that','this','from','into','then','run','use','new','all','any','our','its','are','was','not','but','when',  # 2-letter words count (id, ui, db), common ones do not
+        'is','it','to','of','in','on','an','at','by','or','as','be','do','if','me','my','we','so','up','no','us','am','he','go'
+    $words=@([regex]::Matches($Find.ToLower(),'[a-z0-9$_]{2,}')|ForEach-Object Value|Where-Object{$_-notin$stop}|Select-Object -Unique)
     # Rare words decide (idf): "script" matches everything, "pid" or "stall" matches what the task is about.
     $n=@($views).Count;$idf=@{};foreach($q in $words){$df=@($views|Where-Object{Test-WordMatch $q $_.words}).Count;if($df){$idf[$q]=[math]::Log(($n+1)/$df)}}
-    $hits=foreach($v in $views){$s=0.0;foreach($q in $idf.Keys){if(Test-WordMatch $q $v.words){$s+=$idf[$q]}};if($s){[pscustomobject]@{v=$v;s=$s}}}
+    # A word in the curated tags or pattern id (the event's index terms) outweighs one met in prose; exact beats stem.
+    $hits=foreach($v in $views){$s=0.0;foreach($q in $idf.Keys){$s+=$idf[$q]*(2*(Test-WordMatch $q $v.tagWords)+(Test-WordMatch $q $v.words))/6};if($s){[pscustomobject]@{v=$v;s=$s}}}
     $hits=@($hits|Sort-Object @{e='s';Descending=$true},@{e={$_.v.sessions};Descending=$true})
     if($hits.Count){$best=$hits[0].s;$hits=@($hits|Where-Object{$_.s-ge0.4*$best}|Select-Object -First $Top)}
     if(!$hits.Count){"EVENTS: nothing recorded matches this task.";exit 0}
