@@ -43,7 +43,8 @@ $ixPath=Join-Path $Root 'sessions\index.jsonl'
 $prev=@(if(Test-Path $ixPath){[IO.File]::ReadAllLines($ixPath)|Where-Object{$_}|ForEach-Object{$_|ConvertFrom-Json}|Where-Object{$_.id-ne$Session-and$_.prompts}|Sort-Object end})|Select-Object -Last 1
 if($prev){"last     session $($prev.id.Substring(0,[Math]::Min(8,$prev.id.Length))) [$($prev.repo) $($prev.client)] `"$(@($prev.title,$prev.firstPrompt)|Where-Object{$_}|Select-Object -First 1)`" ended $(([datetime]$prev.end).ToUniversalTime().ToString('yyyy-MM-dd HH:mm')); last ask: `"$($prev.lastPrompt)`""}
 $lessons=@($latest|Where-Object{$_.category-ne'decision'-and$_.status-in'open','deferred'}|Sort-Object at -Descending|Select-Object -First 3)
-"lessons  open: $(@($latest|Where-Object{$_.category-ne'decision'-and$_.status-in'open','deferred'}).Count) ($(($lessons|ForEach-Object pattern)-join', ')); details: Events.ps1 -Brief"
+"lessons  open: $(@($latest|Where-Object{$_.category-ne'decision'-and$_.status-in'open','deferred'}).Count), newest first (more: Events.ps1 -Brief; for a task: Events.ps1 -Find '<task>')"
+foreach($x in $lessons){"         - $($x.pattern): $($x.summary.Substring(0,[Math]::Min(130,$x.summary.Length)))$(if($x.summary.Length-gt130){'...'})"}
 $hl=Join-Path $Root 'work\hunt-last.txt'
 if(Test-Path $hl){
     $h=@(Get-Content $hl);$age=[int]([DateTime]::UtcNow-(Get-Item $hl).LastWriteTimeUtc).TotalHours

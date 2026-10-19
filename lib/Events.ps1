@@ -47,7 +47,7 @@ if($Add){
 # One view per pattern: the latest record decides status and advice; recurrence = distinct sessions.
 $views=foreach($g in @(Read-Events|Group-Object pattern)){
     $r=@($g.Group|Sort-Object at);$z=$r[-1]
-    [pscustomobject]@{pattern=$g.Name;status=$z.status;sessions=@($r.session|Select-Object -Unique).Count;last=([datetime]$z.at).ToUniversalTime().ToString('yyyy-MM-dd')
+    [pscustomobject]@{pattern=$g.Name;category=$z.category;status=$z.status;sessions=@($r.session|Select-Object -Unique).Count;last=([datetime]$z.at).ToUniversalTime().ToString('yyyy-MM-dd')
         summary=$z.summary;sessionList=@($r.session);tool=@($r.tool|Where-Object{$_})[-1];action=@($r.action|Where-Object{$_})[-1];evidence=@($r.evidence|Where-Object{$_})[-1]
         tagWords=@([regex]::Matches((($r|ForEach-Object{"$($_.pattern-replace'-',' ') $($_.tags)"})-join' ').ToLower(),'[a-z0-9$_]{2,}')|ForEach-Object Value|Select-Object -Unique)
         words=@([regex]::Matches((($r|ForEach-Object{"$($_.pattern-replace'-',' ') $($_.summary) $($_.tool) $($_.action) $($_.tags)"})-join' ').ToLower(),'[a-z0-9$_]{2,}')|ForEach-Object Value|Select-Object -Unique)}
@@ -80,5 +80,6 @@ if($Find){
     if(!$hits.Count){"EVENTS: nothing recorded matches this task.";exit 0}
     "EVENTS relevant to this task ($($hits.Count) of $(@($views).Count) patterns):";$hits|ForEach-Object{Format-View $_.v -WithSession};exit 0
 }
-$live=@($views|Where-Object{$_.status-in'open','deferred'-or$_.sessions-ge2}|Sort-Object @{e={$_.status-in'open','deferred'};Descending=$true},@{e='sessions';Descending=$true},@{e='last';Descending=$true}|Select-Object -First $Top)
+# owner decisions are Pulse's "waiting" list, so the brief leaves them out
+$live=@($views|Where-Object{$_.category-ne'decision'}|Where-Object{$_.status-in'open','deferred'-or$_.sessions-ge2}|Sort-Object @{e={$_.status-in'open','deferred'};Descending=$true},@{e='sessions';Descending=$true},@{e='last';Descending=$true}|Select-Object -First $Top)
 if($live.Count){"EVENTS open or recurring (top $($live.Count) of $(@($views).Count); for a task run Events.ps1 -Find '<task>'):";$live|ForEach-Object{Format-View $_}}

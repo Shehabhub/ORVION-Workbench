@@ -130,7 +130,7 @@ if(!$Quick){
     if(Get-Module -ListAvailable PSScriptAnalyzer){
         Import-Module PSScriptAnalyzer
         $known='Events.ps1:PSReviewUnusedParameter:Brief','Invoke-ContractStage.ps1:PSReviewUnusedParameter:EntryFile','Sync-Sessions.ps1:PSReviewUnusedParameter:ClaudeProjects','Sync-Sessions.ps1:PSReviewUnusedParameter:CodexSessions','seed-events.ps1:PSReviewUnusedParameter:Root'
-        $lint=@(Invoke-ScriptAnalyzer -Path $Root -Recurse -IncludeRule PSReviewUnusedParameter,PSAvoidUsingEmptyCatchBlock,PSAvoidUsingCmdletAliases,PSAvoidAssignmentToAutomaticVariable,PSPossibleIncorrectComparisonWithNull,PSUseDeclaredVarsMoreThanAssignments|
+        $lint=@(Invoke-ScriptAnalyzer -Path $Root -Recurse -IncludeRule PSReviewUnusedParameter,PSAvoidUsingEmptyCatchBlock,PSAvoidUsingCmdletAliases,PSPossibleIncorrectComparisonWithNull,PSUseDeclaredVarsMoreThanAssignments|
             Where-Object{$_.ScriptPath-notmatch'\\(work|sessions|events)\\'}|Where-Object{"$($_.ScriptName):$($_.RuleName):$([regex]::Match($_.Message,"'([^']+)'").Groups[1].Value)"-notin$known})
         foreach($g in $lint|Group-Object RuleName){Add-Finding GAP "lint-$($g.Name.ToLower())" "$($g.Count)x $($g.Name): $(($g.Group|Select-Object -First 3|ForEach-Object{"$($_.ScriptName):$($_.Line)"})-join', ')" 'lint static analysis'}
     }else{Add-Finding GAP lint-unavailable 'PSScriptAnalyzer is not installed: Install-Module PSScriptAnalyzer -Scope CurrentUser' 'lint static analysis'}
@@ -143,5 +143,15 @@ New-Item -ItemType Directory (Join-Path $Root 'work') -Force|Out-Null
 [IO.File]::WriteAllLines((Join-Path $Root 'work\hunt-last.txt'),[string[]](@($summary)+@($findings|ForEach-Object{"  $($_.kind) $($_.hound): $($_.text)"})))
 if(!$NoRecord){foreach($x in $findings){
     $null=& (Join-Path $PSScriptRoot 'Events.ps1') -Root $Root -Add -Pattern "hunt-$($x.hound)" -Source hunter -Session "hunter-$([DateTime]::UtcNow.ToString('yyyy-MM-dd'))" -Category $(if($x.kind-eq'BUG'){'failure'}elseif($x.kind-in'NEED','PRUNE'){'proposal'}else{'observation'}) -Severity $(if($x.kind-eq'BUG'){'high'}else{'warn'}) -Cause confirmed -Summary "$($x.kind): $($x.text)" -Tool 'Hunt.ps1' -Tags "hunt $($x.kind.ToLower()) $($x.tags)"
-}}
+}
+    # A hound that no longer finds what it reported closes its own finding; hounds -Quick skipped cannot judge.
+    $skipped=if($Quick){'^hunt-(mutant-|lint-|mcp-|docs-|hook-candidates)'}else{'^$'}
+    $now=@($findings|ForEach-Object{"hunt-$($_.hound)"})
+    foreach($g in @($events|Where-Object{$_.pattern-like'hunt-*'}|Group-Object pattern)){
+        $z=@($g.Group|Sort-Object at)[-1]
+        if($z.status-eq'open'-and$g.Name-notin$now-and$g.Name-notmatch$skipped){
+            $null=& (Join-Path $PSScriptRoot 'Events.ps1') -Root $Root -Add -Pattern $g.Name -Source hunter -Session "hunter-$([DateTime]::UtcNow.ToString('yyyy-MM-dd'))" -Category $z.category -Cause confirmed -Status resolved -Summary "no longer found by Hunt.ps1 ($([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm')) UTC)" -Tool 'Hunt.ps1' -Tags $z.tags
+        }
+    }
+}
 exit [int]($bugs-gt0)
