@@ -18,5 +18,5 @@ try{
     [IO.Directory]::Delete("$root\a\link")
     $n=Remove-OrvionOwnedTree "$root\a" @($root)
     Check 'read-only files inside the root are deleted' (-not(Test-Path "$root\a")-and$n-gt0)
-}finally{foreach($d in $root,$outside){if(Test-Path $d){Get-ChildItem $d -Recurse -Force|%{$_.Attributes='Normal'};[IO.Directory]::Delete($d,$true)}}}
+}finally{foreach($d in $root,$outside){if(Test-Path $d){Get-ChildItem $d -Recurse -Force|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($d,$true)}}}
 "REMOVE-OWNED CHECK: $fail failed";exit $fail

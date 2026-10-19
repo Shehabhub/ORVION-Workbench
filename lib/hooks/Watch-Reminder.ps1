@@ -46,5 +46,7 @@ try{
         Send-Context ("WATCHER REQUIRED: you started a timed run. Start the Monitor tool now (timeout_ms 1800000, re-arm on expiry) with: pwsh -NoProfile -File `"$watch`" -Log `"$log`" -Run $run -Brief. For a heavy run, or two at once, also Monitor: pwsh -NoProfile -File `"$lib\Watch-Host.ps1`" -WatchPid <runner pid from the watcher's first line> -ExitWhenPidsGone.$bg")
         exit 0
     }
-}catch{}
+}catch{  # never block a session, but never fail silently either: Hunt.ps1 reports this log
+    try{$log=Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'work\hook-errors.log';[IO.File]::AppendAllText($log,"$([DateTime]::UtcNow.ToString('o')) $($hookEvent) $($_.Exception.Message)`n")}catch{$null=$_}
+}
 exit 0

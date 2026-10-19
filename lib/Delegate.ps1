@@ -58,7 +58,7 @@ $(if($spider){'```'+"`n"+($spider-join"`n")+"`n"+'```'}else{'- not run (no -Quer
 
 ## Authority (delegation never grants more)
 $authority
-- You MAY write only inside ``$dir``$(if($Mode-eq'sandbox'){' and your own temp copies'}).
+- You MAY write only inside ``$dir`` (probe scripts and their outputs)$(if($Mode-eq'sandbox'){' and your own temp copies'}).
 - You MUST NOT commit, push, check out, reset or otherwise change the real checkouts (``Documents\GitHub\CRM``, ``Documents\GitHub\ORVION``, the trusted-main clones), edit ``Documents\ORVION-Owner-Review``, touch credentials (``gh auth``, tokens), call remote services that write, or start ``-Finish``.
 - Prefer Read/Grep/Glob for files; use PowerShell for git and experiments. Never print environment variable values or secrets.
 - Repository authority stays where it is: each repository's own Boot, contracts and Gate 1. Your result is evidence, not a decision.
@@ -67,10 +67,11 @@ $authority
 1. LEARN: read what is cited above and the code it names before forming a view. Name the established way this kind of thing is checked.
 2. REPRODUCE OR FALSIFY: design the smallest experiment that would prove the question either way$(if($Mode-eq'readonly'){' using reads only'}); run it; keep every command and its output.
 3. MEASURE: exact numbers from real outputs; label anything you did not run as a hypothesis.
-4. STOP when the question is answered, or when the time budget is spent (then report INCONCLUSIVE with what remains).
+4. Save each probe and its raw output in ``$dir`` as you go, so the evidence survives even if you stop early.
+5. STOP when the question is answered, or when the time budget is spent (then report INCONCLUSIVE with what remains).
 
 ## Deliverable
-Write ``$report`` with, in this order:
+Your final reply IS the report (helper agents may not write report files; the delegating agent saves your reply as ``$report``). In this order:
 - ``VERDICT: CONFIRMED`` | ``VERDICT: DISPROVEN`` | ``VERDICT: INCONCLUSIVE`` (first line, exactly this form)
 - Cause: confirmed or hypothesis, in one paragraph
 - Evidence: the commands you ran and the decisive output lines, with file:line pointers
@@ -79,10 +80,10 @@ Write ``$report`` with, in this order:
 
 Then record the verdict in the improvement memory, one line (pick the values that match your verdict):
 ``pwsh -NoProfile -File "$ev" -Add -Pattern $Pattern -Source delegate -Category discovery -Cause <confirmed|hypothesis> -Status <open|disproven> -Summary '<VERDICT: one sentence>' -Evidence '$report'``
-Finally reply with the VERDICT line and the report path.
+Your reply must start with the VERDICT line and contain the whole report, nothing else.
 "@
 [IO.File]::WriteAllText((Join-Path $dir 'BRIEF.md'),$brief)
 $null=& $ev -Root $Root -Add -Pattern $Pattern -Source delegate-road -Category observation -Status open -Summary "delegated ($Mode, $Minutes min): $Question" -Evidence (Join-Path $dir 'BRIEF.md')
 "DELEGATED $Pattern -> $(Join-Path $dir 'BRIEF.md')"
 "LAUNCH a background agent with exactly this prompt: Read `"$(Join-Path $dir 'BRIEF.md')`" and carry it out exactly as written."
-"VERIFY its REPORT.md yourself before acting on it; Delegate.ps1 -List shows every delegation and verdict."
+"WHEN IT FINISHES: save its reply as $report, re-run its decisive check yourself before acting on it, and note the re-run in the report. Delegate.ps1 -List shows every delegation and verdict."

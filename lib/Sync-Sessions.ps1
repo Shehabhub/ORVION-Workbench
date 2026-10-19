@@ -11,7 +11,8 @@
 # Index (sessions\index.jsonl): one line per session, metadata + relative raw path only; never transcript text.
 # secretHits / secretNames: credential-shaped strings (names only, values never printed); keep the archive out of Git
 # and back it up only to an encrypted drive (Backup-Workspace.ps1 refuses otherwise).
-param([string]$Root=(Split-Path $PSScriptRoot -Parent),[switch]$Quiet,[switch]$Follow,[int]$IntervalSeconds=60,[int]$IndexMinutes=15,[switch]$Library)  # -Library: dot-source for tests, defines the functions only
+param([string]$Root=(Split-Path $PSScriptRoot -Parent),[switch]$Quiet,[switch]$Follow,[int]$IntervalSeconds=60,[int]$IndexMinutes=15,[switch]$Library,
+      [string]$ClaudeProjects=(Join-Path $env:USERPROFILE '.claude\projects'),[string]$CodexSessions=(Join-Path $env:USERPROFILE '.codex\sessions'))  # -Library: dot-source for tests, defines the functions only
 $ErrorActionPreference='Stop'
 $raw=Join-Path $Root 'sessions\raw';$indexPath=Join-Path $Root 'sessions\index.jsonl'
 $workspace='Documents[\\/-]+GitHub|ORVION'
@@ -108,22 +109,26 @@ function Update-Meta($Row,[string]$Path,[string]$Client){
 }
 
 function Invoke-Pass{
-    $script:copied=0;$list=@()
-    foreach($p in Get-ChildItem "$env:USERPROFILE\.claude\projects" -Directory|Where-Object Name -match $workspace){
+    $script:copied=0
+    if(Test-Path $ClaudeProjects){foreach($p in Get-ChildItem $ClaudeProjects -Directory|Where-Object Name -match $workspace){
         foreach($f in Get-ChildItem $p.FullName -Recurse -File){
             if(Copy-Grown $f.FullName (Join-Path $raw "claude\$($p.Name)$($f.FullName.Substring($p.FullName.Length))")){$script:copied++}
         }
-        foreach($f in Get-ChildItem $p.FullName -File -Filter *.jsonl){$list+=[pscustomobject]@{client='claude';id=$f.BaseName;dst=Join-Path $raw "claude\$($p.Name)\$($f.Name)";sub=Join-Path $p.FullName "$($f.BaseName)\subagents"}}
-    }
-    $codex="$env:USERPROFILE\.codex\sessions"
-    if(Test-Path $codex){foreach($f in Get-ChildItem $codex -Recurse -File -Filter *.jsonl){
+    }}
+    if(Test-Path $CodexSessions){foreach($f in Get-ChildItem $CodexSessions -Recurse -File -Filter *.jsonl){
         $sr=New-Object IO.StreamReader (Open-Shared $f.FullName);try{$first=$sr.ReadLine()}finally{$sr.Close()}
         if($first-notmatch'"cwd":"[^"]*(Documents\\\\GitHub|ORVION)'){continue}
-        $target=Join-Path $raw "codex$($f.FullName.Substring($codex.Length))"
-        if(Copy-Grown $f.FullName $target){$script:copied++}
-        $list+=[pscustomobject]@{client='codex';id=($f.BaseName-replace'^rollout-[\dT-]+?-(?=[0-9a-f]{8}-)','');dst=$target;sub=''}
+        if(Copy-Grown $f.FullName (Join-Path $raw "codex$($f.FullName.Substring($CodexSessions.Length))")){$script:copied++}
     }}
-    $script:sessions=$list
+    # The index lists what the ARCHIVE holds, never the sources: Claude Code deletes a source after 30 days, and the
+    # session must stay findable. Copies set aside (.replaced-<UTC>, .<UTC>) are not separate sessions.
+    $aside='\.(replaced-)?\d{14}$'
+    $script:sessions=@(
+        if(Test-Path "$raw\claude"){foreach($p in Get-ChildItem "$raw\claude" -Directory){foreach($f in Get-ChildItem $p.FullName -File -Filter *.jsonl|Where-Object{$_.BaseName-notmatch$aside}){
+            [pscustomobject]@{client='claude';id=$f.BaseName;dst=$f.FullName}}}}
+        if(Test-Path "$raw\codex"){foreach($f in Get-ChildItem "$raw\codex" -Recurse -File -Filter *.jsonl|Where-Object{$_.BaseName-notmatch$aside}){
+            [pscustomobject]@{client='codex';id=($f.BaseName-replace'^rollout-[\dT-]+?-(?=[0-9a-f]{8}-)','');dst=$f.FullName}}}
+    )
 }
 
 $schema=4  # bump when Update-Meta learns a field: every row is then re-read once from the start
@@ -152,7 +157,7 @@ function Update-Index{
         $sub=Join-Path (Split-Path $a.FullName) "$($s.id)\subagents"  # the archived copy: survives the source's 30-day deletion
         $metas=@(if($s.client-eq'claude'-and(Test-Path $sub)){Get-ChildItem $sub -Filter *.meta.json})
         $r.subagents=@(if(Test-Path $sub){Get-ChildItem $sub -Filter *.jsonl}).Count
-        $r.subagentTasks=@($metas|ForEach-Object{try{(Get-Content $_.FullName -Raw|ConvertFrom-Json).description}catch{}}|Where-Object{$_}|Select-Object -First 12)
+        $r.subagentTasks=@($metas|ForEach-Object{try{(Get-Content $_.FullName -Raw|ConvertFrom-Json).description}catch{"(unreadable $($_.TargetObject))"}}|Where-Object{$_}|Select-Object -First 12)  # an unreadable meta is shown, not skipped
         $r.events=[int]$evCount[$s.id]
         [pscustomobject]$r
     }

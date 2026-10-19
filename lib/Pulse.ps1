@@ -44,4 +44,9 @@ $prev=@(if(Test-Path $ixPath){[IO.File]::ReadAllLines($ixPath)|Where-Object{$_}|
 if($prev){"last     session $($prev.id.Substring(0,[Math]::Min(8,$prev.id.Length))) [$($prev.repo) $($prev.client)] `"$(@($prev.title,$prev.firstPrompt)|Where-Object{$_}|Select-Object -First 1)`" ended $(([datetime]$prev.end).ToUniversalTime().ToString('yyyy-MM-dd HH:mm')); last ask: `"$($prev.lastPrompt)`""}
 $lessons=@($latest|Where-Object{$_.category-ne'decision'-and$_.status-in'open','deferred'}|Sort-Object at -Descending|Select-Object -First 3)
 "lessons  open: $(@($latest|Where-Object{$_.category-ne'decision'-and$_.status-in'open','deferred'}).Count) ($(($lessons|ForEach-Object pattern)-join', ')); details: Events.ps1 -Brief"
-"tools    Spider.ps1 '<anything>' (all sources) | Events.ps1 -Find '<task>' | Delegate.ps1 -List | sessions\INDEX.md | lib\README.md"
+$hl=Join-Path $Root 'work\hunt-last.txt'
+if(Test-Path $hl){
+    $h=@(Get-Content $hl);$age=[int]([DateTime]::UtcNow-(Get-Item $hl).LastWriteTimeUtc).TotalHours
+    "hunt     $($h[0]) ($age h ago$(if($age-ge24){'; stale: run Hunt.ps1'}))"
+}else{'hunt     never run: pwsh -NoProfile -File lib\Hunt.ps1'}
+"tools    Spider.ps1 '<anything>' (all sources) | Events.ps1 -Find '<task>' | Delegate.ps1 -List | Hunt.ps1 | sessions\INDEX.md | lib\README.md"
