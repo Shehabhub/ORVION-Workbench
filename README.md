@@ -1,5 +1,7 @@
 # ORVION-Owner-Tools — the one local workspace outside both repositories
 
+**After any interruption, start at [`RESUME.md`](RESUME.md)**: live resume point, latest session, the two repositories, boundaries.
+
 Not repository authority. Platinum (`..\CRM`, PlatPlusHub/CRM) and Founder (`..\ORVION`, Shehabhub/ORVION) each decide
 through their own Boot, contracts and certification; everything here only drives, observes or preserves them.
 **Never put work inside a repository tree**: an ignored sandbox copy there hid 32 broken references from
