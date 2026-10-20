@@ -3,6 +3,8 @@
 This file holds no state, so it never goes stale. It routes to the records that do. Transcripts are history; repository
 evidence and each repository's own Boot are authority.
 
+0. **New to this programme (no history)?** Read [`HANDOFF.md`](HANDOFF.md) once: architecture, boundaries, governance,
+   lessons, roadmap, owner decisions and the last verified state with its next actions. Then continue here.
 1. **Exact resume point.** Run `pwsh -NoProfile -File "C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools\lib\Pulse.ps1"`.
    Its `in flight` lines name the active work and that work's own `RESUME.md` (last verified checkpoint, ordered resumable
    steps, evidence, blockers, where to stop for the owner). Cannot run commands? Search `events\events.jsonl` (this folder)
