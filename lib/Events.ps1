@@ -21,6 +21,8 @@ param(
     [Parameter(ParameterSetName='add')][string]$Repo='',
     [Parameter(ParameterSetName='add')][string]$Sha='',
     [Parameter(ParameterSetName='add')][string]$Source='agent',
+    [Parameter(ParameterSetName='add')][string]$Owner='',  # who answers for it next: agent | owner | delegate:<folder> | cr:<subject> (Coordinator.ps1)
+    [Parameter(ParameterSetName='add')][ValidatePattern('^$|^\d{4}-\d\d-\d\d')][string]$Due='',
     [Parameter(ParameterSetName='add')][string]$Session=$env:CLAUDE_CODE_SESSION_ID,
     [Parameter(ParameterSetName='add')][datetime]$At=[DateTime]::UtcNow,  # only a backfill passes this
     [Parameter(ParameterSetName='find',Mandatory)][string]$Find,
@@ -44,11 +46,12 @@ if($Add){
     $owned=try{$lock.WaitOne(30000)}catch [Threading.AbandonedMutexException]{$true}
     if(!$owned){throw "EVENTS_LOCK_TIMEOUT: another writer held $log for 30 s"}
     try{
-        $last=@(Read-Events|Where-Object{$_.pattern-eq$Pattern-and$_.session-eq$Session-and$_.summary-eq$Summary})
+        # an assignment repeats the summary with a new owner, action, due or status: that is a new fact
+        $last=@(Read-Events|Where-Object{$_.pattern-eq$Pattern-and$_.session-eq$Session-and$_.summary-eq$Summary-and$_.status-eq$Status-and"$($_.owner)"-eq$Owner-and"$($_.action)"-eq$Action-and"$($_.due)"-eq$Due})
         if($last.Count){"EVENT DUPLICATE $Pattern (already recorded for this session)";exit 0}  # watchers repeat; one line per fact
         $e=[ordered]@{at=$At.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ');session="$Session";source=$Source;repo=$Repo;sha=$Sha
             pattern=$Pattern;category=$Category;severity=$Severity;summary=$Summary;cause=$Cause;status=$Status
-            tool=$Tool;action=$Action;evidence=$Evidence;trigger=$Trigger;tags=$Tags}
+            tool=$Tool;action=$Action;evidence=$Evidence;trigger=$Trigger;tags=$Tags;owner=$Owner;due=$Due}
         [IO.File]::AppendAllText($log,(($e|ConvertTo-Json -Compress)+"`n"))
         $n=@(Read-Events|Where-Object pattern -eq $Pattern|ForEach-Object session|Select-Object -Unique).Count
     }finally{$lock.ReleaseMutex()}
@@ -59,7 +62,7 @@ if($Add){
 $views=foreach($g in @(Read-Events|Group-Object pattern)){
     $r=@($g.Group|Sort-Object at);$z=$r[-1]
     [pscustomobject]@{pattern=$g.Name;category=$z.category;status=$z.status;sessions=@($r.session|Select-Object -Unique).Count;last=([datetime]$z.at).ToUniversalTime().ToString('yyyy-MM-dd')
-        summary=$z.summary;sessionList=@($r.session);tool=@($r.tool|Where-Object{$_})[-1];action=@($r.action|Where-Object{$_})[-1];evidence=@($r.evidence|Where-Object{$_})[-1]
+        summary=$z.summary;sessionList=@($r.session);tool=@($r.tool|Where-Object{$_})[-1];action=@($r.action|Where-Object{$_})[-1];evidence=@($r.evidence|Where-Object{$_})[-1];owner=@($r.owner|Where-Object{$_})[-1]
         tagWords=@([regex]::Matches((($r|ForEach-Object{"$($_.pattern-replace'-',' ') $($_.tags)"})-join' ').ToLower(),'[a-z0-9$_]{2,}')|ForEach-Object Value|Select-Object -Unique)
         words=@([regex]::Matches((($r|ForEach-Object{"$($_.pattern-replace'-',' ') $($_.summary) $($_.tool) $($_.action) $($_.tags)"})-join' ').ToLower(),'[a-z0-9$_]{2,}')|ForEach-Object Value|Select-Object -Unique)}
 }
@@ -69,7 +72,7 @@ function Test-WordMatch([string]$Term,[string[]]$Vocabulary){  # 2 exact, 1 a sh
 }
 function Format-View($v,[switch]$WithSession){
     $use=@(if($v.tool){"use $($v.tool)"};if($v.action){$v.action})-join'; '
-    $line="[$($v.status) x$($v.sessions) $($v.last)] $($v.pattern): $($v.summary)$(if($use){" -> $use"})$(if($v.evidence){" (evidence: $($v.evidence))"})"
+    $line="[$($v.status) x$($v.sessions) $($v.last)$(if($v.owner){" owner $($v.owner)"})] $($v.pattern): $($v.summary)$(if($use){" -> $use"})$(if($v.evidence){" (evidence: $($v.evidence))"})"
     # the newest occurrence whose transcript is archived (an older one may predate the archive)
     $s=if($WithSession){@($v.sessionList|ForEach-Object{$script:sessionIndex[$_]}|Where-Object{$_})[-1]}
     if($s){$when=try{([datetime]$s.start).ToUniversalTime().ToString('yyyy-MM-dd')}catch{'?'}  # an index row may lack a start

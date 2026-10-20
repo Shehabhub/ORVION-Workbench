@@ -87,6 +87,9 @@ if(!$Quick){
         ,@('Events.ps1','if($last.Count){"EVENT DUPLICATE','if($false){"EVENT DUPLICATE','test-events.ps1','duplicate refusal')
         ,@('Events.ps1','$s+=$idf[$q]*(2*(Test-WordMatch $q $v.tagWords)+(Test-WordMatch $q $v.words))/6','$s+=$idf[$q]*[int]((Test-WordMatch $q $v.words)-gt0)','test-events-retrieval.ps1','tag and exact-word ranking')
         ,@('Delegate.ps1','- You MUST NOT commit, push','- You may commit, push','test-delegate.ps1','the authority limits in every brief')
+        ,@('Coordinator.ps1','elseif($z.source-eq''delegate-road''){','elseif($false){','test-coordinator.ps1','holding a dispatched item until its report returns')
+        ,@('Coordinator.ps1','-Skip $(if($closed){$closed[-1]+1}else{0})','-Skip 0','test-coordinator.ps1','a reopened item needing a new owner')
+        ,@('Delegate.ps1','-Owner $(if($next){''agent''}else{''''})','-Owner ''''','test-coordinator.ps1','handing a returned verdict back to the agent')
         ,@('Watch-Subagents.ps1','$e.message.stop_reason-eq''end_turn''','$text','test-watch-subagents.ps1','finished only on end_turn')
     )}
     $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-hunt-$([guid]::NewGuid().ToString('N').Substring(0,6))"

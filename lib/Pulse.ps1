@@ -4,7 +4,7 @@
 #   running    the session archiver, timed runs (with their log's last line), host memory
 #   waiting    open owner decisions (events with category decision)
 #   last       the newest other session: task, when it ended, where it stopped
-#   lessons    open or recurring events (Events.ps1 -Brief, decisions excluded)
+#   queue      the coordinator's queue (Coordinator.ps1 -Brief): counts by state, the three most urgent items
 # Read-only; a failing git read prints UNREADABLE for that repository instead of guessing.
 param([string]$Root=(Split-Path $PSScriptRoot -Parent),[string]$Session=$env:CLAUDE_CODE_SESSION_ID,
       [string[]]$Repos=@('CRM','ORVION'|ForEach-Object{Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) $_}))
@@ -42,12 +42,11 @@ foreach($w in $waiting){"         - $($w.pattern): $($w.summary.Substring(0,[Mat
 $ixPath=Join-Path $Root 'sessions\index.jsonl'
 $prev=@(if(Test-Path $ixPath){[IO.File]::ReadAllLines($ixPath)|Where-Object{$_}|ForEach-Object{try{$_|ConvertFrom-Json}catch{$null=$_}}|Where-Object{$_}|Where-Object{$_.id-ne$Session-and$_.prompts}|Sort-Object end})|Select-Object -Last 1
 if($prev){"last     session $($prev.id.Substring(0,[Math]::Min(8,$prev.id.Length))) [$($prev.repo) $($prev.client)] `"$(@($prev.title,$prev.firstPrompt)|Where-Object{$_}|Select-Object -First 1)`" ended $(([datetime]$prev.end).ToUniversalTime().ToString('yyyy-MM-dd HH:mm')); last ask: `"$($prev.lastPrompt)`""}
-$lessons=@($latest|Where-Object{$_.category-ne'decision'-and$_.status-in'open','deferred'}|Sort-Object at -Descending|Select-Object -First 3)
-"lessons  open: $(@($latest|Where-Object{$_.category-ne'decision'-and$_.status-in'open','deferred'}).Count), newest first (more: Events.ps1 -Brief; for a task: Events.ps1 -Find '<task>')"
-foreach($x in $lessons){"         - $($x.pattern): $($x.summary.Substring(0,[Math]::Min(130,$x.summary.Length)))$(if($x.summary.Length-gt130){'...'})"}
+# every open observation, held to an owner, a next action and a due time; the most urgent first
+try{& (Join-Path $PSScriptRoot 'Coordinator.ps1') -Root $Root -Brief}catch{"queue    UNREADABLE ($($_.Exception.Message))"}
 $hl=Join-Path $Root 'work\hunt-last.txt'
 if(Test-Path $hl){
     $h=@(Get-Content $hl);$age=[int]([DateTime]::UtcNow-(Get-Item $hl).LastWriteTimeUtc).TotalHours
     "hunt     $($h[0]) ($age h ago$(if($age-ge24){'; stale: run Hunt.ps1'}))"
 }else{'hunt     never run: pwsh -NoProfile -File lib\Hunt.ps1'}
-"tools    Spider.ps1 '<anything>' (all sources) | Events.ps1 -Find '<task>' | Delegate.ps1 -List | Hunt.ps1 | sessions\INDEX.md | lib\README.md"
+"tools    Coordinator.ps1 | Spider.ps1 '<anything>' (all sources) | Events.ps1 -Find '<task>' | Delegate.ps1 -List | Hunt.ps1 | sessions\INDEX.md | lib\README.md"

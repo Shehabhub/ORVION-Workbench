@@ -10,7 +10,7 @@ try{
     $b=[IO.File]::ReadAllText($briefPath)
     Assert-That 'brief has the question and the known history' ($b.Contains('Does ZEBRA-42 break again?')-and$b.Contains('ZEBRA-42 broke once'))
     Assert-That 'brief bounds authority' ($b.Contains('MUST NOT commit, push')-and$b.Contains('Mode: **sandbox**')-and$b.Contains('10 minutes'))
-    Assert-That 'brief names the exact report and record lines' ($b.Contains('VERDICT: CONFIRMED')-and$b.Contains('-Pattern zebra-case -Source delegate')-and$b.Contains('saves your reply as')-and$b-notmatch'create ````'-and$b.Contains((Join-Path (Split-Path $briefPath) 'REPORT.md')))
+    Assert-That 'brief names the exact report and record lines' ($b.Contains('VERDICT: CONFIRMED')-and$b.Contains('Do not record events')-and$b.Contains('saves your reply as')-and$b-notmatch'create ````'-and$b.Contains((Join-Path (Split-Path $briefPath) 'REPORT.md')))
     $ev=@([IO.File]::ReadAllLines((Join-Path $t 'events\events.jsonl'))|ForEach-Object{$_|ConvertFrom-Json})
     Assert-That 'the delegation is recorded as an event' (@($ev|Where-Object{$_.source-eq'delegate-road'-and$_.summary-like'delegated (sandbox, 10 min)*'}).Count-eq1)
     Assert-That 'list shows it pending' ((@(& (Join-Path $PSScriptRoot 'Delegate.ps1') -Root $t -List)-join' ')-match'pending \(no REPORT\.md yet\)')

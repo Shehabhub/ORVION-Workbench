@@ -25,8 +25,9 @@ wave-2 tooling contract tracks these tools in each repository and names them in 
 | Tool | Purpose |
 |---|---|
 | `Hunt.ps1 [-Quick]` | the hunting dogs: invariants, liveness, versioning, untested tools, planted-bug mutants, lint; every BUG/GAP becomes an event, the last result shows in Pulse |
-| `Pulse.ps1` | the live state any arriving agent sees first (repos, pending candidates, running, host, waiting on the owner, last session, open lessons); session start prints it |
-| `Delegate.ps1 -Pattern <id> -Question '...'` / `-List` | the delegation road: a bounded brief for a cold agent (authority never grows), its verdict comes back as an event |
+| `Coordinator.ps1` / `-Brief` / `-Check` / `-Assign` / `-Close` / `-Dispatch` | the coordinator over every tool: reads the one journal (events) and holds each open item to an owner, a next action and a due time (TRIAGE, OVERDUE, OWNER, DISPATCHED, READY); hunts nothing, closes nothing without a recorded reason |
+| `Pulse.ps1` | the live state any arriving agent sees first (repos, pending candidates, running, host, waiting on the owner, last session, the coordinator's queue); session start prints it |
+| `Delegate.ps1 -Pattern <id> -Question '...'` / `-Report <folder> -Reply <file>` / `-List` | the delegation road: a bounded brief for a cold agent (authority never grows, due = twice its budget); `-Report` is the return road: saves the reply, records the verdict, hands the item back to the agent |
 | `Spider.ps1 '<entity or phrase>'` | one question across sessions, events, both repos' files and commits, memory and owner packets; ranked, values masked, ~4 s |
 | `Events.ps1 -Find '<task>'` / `-Brief` / `-Add` | improvement memory: relevant past failures, discoveries, decisions; watchers record alarms |
 | `Sync-Sessions.ps1` | verbatim archive of every ORVION session + `sessions\index.jsonl` (hook runs it at start and end) |
