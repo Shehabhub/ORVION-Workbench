@@ -11,7 +11,7 @@
 #   DISPATCHED a delegate is working on it, within its time budget
 #   ACTIVE     owned, with a next action
 # Only UNOWNED and OVERDUE are escalated (Pulse at session start, -Check exit 1); nothing is due by default.
-#   Coordinator.ps1 [-Check] | -Brief
+#   Coordinator.ps1 [-Check] | -Brief   (the brief also names the two most recently updated in-flight cases: where to resume)
 #   Coordinator.ps1 -Assign <pattern> -Owner <agent|owner|cr:subject> -Action '<next step>' [-Due yyyy-MM-dd]
 #   Coordinator.ps1 -Close <pattern> -Status resolved|disproven|deferred|superseded -Reason '<why>' [-Due, for deferred]
 #   Coordinator.ps1 -Dispatch <pattern> -Question '<prove or disprove>' [-Mode sandbox] [-Minutes 30]   (Delegate.ps1)
@@ -54,7 +54,7 @@ $open=foreach($g in @($records|Group-Object pattern)){
         elseif($dueAt-and$Now-gt$dueAt){'OVERDUE'}elseif($z.source-eq'delegate-road'){'DISPATCHED'}
         elseif(!$own-or!$act){'UNOWNED'}else{'ACTIVE'}
     [pscustomobject]@{pattern=$g.Name;state=$state;owner=$own;action=$act;due=$dueAt;age=[int]($Now-(ConvertTo-Utc $since[0].at)).TotalDays
-        summary=$z.summary;recurred=$closed.Count;lastFix=$(if($last){"$(([datetime](ConvertTo-Utc $last.at)).ToString('yyyy-MM-dd')) $($last.status): $($last.summary)"})}
+        summary=$z.summary;last=(ConvertTo-Utc $z.at);recurred=$closed.Count;lastFix=$(if($last){"$(([datetime](ConvertTo-Utc $last.at)).ToString('yyyy-MM-dd')) $($last.status): $($last.summary)"})}
 }
 $order=@{UNOWNED=0;OVERDUE=1;OWNER=2;DISPATCHED=3;ACTIVE=4}
 $items=@($open|Where-Object state -ne 'OBSERVATION'|Sort-Object @{e={$order[$_.state]}},@{e='age';Descending=$true})
@@ -92,6 +92,8 @@ $count="$(($order.Keys|Sort-Object{$order[$_]}|ForEach-Object{$k=$_;"$($k.ToLowe
 if($Brief){
     "cases    $count (Coordinator.ps1 for all)"
     foreach($i in @($escalated|Select-Object -First 3)){"         - $(Format-QueueLine $i)"}
+    # what is in flight, newest first: after an interruption this is where work resumes (cold-start rehearsal, 2026-10-20)
+    foreach($i in @($items|Where-Object state -in 'ACTIVE','DISPATCHED'|Sort-Object last -Descending|Select-Object -First 2)){"         in flight: $($i.pattern) ($($i.owner)): $($i.action.Substring(0,[Math]::Min(260,$i.action.Length)))"}
     exit 0
 }
 "COORDINATOR $($Now.ToString('yyyy-MM-dd HH:mm')) UTC: $($items.Count) case(s): $count"
