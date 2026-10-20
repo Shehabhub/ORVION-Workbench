@@ -35,12 +35,12 @@ $os=Get-CimInstance Win32_OperatingSystem
 "running  archiver $(if($follow){"following (pid $($follow[0].ProcessId))"}else{'NOT running (start a session or: Sync-Sessions.ps1 -Follow)'}); timed runs: $(if($timed){$timed-join' | '}else{'none'}); host: $([math]::Round($os.FreePhysicalMemory/1MB,1)) GB free, commit headroom $([math]::Round($os.FreeVirtualMemory/1MB,1)) GB"
 # Decisions and lessons from the event log (latest record per pattern decides).
 $log=Join-Path $Root 'events\events.jsonl'
-$latest=@(if(Test-Path $log){[IO.File]::ReadAllLines($log)|Where-Object{$_}|ForEach-Object{$_|ConvertFrom-Json}|Group-Object pattern|ForEach-Object{@($_.Group|Sort-Object at)[-1]}})
+$latest=@(if(Test-Path $log){[IO.File]::ReadAllLines($log)|Where-Object{$_}|ForEach-Object{try{$_|ConvertFrom-Json}catch{$null=$_}}|Where-Object{$_}|Group-Object pattern|ForEach-Object{@($_.Group|Sort-Object at)[-1]}})
 $waiting=@($latest|Where-Object{$_.category-eq'decision'-and$_.status-eq'open'})
 "waiting  on the owner: $($waiting.Count)"
 foreach($w in $waiting){"         - $($w.pattern): $($w.summary.Substring(0,[Math]::Min(150,$w.summary.Length)))$(if($w.summary.Length-gt150){'...'})"}
 $ixPath=Join-Path $Root 'sessions\index.jsonl'
-$prev=@(if(Test-Path $ixPath){[IO.File]::ReadAllLines($ixPath)|Where-Object{$_}|ForEach-Object{$_|ConvertFrom-Json}|Where-Object{$_.id-ne$Session-and$_.prompts}|Sort-Object end})|Select-Object -Last 1
+$prev=@(if(Test-Path $ixPath){[IO.File]::ReadAllLines($ixPath)|Where-Object{$_}|ForEach-Object{try{$_|ConvertFrom-Json}catch{$null=$_}}|Where-Object{$_}|Where-Object{$_.id-ne$Session-and$_.prompts}|Sort-Object end})|Select-Object -Last 1
 if($prev){"last     session $($prev.id.Substring(0,[Math]::Min(8,$prev.id.Length))) [$($prev.repo) $($prev.client)] `"$(@($prev.title,$prev.firstPrompt)|Where-Object{$_}|Select-Object -First 1)`" ended $(([datetime]$prev.end).ToUniversalTime().ToString('yyyy-MM-dd HH:mm')); last ask: `"$($prev.lastPrompt)`""}
 $lessons=@($latest|Where-Object{$_.category-ne'decision'-and$_.status-in'open','deferred'}|Sort-Object at -Descending|Select-Object -First 3)
 "lessons  open: $(@($latest|Where-Object{$_.category-ne'decision'-and$_.status-in'open','deferred'}).Count), newest first (more: Events.ps1 -Brief; for a task: Events.ps1 -Find '<task>')"

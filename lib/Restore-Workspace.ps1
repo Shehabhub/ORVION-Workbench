@@ -19,8 +19,9 @@ $plan=Get-Content (Join-Path $From 'backup.json') -Raw|ConvertFrom-Json
 foreach($r in $plan.repos){Assert-Absent (Join-Path $Target $r.name)}
 Assert-Absent (Join-Path $Target 'ORVION-Owner-Tools')
 
-foreach($r in $plan.repos){
-    $dest=Join-Path $Target $r.name;$src=Join-Path $From "repos\$($r.name)"
+$created=[Collections.Generic.List[string]]::new()
+try{foreach($r in $plan.repos){
+    $dest=Join-Path $Target $r.name;$src=Join-Path $From "repos\$($r.name)";$created.Add($dest)
     & git clone --quiet --no-checkout (Join-Path $From "repos\$($r.name).bundle") $dest 2>&1|Out-Null;if($LASTEXITCODE){throw "CLONE_FAILED $($r.name)"}
     $want=@([IO.File]::ReadAllLines((Join-Path $src 'refs.txt')))
     # --no-deref: origin/HEAD is symbolic; deleting or writing through it would move the branch it names.
@@ -28,10 +29,16 @@ foreach($r in $plan.repos){
     foreach($l in $want){$sha,$ref=$l-split' ',2;if($ref-ne'refs/remotes/origin/HEAD'){Invoke-Git $dest update-ref --no-deref $ref $sha|Out-Null}}
     if($r.originHead){Invoke-Git $dest symbolic-ref refs/remotes/origin/HEAD $r.originHead|Out-Null}
     Invoke-Git $dest remote set-url origin $r.origin|Out-Null
+    # Replace, never add on top: the clone already wrote branch.* (two values made `git config branch.main.remote` fail).
+    # pushurl matters: a sandbox's DISABLED push URL must stay disabled after a restore.
+    $cfg=[ordered]@{}
     foreach($l in [IO.File]::ReadAllLines((Join-Path $src 'git-config-local.txt'))){
         $k,$v=$l-split'=',2
-        if($k-match'^(user\.|credential\.|core\.hookspath$|lfs\.|submodule\.|branch\.)'){Invoke-Git $dest config --local --add $k $v|Out-Null}
+        if($k-match'^(user\.|credential\.|core\.hookspath$|core\.autocrlf$|lfs\.|submodule\.|branch\.|remote\.origin\.pushurl$)'){$cfg[$k]=@($cfg[$k])+$v|Where-Object{$null-ne$_}}
     }
+    foreach($k in $cfg.Keys){& git -C $dest config --local --unset-all $k 2>$null;foreach($v in @($cfg[$k])){Invoke-Git $dest config --local --add $k $v|Out-Null}}
+    if($r.stash){"WARN $($r.name): $($r.stash) stash(es) existed; a bundle keeps only refs/stash, not the older entries"}
+    if($r.worktrees-gt0){"WARN $($r.name): $($r.worktrees) linked worktree(s) existed and are not restored"}
     if($r.branch-eq'HEAD'){Invoke-Git $dest checkout --quiet --detach $r.head|Out-Null}else{Invoke-Git $dest checkout --quiet -f $r.branch|Out-Null}
     foreach($f in Get-ChildItem -LiteralPath $src -Recurse -File -Force){  # file by file: .claude\ already exists in the clone
         $rel=$f.FullName.Substring($src.Length+1);if($rel-in'refs.txt','git-config-local.txt'){continue}
@@ -42,7 +49,7 @@ foreach($r in $plan.repos){
     $ok=$head-eq$r.head-and!(Compare-Object $want $got)-and$dirty-eq0
     "$(if($ok){'RESTORED'}else{'MISMATCH'}) $($r.name) $($r.branch)@$($head.Substring(0,7)) refs=$($got.Count)/$($want.Count) clean=$($dirty-eq0)"
     if(!$ok){throw "RESTORE_MISMATCH $($r.name)"}
-}
+}}catch{"PARTIAL RESTORE: these were created before the failure; remove them before retrying: $($created-join', ')";throw}
 Copy-Item (Join-Path $From 'owner-tools') (Join-Path $Target 'ORVION-Owner-Tools') -Recurse
 "RESTORED ORVION-Owner-Tools"
 foreach($m in Get-ChildItem (Join-Path $From 'claude\projects') -Directory -ErrorAction SilentlyContinue){

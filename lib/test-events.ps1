@@ -19,5 +19,12 @@ try{
     Assert-That 'brief lists open or deferred first, then recurring' ($br[1]-match'watch-run-eta'-and$br[2]-match'ps-reserved-name'-and(($br-join' ')-notmatch'other-script'))
     $bad=try{& $ev -Root $t -Add -Pattern 'Bad Pattern' -Summary x;$false}catch{$true}
     Assert-That 'a malformed pattern id is refused' $bad
+    $before=(Get-Content "$t\events\events.jsonl").Count
+    $jobs=1..12|ForEach-Object{Start-Job -ScriptBlock {param($e,$r,$i)& pwsh -NoProfile -File $e -Root $r -Add -Pattern race-case -Session "w$i" -Summary "writer $i"} -ArgumentList $ev,$t,$_}
+    $null=$jobs|Wait-Job;$jobs|Remove-Job
+    Assert-That '12 writers at once lose no line' ((Get-Content "$t\events\events.jsonl").Count-eq$before+12)
+    Add-Content "$t\events\events.jsonl" '{"torn line'
+    $okBrief=try{$null=& $ev -Root $t -Brief;$true}catch{$false};$okFind=try{$null=& $ev -Root $t -Find 'process';$true}catch{$false}
+    Assert-That 'a torn line does not silence the readers' ($okBrief-and$okFind)
 }finally{[IO.Directory]::Delete($t,$true)}
 if($fail){throw "EVENTS_SELFCHECK_FAILED $fail"};'EVENTS_SELFCHECK PASS'

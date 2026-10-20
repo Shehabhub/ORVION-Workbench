@@ -17,9 +17,9 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Sync-Sessions.ps1') -Library -Root $Root  # the archive's secret rules mask snippets the same way
 $cmp=[StringComparison]::OrdinalIgnoreCase
 function Get-Snippet([string]$Line){  # one readable line around the first match, credential values masked
+    # mask the whole line first: masking after the cut leaked the part of a token that fell inside the snippet
+    $Line=Hide-Secret $Line
     $at=[Math]::Max(0,$Line.IndexOf($Query,$cmp)-70);$s=$Line.Substring($at,[Math]::Min(220,$Line.Length-$at))
-    $s=[regex]::Replace($s,$assign,{param($m)$m.Value.Replace($m.Groups[2].Value,'<masked>')})
-    $s=[regex]::Replace($s,$secret,'<masked>');$s=[regex]::Replace($s,$jwt,'<jwt masked>')
     (($s-replace'\\[nrt]',' '-replace'\\"','"'-replace'\\\\','\'-replace'\s+',' ').Trim())
 }
 function Invoke-RepoGit([string]$Repo){$o=& git -C $Repo @args 2>&1;if($LASTEXITCODE-gt1){throw "SPIDER_GIT_FAILED $Repo git $($args-join' '): $o"};@($o|Where-Object{$_-is[string]})}

@@ -30,17 +30,28 @@ param(
 )
 $ErrorActionPreference='Stop'
 $log=Join-Path $Root 'events\events.jsonl'
-function Read-Events{if(Test-Path $log){foreach($l in [IO.File]::ReadAllLines($log)){if($l){$l|ConvertFrom-Json}}}}
+# A torn or hand-damaged line is skipped (and counted for Hunt.ps1), never allowed to silence every reader.
+function Read-Events{if(Test-Path $log){foreach($l in [IO.File]::ReadAllLines($log)){if($l){try{$o=$l|ConvertFrom-Json;if($o.pattern-and$o.at){$o}else{$script:badLines++}}catch{$script:badLines++}}}}}
+$script:badLines=0
 
 if($Add){
-    $last=@(Read-Events|Where-Object{$_.pattern-eq$Pattern-and$_.session-eq$Session-and$_.summary-eq$Summary})
-    if($last.Count){"EVENT DUPLICATE $Pattern (already recorded for this session)";exit 0}  # watchers repeat; one line per fact
-    $e=[ordered]@{at=$At.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ');session="$Session";source=$Source;repo=$Repo;sha=$Sha
-        pattern=$Pattern;category=$Category;severity=$Severity;summary=$Summary;cause=$Cause;status=$Status
-        tool=$Tool;action=$Action;evidence=$Evidence;trigger=$Trigger;tags=$Tags}
+    # Watchers, hunters and agents append at the same moment: one writer at a time, or a line is lost (12 parallel
+    # writers kept 11 lines, measured 2026-10-20). The duplicate check runs inside the same lock.
     New-Item -ItemType Directory -Path (Split-Path $log -Parent) -Force|Out-Null
-    [IO.File]::AppendAllText($log,(($e|ConvertTo-Json -Compress)+"`n"))
-    $n=@(Read-Events|Where-Object pattern -eq $Pattern|ForEach-Object session|Select-Object -Unique).Count
+    # named by a stable hash of the log's folder (String.GetHashCode differs in every process, so it cannot name a lock)
+    $key=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes((Get-Item (Split-Path $log -Parent)).FullName.ToLowerInvariant()))).Substring(0,16)
+    $lock=[Threading.Mutex]::new($false,"Local\orvion-events-$key")
+    $owned=try{$lock.WaitOne(30000)}catch [Threading.AbandonedMutexException]{$true}
+    if(!$owned){throw "EVENTS_LOCK_TIMEOUT: another writer held $log for 30 s"}
+    try{
+        $last=@(Read-Events|Where-Object{$_.pattern-eq$Pattern-and$_.session-eq$Session-and$_.summary-eq$Summary})
+        if($last.Count){"EVENT DUPLICATE $Pattern (already recorded for this session)";exit 0}  # watchers repeat; one line per fact
+        $e=[ordered]@{at=$At.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ');session="$Session";source=$Source;repo=$Repo;sha=$Sha
+            pattern=$Pattern;category=$Category;severity=$Severity;summary=$Summary;cause=$Cause;status=$Status
+            tool=$Tool;action=$Action;evidence=$Evidence;trigger=$Trigger;tags=$Tags}
+        [IO.File]::AppendAllText($log,(($e|ConvertTo-Json -Compress)+"`n"))
+        $n=@(Read-Events|Where-Object pattern -eq $Pattern|ForEach-Object session|Select-Object -Unique).Count
+    }finally{$lock.ReleaseMutex()}
     "EVENT RECORDED $Pattern ($n session(s))";exit 0
 }
 
@@ -61,12 +72,13 @@ function Format-View($v,[switch]$WithSession){
     $line="[$($v.status) x$($v.sessions) $($v.last)] $($v.pattern): $($v.summary)$(if($use){" -> $use"})$(if($v.evidence){" (evidence: $($v.evidence))"})"
     # the newest occurrence whose transcript is archived (an older one may predate the archive)
     $s=if($WithSession){@($v.sessionList|ForEach-Object{$script:sessionIndex[$_]}|Where-Object{$_})[-1]}
-    if($s){$line+="`n    raw record: session $($s.id.Substring(0,[Math]::Min(8,$s.id.Length))) $(([datetime]$s.start).ToUniversalTime().ToString('yyyy-MM-dd')) `"$($s.title)`" -> $(Join-Path $Root $s.raw)"}
+    if($s){$when=try{([datetime]$s.start).ToUniversalTime().ToString('yyyy-MM-dd')}catch{'?'}  # an index row may lack a start
+        $line+="`n    raw record: session $($s.id.Substring(0,[Math]::Min(8,$s.id.Length))) $when `"$($s.title)`" -> $(Join-Path $Root $s.raw)"}
     $line
 }
 # The session index links an event to its full raw transcript (written by Sync-Sessions.ps1).
 $sessionIndex=@{};$ix=Join-Path $Root 'sessions\index.jsonl'
-if($Find-and(Test-Path $ix)){foreach($l in [IO.File]::ReadAllLines($ix)){if($l){$o=$l|ConvertFrom-Json;$sessionIndex[$o.id]=$o}}}
+if($Find-and(Test-Path $ix)){foreach($l in [IO.File]::ReadAllLines($ix)){if($l){try{$o=$l|ConvertFrom-Json;$sessionIndex[$o.id]=$o}catch{$script:badLines++}}}}
 if($Find){
     $stop='the','and','for','with','that','this','from','into','then','run','use','new','all','any','our','its','are','was','not','but','when',  # 2-letter words count (id, ui, db), common ones do not
         'is','it','to','of','in','on','an','at','by','or','as','be','do','if','me','my','we','so','up','no','us','am','he','go'

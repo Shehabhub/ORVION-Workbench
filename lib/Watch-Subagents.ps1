@@ -25,7 +25,7 @@ $started=Get-Date
 function Get-LastEntry([string]$Path){
     $fs=[IO.File]::Open($Path,'Open','Read','ReadWrite')
     try{$n=[Math]::Min($fs.Length,262144);$fs.Seek(-$n,'End')|Out-Null;$buf=New-Object byte[] $n;[void]$fs.Read($buf,0,$n)}finally{$fs.Dispose()}
-    $lines=[Text.Encoding]::UTF8.GetString($buf)-split"`n"|Where-Object{$_.Trim()}
+    $lines=@([Text.Encoding]::UTF8.GetString($buf)-split"`n"|Where-Object{$_.Trim()})  # @(): one line must stay a list, not a string to index
     # Bookkeeping entries (attachment, api-request, ...) follow the final answer; judge by the newest
     # conversation entry. A trailing api-request means a model call is in flight: the agent is working.
     $inFlight=$false
@@ -39,7 +39,13 @@ function Get-AgentState([IO.FileInfo]$Transcript){
     $last=Get-LastEntry $Transcript.FullName;if(!$last){return $null};$e=$last.Entry
     $c=@($e.message.content);$tool=@($c|Where-Object{$_.type-eq'tool_use'})|Select-Object -Last 1
     $text=(@($c|Where-Object{$_.type-eq'text'}|ForEach-Object{$_.text})-join' ')
-    $state=if($last.InFlight){'WORKING'}elseif($e.type-eq'assistant'-and$tool){'TOOL'}elseif($e.type-eq'assistant'-and$text){'FINISHED'}elseif("$text$($e.message.content)"-match'\[Request interrupted|was stopped|doesn''t want to proceed'){'STOPPED'}else{'WORKING'}
+    # FINISHED only on stop_reason end_turn: a text block is written as its own line before the tool call that follows it,
+    # with stop_reason null, for up to 22 s (measured 2026-10-20 on real agents); calling that "finished" ended the watch.
+    # STOPPED only on the harness's own interruption markers, never on a tool result that merely says "was stopped".
+    # (measured: a user entry whose text block starts "[Request interrupted by user" or a tool result that starts with the denial)
+    $blocks=@(if($e.message.content-is[string]){$e.message.content}else{$c|ForEach-Object{if($_.text){$_.text}elseif($_.content-is[string]){$_.content}}})
+    $interrupted=[bool]@($blocks|Where-Object{"$_".StartsWith('[Request interrupted')-or"$_".StartsWith('The user doesn''t want to proceed with this tool use')}).Count
+    $state=if($last.InFlight){'WORKING'}elseif($e.type-eq'assistant'-and$tool){'TOOL'}elseif($e.type-eq'assistant'-and$e.message.stop_reason-eq'end_turn'){'FINISHED'}elseif($e.type-eq'user'-and$interrupted){'STOPPED'}else{'WORKING'}
     $what=if($tool){$j=($tool.input|ConvertTo-Json -Compress -Depth 4)-replace'\s+',' ';"$($tool.name) $($j.Substring(0,[Math]::Min(160,$j.Length)))"}else{''}
     $quiet=((Get-Date)-$Transcript.LastWriteTime).TotalMinutes
     [pscustomobject]@{Id=$Transcript.BaseName-replace'^agent-','';State=$state;Quiet=[Math]::Round($quiet,1);What=$what}
@@ -58,7 +64,7 @@ while($true){
         $kind=if($s.State-eq'TOOL'-and$s.Quiet-ge$StallMinutes){'STALLED'}elseif($s.State-in'WORKING','TOOL'-and$s.Quiet-ge$IdleMinutes){'IDLE'}else{$null}
         if($kind-and$alarm[$s.Id]-ne$kind){
             if($kind-eq'STALLED'){$anyStall=$true;"STALLED $($s.Id): waiting $($s.Quiet) min on $($s.What) - stop it and fix the cause (permission scope or a hung command)"
-                $null=& (Join-Path $PSScriptRoot 'Events.ps1') -Add -Pattern agent-stall-unseen-approval -Source watchdog -Category failure -Severity high -Session $Session -Summary "agent $($s.Id) waited $StallMinutes+ min on $($s.What)" -Tags 'background subagent agent stuck hang waiting permission prompt' 2>$null}  # improvement memory: one line per stalled agent
+                try{$null=& (Join-Path $PSScriptRoot 'Events.ps1') -Add -Pattern agent-stall-unseen-approval -Source watchdog -Category failure -Severity high -Session (Split-Path $Session -Leaf) -Summary "agent $($s.Id) waited $StallMinutes+ min on $($s.What)" -Tags 'background subagent agent stuck hang waiting permission prompt'}catch{$null=$_}}  # improvement memory, never at the cost of the watch
             else{"IDLE $($s.Id): no transcript write for $($s.Quiet) min ($($s.State))"}
             $alarm[$s.Id]=$kind
         }elseif(!$kind-and$alarm[$s.Id]-and$s.State-notin'FINISHED','STOPPED'){"RECOVERED $($s.Id) ($($s.State))";$alarm.Remove($s.Id)}

@@ -36,6 +36,8 @@ foreach($name in 'CRM','ORVION','CRM-trusted-main','ORVION-trusted-main'){
     $dir=Join-Path $out "repos\$name";New-Item -ItemType Directory $dir -Force|Out-Null
     $head=(Invoke-Git $r rev-parse HEAD).Trim();$branch=(Invoke-Git $r rev-parse --abbrev-ref HEAD).Trim()
     $dirty=@(Invoke-Git $r status --porcelain).Count
+    # a bundle keeps refs, not the stash reflog or a linked worktree's state: count them so the report can say so
+    $stash=@(Invoke-Git $r stash list).Count;$worktrees=@(Invoke-Git $r worktree list --porcelain|Where-Object{$_-like'worktree *'}).Count-1
     Invoke-Git $r bundle create (Join-Path $out "repos\$name.bundle") --all|Out-Null
     Invoke-Git $r bundle verify (Join-Path $out "repos\$name.bundle")|Out-Null
     [IO.File]::WriteAllLines((Join-Path $dir 'git-config-local.txt'),[string[]](Invoke-Git $r config --local --list))
@@ -44,7 +46,7 @@ foreach($name in 'CRM','ORVION','CRM-trusted-main','ORVION-trusted-main'){
         $toDir=if(Test-Path -LiteralPath (Join-Path $r $p) -PathType Container){Join-Path $dir $p}else{[IO.Path]::Combine($dir,(Split-Path $p -Parent))}
         Copy-Tree (Join-Path $r $p) $toDir
     }
-    $plan.repos+=[ordered]@{name=$name;head=$head;branch=$branch;dirty=$dirty;origin=(Invoke-Git $r config --local remote.origin.url).Trim()
+    $plan.repos+=[ordered]@{name=$name;head=$head;branch=$branch;dirty=$dirty;stash=$stash;worktrees=$worktrees;origin=(Invoke-Git $r config --local remote.origin.url).Trim()
         originHead="$(& git -C $r symbolic-ref -q refs/remotes/origin/HEAD)".Trim()}  # empty when the clone has none
 }
 Copy-Tree $tools (Join-Path $out 'owner-tools') {param($rel)$rel-like'work\sandboxes\*'}
@@ -55,11 +57,13 @@ foreach($p in Get-ChildItem "$env:USERPROFILE\.claude\projects" -Directory|Where
 }
 if(!$SkipLegacy){foreach($n in 'ORVION-Owner-Review','ORVION-Owner-Tools','ORVION-Sandbox','ORVION-drafts-backup','Windows-Memory-Config'){
     $src=Join-Path $docs $n;if(!(Test-Path $src)){continue}
-    $clones=@(Get-ChildItem $src -Recurse -Force -Directory -Filter .git -ErrorAction SilentlyContinue|ForEach-Object{$_.Parent.FullName.Substring($src.Length+1)+'\'})
+    # nested clones are reproducible sandboxes; a legacy folder that is itself a repository keeps its files, not its .git
+    $clones=@(Get-ChildItem $src -Recurse -Force -Directory -Filter .git -ErrorAction SilentlyContinue|ForEach-Object{$p=$_.Parent.FullName;if($p.Length-gt$src.Length){$p.Substring($src.Length+1)+'\'}else{'.git\'}})
     Copy-Tree $src (Join-Path $out "legacy\$n") {param($rel)foreach($c in $clones){if($rel.StartsWith($c)){return $true}};$false}
 }}
 $plan|ConvertTo-Json -Depth 4|Set-Content (Join-Path $out 'backup.json')
 $sums=Get-ChildItem $out -Recurse -File|ForEach-Object{"$((Get-FileHash -LiteralPath $_.FullName).Hash)  $($_.FullName.Substring($out.Length+1))"}
 [IO.File]::WriteAllLines((Join-Path $out 'SHA256SUMS.txt'),[string[]]$sums)
 "BACKUP: $($sums.Count) files, $([math]::Round((Get-ChildItem $out -Recurse -File|Measure-Object Length -Sum).Sum/1MB)) MB -> $out"
-$plan.repos|ForEach-Object{"  $($_.name) $($_.branch)@$($_.head.Substring(0,7))$(if($_.dirty){" DIRTY($($_.dirty)): uncommitted work is NOT in the bundle"})"}
+$plan.repos|ForEach-Object{"  $($_.name) $($_.branch)@$($_.head.Substring(0,7))$(if($_.dirty){" DIRTY($($_.dirty)): uncommitted work is NOT in the bundle"})$(if($_.stash){"; $($_.stash) stash(es): only the newest survives a bundle"})$(if($_.worktrees-gt0){"; $($_.worktrees) linked worktree(s): their uncommitted state is NOT backed up"})"}
+'  not backed up by design: supabase\.temp (recreated by `supabase link`), credentials (re-login: gh auth login, supabase login)'

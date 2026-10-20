@@ -1,8 +1,8 @@
 # Self-check for Sync-Sessions.ps1's continuous archive: partial lines wait, growth appends, a killed append is
 # completed, a rewritten source keeps the old copy, and the incremental index equals a full read.
 $ErrorActionPreference='Stop'
-. (Join-Path $PSScriptRoot 'Sync-Sessions.ps1') -Library
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-synctest-$([guid]::NewGuid().ToString('N').Substring(0,6))";New-Item -ItemType Directory $t|Out-Null
+. (Join-Path $PSScriptRoot 'Sync-Sessions.ps1') -Library -Root $t  # never the real workspace
 $src=Join-Path $t 'src.jsonl';$dst=Join-Path $t 'a\dst.jsonl';$fail=0
 function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 function Write-Bytes([string]$Path,[string]$Text,[switch]$Append){$m=if($Append){'Append'}else{'Create'};$s=[IO.File]::Open($Path,$m,'Write','ReadWrite');try{$b=[Text.Encoding]::UTF8.GetBytes($Text);$s.Write($b,0,$b.Length)}finally{$s.Close()}}

@@ -37,7 +37,10 @@ if(Test-Path $ix){foreach($l in [IO.File]::ReadAllLines($ix)|Where-Object{$_}){
 }}else{Add-Finding GAP index-missing 'sessions\index.jsonl does not exist (run Sync-Sessions.ps1)'}
 if($bad){Add-Finding BUG index-consistency "$($bad.Count) idle index rows disagree with their files, first: $($bad[0])" 'index session bytes stale'}
 $evLog=Join-Path $Root 'events\events.jsonl'
-$events=@(if(Test-Path $evLog){[IO.File]::ReadAllLines($evLog)|Where-Object{$_}|ForEach-Object{$_|ConvertFrom-Json}})
+$events=@(if(Test-Path $evLog){[IO.File]::ReadAllLines($evLog)|Where-Object{$_}|ForEach-Object{try{$_|ConvertFrom-Json}catch{$null=$_}}|Where-Object{$_}})
+$torn=@(if(Test-Path $evLog){[IO.File]::ReadAllLines($evLog)|Where-Object{$_}|Where-Object{try{$o=$_|ConvertFrom-Json;!($o.pattern-and$o.at)}catch{$true}}}).Count
+if($torn){Add-Finding BUG events-corrupt "$torn line(s) of events\events.jsonl are not valid events (skipped by every reader; repair or remove them)" 'events log corrupt torn line'}
+foreach($lg in 'sync-errors.log'){$p=Join-Path $Root "work\$lg";if((Test-Path $p)-and(Get-Item $p).Length){Add-Finding BUG $lg.Replace('.log','') "the session archiver logged $(@(Get-Content $p).Count) failure(s); last: $(@(Get-Content $p -Tail 1)[0])" 'archive sync error file failed'}}
 $ids=@{};if(Test-Path $ix){foreach($l in [IO.File]::ReadAllLines($ix)|Where-Object{$_}){$ids[($l|ConvertFrom-Json).id]=1}}
 $missingEv=@($events|Where-Object{$_.evidence-match'^(?:[A-Za-z]:\\|work\\|sessions\\|lib\\)'}|Where-Object{
     $e=$_.evidence-replace'\s*\(.*$','';!(Test-Path -LiteralPath $e)-and!(Test-Path -LiteralPath (Join-Path $Root $e))-and!(Test-Path -LiteralPath (Join-Path (Join-Path $env:USERPROFILE 'Documents') $e))}|ForEach-Object pattern|Select-Object -Unique)
@@ -67,21 +70,24 @@ if(Test-Path (Join-Path $Root '.git')){
 # tested: each tool is named by at least one self-check (or is a hook/fixture/test itself)
 $lib=$PSScriptRoot;$testText=(Get-ChildItem $lib -File -Filter '*.ps1'|Where-Object Name -cmatch '^test-'|ForEach-Object{[IO.File]::ReadAllText($_.FullName)})-join"`n"
 # exempt with the reason they are trusted without a self-check; anything new must have one
-$exempt=@{'apply-draft-steps.ps1'='proven by every contract rehearsal (step blobs reproduce)';'Invoke-DraftSteps.ps1'='proven by every Draft generation';'Invoke-DraftRehearsal.ps1'='is itself a full lifecycle rehearsal';'Test-ContractReview.ps1'='is itself a review check, run per contract';'Test-ScriptHazards.ps1'='run by tests.ps1 on every script';'Watch-Subagents.ps1'='proven live on 16 agents, needs a real transcript'}
+$exempt=@{'apply-draft-steps.ps1'='proven by every contract rehearsal (step blobs reproduce)';'Invoke-DraftSteps.ps1'='proven by every Draft generation';'Invoke-DraftRehearsal.ps1'='is itself a full lifecycle rehearsal';'Test-ContractReview.ps1'='is itself a review check, run per contract';'Test-ScriptHazards.ps1'='run by tests.ps1 on every script'}
 $untested=@(Get-ChildItem $lib -File -Filter *.ps1|Where-Object{$_.Name-cnotmatch'^test-'-and!$testText.Contains($_.Name)-and!$exempt[$_.Name]}|ForEach-Object Name)
 if($untested){Add-Finding GAP untested-tools "$($untested.Count) tool(s) no self-check names: $($untested-join', ')" 'untested tool self-check missing test'}
 
 if(!$Quick){
     # mutants: plant a known bug in a temp copy; the named self-check must fail. [file, find, replace, test, what]
     $mutants=if($MutantSet){$MutantSet}else{@(  # each row needs the leading comma, or PowerShell flattens the rows into one list of strings
-        ,@('Sync-Sessions.ps1','if($have-ge0-and($have-gt$end-or!(Test-Prefix $in $Dst $have))){','if($false){','test-sync-sessions-append.ps1','the prefix proof before an append')
-        ,@('Sync-Sessions.ps1','$nl=[Array]::LastIndexOf($buf,[byte]10,$got-1);$end=','$nl=$got-1;$end=','test-sync-sessions-append.ps1','the complete-lines-only rule')
+        ,@('Sync-Sessions.ps1','if($have-ge0-and!$same){Move-Item','if($false){Move-Item','test-sync-sessions-append.ps1','the prefix proof before an append')
+        ,@('Sync-Sessions.ps1','if($i-ge0){return $pos-$n+$i+1}','if($i-ge0){return $Upto}','test-sync-sessions-append.ps1','the complete-lines-only rule')
+        ,@('Sync-Sessions.ps1','-or$r.headHash-ne$head){','){','test-sync-sessions-rewrite.ps1','restarting the index row of a replaced file')
+        ,@('Sync-Sessions.ps1','$edge=''(?:(?<=\\[nrt])|(?<![\w-]))''','$edge=''(?<![\w-])''','test-sync-sessions-secrets.ps1','finding a token right after a JSON \n escape')
         ,@('Sync-Sessions.ps1','if(Test-Path "$raw\claude"){foreach($p in Get-ChildItem "$raw\claude"','if(Test-Path "$ClaudeProjects"){foreach($p in Get-ChildItem "$ClaudeProjects"','test-sync-sessions-survival.ps1','indexing the archive, not the sources')
-        ,@('Spider.ps1','$m.Value.Replace($m.Groups[2].Value,''<masked>'')','$m.Value','test-spider.ps1','masking credential values in snippets')
+        ,@('Spider.ps1','$Line=Hide-Secret $Line','$Line=$Line','test-spider.ps1','masking credential values in snippets')
         ,@('Spider.ps1','if($LASTEXITCODE-gt1){throw','if($false){throw','test-spider.ps1','refusing a failing git read')
         ,@('Events.ps1','if($last.Count){"EVENT DUPLICATE','if($false){"EVENT DUPLICATE','test-events.ps1','duplicate refusal')
         ,@('Events.ps1','$s+=$idf[$q]*(2*(Test-WordMatch $q $v.tagWords)+(Test-WordMatch $q $v.words))/6','$s+=$idf[$q]*[int]((Test-WordMatch $q $v.words)-gt0)','test-events-retrieval.ps1','tag and exact-word ranking')
         ,@('Delegate.ps1','- You MUST NOT commit, push','- You may commit, push','test-delegate.ps1','the authority limits in every brief')
+        ,@('Watch-Subagents.ps1','$e.message.stop_reason-eq''end_turn''','$text','test-watch-subagents.ps1','finished only on end_turn')
     )}
     $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-hunt-$([guid]::NewGuid().ToString('N').Substring(0,6))"
     try{
