@@ -1,5 +1,5 @@
 # Claude Code hook (machine-local agent tooling): makes sure every agent knows and uses the ORVION watchers.
-#   SessionStart          -> prints the tool index (ORVION-Sandbox\lib\README.md, "Always" section)
+#   SessionStart          -> prints the tool index (lib\README.md, "Always" section) and Pulse
 #   PostToolUse Agent     -> a background agent was launched: the exact Watch-Subagents command for this session
 #   PostToolUse PowerShell|Bash running scripts/run_timed.ps1 -> the exact watch_run and Watch-Host commands
 # Reads the hook event from stdin; only ever adds context, never blocks, and exits 0 on any error.
@@ -40,7 +40,11 @@ try{
         $log=[regex]::Match($c,'-Log\s+(?:"([^"]+)"|''([^'']+)''|(\S+))');$log=@($log.Groups[1].Value,$log.Groups[2].Value,$log.Groups[3].Value)|Where-Object{$_}|Select-Object -First 1
         if(!$log-or$c-notmatch'run_timed\.ps1["'']?\s'){exit 0}  # a mention, not a run
         $rt=[regex]::Match($c,'(?:"([^"]*run_timed\.ps1)"|(\S*run_timed\.ps1))');$rt=@($rt.Groups[1].Value,$rt.Groups[2].Value)|Where-Object{$_}|Select-Object -First 1
-        $watch=if($rt-and[IO.Path]::IsPathRooted($rt)){Join-Path (Split-Path $rt -Parent) 'watch_run.ps1'}else{Join-Path $e.cwd 'scripts\watch_run.ps1'}
+        # The hook sees the command text only: a path built from variables ($E\pt\scripts\run_timed.ps1) cannot be
+        # resolved here, and the session folder need not be a repository. Never print a watcher path that does not exist.
+        $watch=if($rt-and[IO.Path]::IsPathRooted($rt)-and$rt-notmatch'\$'){Join-Path (Split-Path $rt -Parent) 'watch_run.ps1'}else{Join-Path $e.cwd 'scripts\watch_run.ps1'}
+        if($rt-match'\$'-or!(Test-Path -LiteralPath $watch)){$watch='<the folder of the run_timed.ps1 you started>\watch_run.ps1'}
+        if($log-match'\$'){$log="$log (expand the variables: the hook cannot)"}
         $run=if($c-match'-Finish'){'finish-control'}elseif($c-match'test_agent_continuity'){'control-suite'}else{'timed-run'}
         $bg=if($in.run_in_background){''}else{' run_timed blocks in the foreground, so a watcher cannot follow it live: start it with run_in_background next time.'}
         Send-Context ("WATCHER REQUIRED: you started a timed run. Start the Monitor tool now (timeout_ms 1800000, re-arm on expiry) with: pwsh -NoProfile -File `"$watch`" -Log `"$log`" -Run $run -Brief. For a heavy run, or two at once, also Monitor: pwsh -NoProfile -File `"$lib\Watch-Host.ps1`" -WatchPid <runner pid from the watcher's first line> -ExitWhenPidsGone.$bg")
