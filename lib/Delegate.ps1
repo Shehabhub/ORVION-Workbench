@@ -52,6 +52,7 @@ if($List){
 
 $history=@(if(Test-Path (Join-Path $Root 'events\events.jsonl')){[IO.File]::ReadAllLines((Join-Path $Root 'events\events.jsonl'))|Where-Object{$_}|ForEach-Object{try{$_|ConvertFrom-Json}catch{$null=$_}}|Where-Object{$_}|Where-Object pattern -eq $Pattern|Sort-Object at})
 $known=@($history|ForEach-Object{"- $(([datetime]$_.at).ToUniversalTime().ToString('yyyy-MM-dd')) [$($_.category), $($_.status), cause $($_.cause)] $($_.summary)$(if($_.action){" -> $($_.action)"})$(if($_.evidence){" (evidence: $($_.evidence))"})"})
+$related=@(& $ev -Root $Root -Find $Question -Top 3|Where-Object{$_-notmatch"^EVENTS|\] $([regex]::Escape($Pattern)):"})  # solved before? say so before the work starts
 $spider=if($Query){@(& (Join-Path $PSScriptRoot 'Spider.ps1') $Query -Top 3 -Root $Root)}else{@()}
 $dir=Join-Path $base "$([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))-$Pattern";New-Item -ItemType Directory $dir -Force|Out-Null
 $reportPath=Join-Path $dir 'REPORT.md'
@@ -72,6 +73,9 @@ $Question
 
 ## What is already known (event history for ``$Pattern``)
 $(if($known){$known-join"`n"}else{'- nothing recorded yet'})
+
+## Related past events and how they ended (``Events.ps1 -Find`` on the question)
+$(if($related){$related-join"`n"}else{'- none recorded'})
 
 ## What the spider found$(if($Query){" for '$Query'"})
 $(if($spider){'```'+"`n"+($spider-join"`n")+"`n"+'```'}else{'- not run (no -Query given)'})

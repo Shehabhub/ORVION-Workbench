@@ -52,7 +52,9 @@ if($Add){
         $e=[ordered]@{at=$At.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ');session="$Session";source=$Source;repo=$Repo;sha=$Sha
             pattern=$Pattern;category=$Category;severity=$Severity;summary=$Summary;cause=$Cause;status=$Status
             tool=$Tool;action=$Action;evidence=$Evidence;trigger=$Trigger;tags=$Tags;owner=$Owner;due=$Due}
-        [IO.File]::AppendAllText($log,(($e|ConvertTo-Json -Compress)+"`n"))
+        # a torn last line (a writer killed mid-line) is closed first, or this record would join it and be lost with it
+        $lead='';if((Test-Path $log)-and(Get-Item $log).Length){$fs=[IO.File]::OpenRead($log);try{$null=$fs.Seek(-1,'End');if($fs.ReadByte()-ne10){$lead="`n"}}finally{$fs.Dispose()}}
+        [IO.File]::AppendAllText($log,$lead+($e|ConvertTo-Json -Compress)+"`n")
         $n=@(Read-Events|Where-Object pattern -eq $Pattern|ForEach-Object session|Select-Object -Unique).Count
     }finally{$lock.ReleaseMutex()}
     "EVENT RECORDED $Pattern ($n session(s))";exit 0

@@ -89,6 +89,8 @@ if(!$Quick){
         ,@('Delegate.ps1','- You MUST NOT commit, push','- You may commit, push','test-delegate.ps1','the authority limits in every brief')
         ,@('Coordinator.ps1','elseif($z.source-eq''delegate-road''){','elseif($false){','test-coordinator.ps1','holding a dispatched item until its report returns')
         ,@('Coordinator.ps1','-Skip $(if($closed){$closed[-1]+1}else{0})','-Skip 0','test-coordinator.ps1','a reopened item needing a new owner')
+        ,@('Coordinator.ps1','-or$sev-eq''high''-or$last','-or$sev-eq''high''','test-coordinator.ps1','a recurrence after a fix being material')
+        ,@('Events.ps1','if($fs.ReadByte()-ne10){$lead="`n"}','if($false){$lead="`n"}','test-coordinator.ps1','closing a torn journal line before the next record')
         ,@('Delegate.ps1','-Owner $(if($next){''agent''}else{''''})','-Owner ''''','test-coordinator.ps1','handing a returned verdict back to the agent')
         ,@('Watch-Subagents.ps1','$e.message.stop_reason-eq''end_turn''','$text','test-watch-subagents.ps1','finished only on end_turn')
     )}
