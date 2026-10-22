@@ -44,6 +44,28 @@ wave-2 tooling contract tracks these tools in each repository and names them in 
 | `Invoke-DraftRehearsal.ps1` | full lifecycle rehearsal of a frozen Draft in a disposable clone (push DISABLED) |
 | `lifecycle.ps1` (dot-source) | shared helpers, including `Stop-ProcessTreeFully` |
 
+## Explicit dual owner operations
+
+`Owner-PublishDual.ps1` and `Owner-PromoteDual.ps1` coordinate the two own tracked owner interfaces. `Invoke-OwnerDual.ps1` holds their one shared descriptor/result sequence; it does not replace native gates. They need an interactive owner console and preserve each interface's own confirmation. `-NonInteractive` refuses, and an earlier release delegation is not reused. Use existing approved owner entrypoints to bootstrap a release until the tracked interfaces are available on each trusted `main`.
+
+Run one operation with `pwsh -NoProfile -File <lib>/Owner-PublishDual.ps1 -Descriptor <absolute-json-path> -EvidenceDirectory <absolute-external-directory> -Approval <absolute-operation-approval-json> -ApprovalSha256 <explicit-reviewed-SHA256>`; replace Publish with Promote for promotion. Missing approval refuses. The reviewed descriptor has exactly `schema: 1` and `targets`, an array of exactly two records. Each record has exactly these fields:
+
+| Field | Value |
+|---|---|
+| `repository` | One `PlatPlusHub/CRM` and one `Shehabhub/ORVION`, each once; their own account routes are checked without requesting a token |
+| `candidateRoot` | Explicit absolute original candidate checkout; all four checkout roots must be distinct |
+| `trustedRoot` | Explicit absolute clean trusted `main` checkout; no clone, fetch, fast-forward or repair is performed by the coordinator |
+| `candidate` | Full lowercase 40-character candidate SHA, already prepared through its own lifecycle |
+| `base` | Full lowercase 40-character reviewed main SHA |
+
+`Test-OwnerDualAdmission.ps1` is the one minimum local activation interlock, not full P3 governance. The explicit per-operation document has exactly `schema`, `operation`, `workbenchRoot`, `workbenchHead`, `workbenchConfigSha256`, `sourceDraftSha256`, `reviewSha256`, `sourceFiles`, `descriptorSha256`, `evidenceDirectory`, `expiresUtc` and `configurations`. Use integer schema 1, exact full commit/digest identities, the actual installed clean Workbench root, UTC expiry in `yyyy-MM-ddTHH:mm:ssZ`, four source entries `{path,sha256}` for the two entrypoints, core and checker, and four configuration entries `{root,sha256}` for the selected candidate/trusted local Git configs. No token values belong in the document. The source Draft and independent review digests identify the separately approved installation/review evidence; they are not owner authentication. There is no auto-approval generator or approval registry.
+
+The evidence directory must match the explicit approval and be outside all five checkouts, including Workbench. Exact approval/descriptor bytes, source identities and configuration are checked at admission and again before each side effect. Duplicate JSON members, stale/modified input, wrong selection and missing tracked source refuse. Both product targets are checked before either child is invoked. Each child writes its new allowlisted operation record to a unique target directory; the coordinator validates that record and reads the exact remote ref. A nonzero child, wrong record, unreadable ref or readable ref mismatch prevents a DONE result. `result.json` preserves per-target results, exits and the local admission identity. It is operation evidence, never a native receipt or certification.
+
+The operation document is an explicit local operator assertion. A digest, local hook, mutable receipt or console confirmation cannot authenticate the owner or resist an actor with equal OS privileges. Actual GitHub actor identity remains UNVERIFIED here; own-account routing is configuration evidence only. Preserve independent native Gate/CI/trusted judgments and keep CTRL-19 OPEN. Do not infer live release permission from installing this tool, from a source-contract approval or from a previous release delegation.
+
+After partial success, inspect that result and the refs, then rerun the same reviewed descriptor. An exact already-completed ref is recorded as `ALREADY_DONE` and its child is skipped; the unfinished target is attempted normally. No rollback, retry loop or history rewrite occurs. Test with `pwsh -NoProfile -File <lib>/test-owner-dual.ps1`; its real local Git/child fixtures use explicit console/transport seams and never prove actual authenticated identity or live release. Preserve the external evidence directory with local backup. CTRL-19 remains open.
+
 ## Known traps (each cost a run)
 - `pwsh -WorkingDirectory X -File scripts/y.ps1` runs the CALLER's repo script: always pass an absolute `-File`.
 - `git grep` exits 1 for an unreadable blob, exactly as for "no match"; a failed native command reads as empty.
