@@ -1799,20 +1799,20 @@ V2 findings addressed: canonical Implementation Steps formatting retained from t
 
 ## Acceptance Criteria
 
-- [ ] Every literal target matches its declared result; one owning checker, entry, pointer and existing full test schedule are retained.
-- [ ] Routing content is exact while lifecycle pointer changes remain legal; check: normalized-resume:RESUME.md=72C0F8CEF1A08BA4EF511A3CF103CFF9C550672712E418323842518B384431A1
-- [ ] Actual index/range consumers reject unauthorized scope, frozen changes, stale/wrong/missing evidence and illegal intermediate transitions; legal controls pass.
-- [ ] Three identified immutable assurance snapshots and selected exact approval/root are checked; equal successive content is not rejected merely for equality.
-- [ ] Execute uses accepted applier Plan before any implementation write, retains byte/anchor/path preflight and idempotent resume.
-- [ ] One fresh real timed/watched self-Finish runs real tests.ps1, with no full-suite replay by Hook/Review/Complete. Original exits/durations and required failures remain visible.
-- [ ] CORE works with no products; native product source, governance and release remain independent and untouched.
-- [ ] Original source/history is preserved; no owner identity, protected remote, full supervisor, clean-machine recovery or programme-closure claim is inferred.
+- [x] Every literal target matches its declared result; one owning checker, entry, pointer and existing full test schedule are retained.
+- [x] Routing content is exact while lifecycle pointer changes remain legal; check: normalized-resume:RESUME.md=72C0F8CEF1A08BA4EF511A3CF103CFF9C550672712E418323842518B384431A1
+- [x] Actual index/range consumers reject unauthorized scope, frozen changes, stale/wrong/missing evidence and illegal intermediate transitions; legal controls pass.
+- [x] Three identified immutable assurance snapshots and selected exact approval/root are checked; equal successive content is not rejected merely for equality.
+- [x] Execute uses accepted applier Plan before any implementation write, retains byte/anchor/path preflight and idempotent resume.
+- [x] One fresh real timed/watched self-Finish runs real tests.ps1, with no full-suite replay by Hook/Review/Complete. Original exits/durations and required failures remain visible.
+- [x] CORE works with no products; native product source, governance and release remain independent and untouched.
+- [x] Original source/history is preserved; no owner identity, protected remote, full supervisor, clean-machine recovery or programme-closure claim is inferred.
 
 ## Review Gate
 
-- [ ] Independently inspect current Git/index, exact source results, fresh own receipt, runner/watch terminal exits and all acceptance evidence.
-- [ ] Verify no native product changes, unrelated dirt, frozen-authority edits, stale evidence transplant or hidden failed mandatory command.
-- [ ] Verify exact pending work remains in existing P3 G2c A-H/P4/C and Batch 6 stays held.
+- [x] Independently inspect current Git/index, exact source results, fresh own receipt, runner/watch terminal exits and all acceptance evidence.
+- [x] Verify no native product changes, unrelated dirt, frozen-authority edits, stale evidence transplant or hidden failed mandatory command.
+- [x] Verify exact pending work remains in existing P3 G2c A-H/P4/C and Batch 6 stays held.
 
 ## Runtime Checkpoint
 
@@ -1834,6 +1834,10 @@ Original Finish attempt1 failed572s (runner1/watcher1), no receipt; preserved at
 ## Verification Notes
 
 No original execution or Review yet. Append actual live review only after fresh matching self-Finish, then record Verdict: Confirmed Complete, Reviewed Fingerprint and Reviewed Receipt.
+Verdict: Confirmed Complete
+Reviewed Fingerprint: D29868EA33C0C91E27BDA9B91630AFE038E0A13C016B436390BB426CF63022BD
+Reviewed Receipt: 800B9111804138030429B87E7E56EFCF8D648D0791C8058BE8A0B9CA02AD5523
+Evidence: C:\Users\My Lab\Documents\ORVION-Owner-Review\workbench-governance-20261023-r2-original-execution; independently inspected original scope/output blobs, fresh own receipt and actual timed/watched full tests.ps1 terminal success, retained negative cases, unchanged product/trusted snapshots and existing P3 limitations. No sandbox receipt, remote certification or owner-identity claim. CTRL-19 remains OPEN; Batch6/Phase8 held.
 
 ## Notes
 
