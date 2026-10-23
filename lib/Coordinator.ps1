@@ -35,9 +35,23 @@ param([Parameter(ParameterSetName='queue')][switch]$Check,
 $ErrorActionPreference='Stop'
 $ev=Join-Path $PSScriptRoot 'Events.ps1';$log=Join-Path $Root 'events\events.jsonl'
 # The journal is the only state: every view is computed from it at read time, so there is no index to drift or rebuild.
-$bad=0;$records=@(if(Test-Path $log){foreach($l in [IO.File]::ReadAllLines($log)){if($l){try{$o=ConvertFrom-Json $l -DateKind String;if($o.pattern-and$o.at){$o}else{$bad++}}catch{$bad++}}}})
 # Times stay strings until here (ConvertFrom-Json would guess a kind); a bare date is due at the end of that day.
 function ConvertTo-Utc([string]$s){$d=[DateTimeOffset]::Parse($s,[Globalization.CultureInfo]::InvariantCulture).UtcDateTime;if($s.Length-eq10){$d.AddDays(1).AddSeconds(-1)}else{$d}}
+if($Due){try{$null=ConvertTo-Utc $Due}catch{throw 'COORDINATOR_DUE_INVALID: refused before journal writes'}}
+$bad=0;$readFault=$false
+$records=@(try{
+    foreach($l in [IO.File]::ReadAllLines($log)){if($l.Trim()){try{
+        $o=ConvertFrom-Json $l -DateKind String
+        if(!$o.pattern-or!$o.at-or$o.summary-isnot[string]-or$o.status-notin'open','resolved','disproven','deferred','superseded'){throw 'invalid record'}
+        $null=ConvertTo-Utc $o.at;if($o.due){$null=ConvertTo-Utc $o.due};$o
+    }catch{$bad++}}}
+}catch{$readFault=$true})
+$incomplete=$readFault-or$bad-gt0
+# Viewing partial evidence is useful; acting on it would lose work. Never echo raw corrupt data or exception text.
+if($incomplete){
+    'COORDINATOR_UNREADABLE: required journal evidence is incomplete; valid partial records follow.'
+    if($Assign-or$Close-or$Dispatch){throw 'COORDINATOR_UNREADABLE: mutation refused before journal writes'}
+}
 
 $open=foreach($g in @($records|Group-Object pattern)){
     $r=@($g.Group|Sort-Object{ConvertTo-Utc $_.at});$z=$r[-1]
@@ -49,8 +63,10 @@ $open=foreach($g in @($records|Group-Object pattern)){
     $own=@($since.owner|Where-Object{$_})[-1];$act=@($since.action|Where-Object{$_})[-1];$dueText=@($since.due|Where-Object{$_})[-1]
     $sev=@($since.severity|Where-Object{$_})[-1];$dueAt=if($dueText){ConvertTo-Utc $dueText}else{$null}
     $last=if($closed){$r[$closed[-1]]}else{$null}
-    $case=$own-or$dueText-or$z.category-eq'decision'-or$z.source-eq'delegate-road'-or$sev-eq'high'-or$last
-    $state=if(!$case){'OBSERVATION'}elseif($z.category-eq'decision'-or$own-eq'owner'){'OWNER'}
+    $cause=@($since.cause|Where-Object{$_})[-1]
+    $ownerDecision=$own-eq'owner'-or$cause-eq'owner-decision'
+    $case=$own-or$dueText-or$ownerDecision-or$z.category-eq'decision'-or$z.source-eq'delegate-road'-or$sev-eq'high'-or$last
+    $state=if(!$case){'OBSERVATION'}elseif($ownerDecision){'OWNER'}
         elseif($dueAt-and$Now-gt$dueAt){'OVERDUE'}elseif($z.source-eq'delegate-road'){'DISPATCHED'}
         elseif(!$own-or!$act){'UNOWNED'}else{'ACTIVE'}
     [pscustomobject]@{pattern=$g.Name;state=$state;owner=$own;action=$act;due=$dueAt;age=[int]($Now-(ConvertTo-Utc $since[0].at)).TotalDays
@@ -94,8 +110,10 @@ if($Brief){
     foreach($i in @($escalated|Select-Object -First 3)){"         - $(Format-QueueLine $i)"}
     # what is in flight, newest first: after an interruption this is where work resumes (cold-start rehearsal, 2026-10-20)
     foreach($i in @($items|Where-Object state -in 'ACTIVE','DISPATCHED'|Sort-Object last -Descending|Select-Object -First 2)){"         in flight: $($i.pattern) ($($i.owner)): $($i.action.Substring(0,[Math]::Min(260,$i.action.Length)))"}
-    exit 0
+    exit $(if($incomplete){2}else{0})
 }
 "COORDINATOR $($Now.ToString('yyyy-MM-dd HH:mm')) UTC: $($items.Count) case(s): $count"
 foreach($i in $items){Format-QueueLine $i}
+if($incomplete){exit 2}
 if($Check-and$escalated.Count){exit 1}
+exit 0

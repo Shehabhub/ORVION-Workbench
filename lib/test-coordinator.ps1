@@ -17,7 +17,8 @@ try{
     & $co -Root $t -Close handle-fix -Status resolved -Reason 'fixed: Dispose in finally (OTTER)'|Out-Null
     Add-Event -Pattern lynx-leak -Session s1 -Category failure -Severity high -Summary 'LYNX handle leak blocks the run' -Tags 'lynx handle leak dispose'
     & $co -Root $t -Check|Out-Null
-    Assert-That 'a material item nobody took is UNOWNED, escalated, -Check fails' ((Get-State lynx-leak)-eq'UNOWNED'-and$LASTEXITCODE-eq1)
+    $checkCode=$LASTEXITCODE
+    Assert-That 'a material item nobody took is UNOWNED, escalated, -Check fails' ((Get-State lynx-leak)-eq'UNOWNED'-and$checkCode-eq1)
     $out=@(& $co -Root $t -Assign lynx-leak -Owner agent -Action 'close the handle in finally')
     Assert-That 'taking work first shows the prior resolution of a related event' ((($out-join' ')-match'PRIOR RESOLUTIONS')-and(($out-join' ')-match'Dispose in finally \(OTTER\)'))
     Assert-That 'owned with an action it is ACTIVE, not escalated, and named as in flight' ((Get-State lynx-leak)-eq'ACTIVE'-and((@(& $co -Root $t -Brief)-join' ')-match'in flight: lynx-leak \(agent\): close the handle in finally')-and((@(& $co -Root $t -Brief)|Select-Object -Skip 1|Where-Object{$_-notmatch'in flight'})-join' ')-notmatch'lynx-leak')
@@ -42,13 +43,53 @@ try{
     Assert-That 'duplicates and repeats stay one case (one line per fact)' (@(& $co -Root $t|Where-Object{$_-match' lynx-leak '}).Count-eq1-and@([IO.File]::ReadAllLines((Join-Path $t 'events\events.jsonl'))|Where-Object{$_-match'LYNX leaked again'}).Count-eq2)
     Add-Event -Pattern owner-pick -Session s1 -Category decision -Cause owner-decision -Summary 'pick a remote'
     Assert-That 'a genuine decision waits on the owner and is not escalated as noise' ((Get-State owner-pick)-eq'OWNER'-and((@(& $co -Root $t -Brief)|Select-Object -Skip 1)-join' ')-notmatch'owner-pick')
+    Add-Event -Pattern technical-choice -Session s1 -Category decision -Cause confirmed -Summary 'use the existing parser' -Owner agent -Action 'prove the parser cases'
+    Add-Event -Pattern unclassified-choice -Session s1 -Category decision -Cause hypothesis -Summary 'classify this finding'
+    Add-Event -Pattern owner-assigned -Session s1 -Category observation -Summary 'owner must choose' -Owner owner -Action 'choose the commercial option'
+    Assert-That 'technical decisions remain ACTIVE; unclassified material choices are UNOWNED; explicit owner assignment remains OWNER' ((Get-State technical-choice)-eq'ACTIVE'-and(Get-State unclassified-choice)-eq'UNOWNED'-and(Get-State owner-assigned)-eq'OWNER')
     Assert-That 'a deferral without a date is refused' $(try{& $co -Root $t -Close lynx-leak -Status deferred -Reason 'later'|Out-Null;$false}catch{"$_"-match'COORDINATOR_DEFER_NEEDS_DUE'})
     Assert-That 'acting on an item that is not open is refused' $(try{& $co -Root $t -Assign no-such -Owner agent -Action x|Out-Null;$false}catch{"$_"-match'COORDINATOR_NO_OPEN_ITEM'})
+    $validJournal=Join-Path $t 'events\events.jsonl';$validHash=(Get-FileHash $validJournal).Hash
+    $invalidDue=try{& $co -Root $t -Assign technical-choice -Owner agent -Action x -Due not-a-date|Out-Null;$false}catch{"$_"-match'COORDINATOR_DUE_INVALID'}
+    Assert-That 'new assignments cannot poison a valid journal with an invalid due date' ($invalidDue-and(Get-FileHash $validJournal).Hash-eq$validHash)
     # journal corruption: a writer killed mid-line leaves a torn line; the next record must stay readable
     [IO.File]::AppendAllText((Join-Path $t 'events\events.jsonl'),'{"at":"2026-10-20T00:00:00Z","pattern":"torn","summ')
     Add-Event -Pattern after-tear -Session s1 -Category failure -Severity high -Summary 'written after a torn line'
     $q=@(& $co -Root $t)-join' '
     Assert-That 'a torn line is skipped and counted; the record after it survives' ($q-match'journal: 1 unreadable line\(s\) skipped'-and(Get-State after-tear)-eq'UNOWNED')
+    & $co -Root $t -Check|Out-Null
+    Assert-That 'required check cannot succeed over partial journal evidence' ($LASTEXITCODE-eq2)
+    & $co -Root $t -Brief|Out-Null
+    Assert-That 'brief retains its incomplete-evidence exit' ($LASTEXITCODE-eq2)
+    $journal=Join-Path $t 'events\events.jsonl';$before=(Get-FileHash $journal).Hash
+    $refused=0
+    foreach($kind in 'assign','close','dispatch'){
+        try{switch($kind){
+            assign {& $co -Root $t -Assign after-tear -Owner agent -Action x|Out-Null}
+            close {& $co -Root $t -Close after-tear -Status resolved -Reason x|Out-Null}
+            dispatch {& $co -Root $t -Dispatch after-tear -Question x|Out-Null}
+        }}catch{if("$_"-match'COORDINATOR_UNREADABLE'){$refused++}}
+    }
+    Assert-That 'all three mutation doors refuse incomplete evidence before appending or dispatching' ($refused-eq3-and(Get-FileHash $journal).Hash-eq$before)
+    $empty=Join-Path $t 'empty';New-Item -ItemType Directory "$empty\events" -Force|Out-Null
+    [IO.File]::WriteAllText("$empty\events\events.jsonl",'')
+    & $co -Root $empty -Check|Out-Null
+    Assert-That 'an explicit empty valid journal is a successful empty case' ($LASTEXITCODE-eq0)
+    & $co -Root (Join-Path $t 'absent') -Check|Out-Null
+    Assert-That 'absent required journal is UNREADABLE, never an empty success' ($LASTEXITCODE-eq2)
+    [IO.File]::WriteAllText("$empty\events\events.jsonl",'{"pattern":"bad-date","at":"not-a-date","status":"open","summary":"synthetic"}')
+    $dateOut=@(& $co -Root $empty -Check)-join' '
+    Assert-That 'invalid record dates are counted without throwing raw record data' ($LASTEXITCODE-eq2-and$dateOut-match'COORDINATOR_UNREADABLE'-and$dateOut-notmatch'not-a-date')
+    $held=[IO.File]::Open("$empty\events\events.jsonl",'Open','ReadWrite','None')
+    try{& $co -Root $empty -Check|Out-Null;$heldCode=$LASTEXITCODE}finally{$held.Dispose()}
+    Assert-That 'unreadable journal IO cannot return success' ($heldCode-eq2)
+    # Causal mutant: removing this required-check refusal changes the very observation above to success.
+    $mutant=Join-Path $t 'Coordinator-mutant.ps1'
+    $body=[IO.File]::ReadAllText($co);$needle='if($incomplete){exit 2}'
+    if(!$body.Contains($needle)){throw 'COORDINATOR_MUTANT_ANCHOR_MISSING'}
+    [IO.File]::WriteAllText($mutant,$body.Replace($needle,'if($false){exit 2}'))
+    & $mutant -Root $empty -Check|Out-Null
+    Assert-That 'the incomplete-evidence detector kills its success-on-corruption mutant' ($LASTEXITCODE-eq0)
     # value: work the old session-start brief (Events.ps1 -Brief, newest and most recurring first) no longer showed
     $v=Join-Path $t 'value';New-Item -ItemType Directory $v|Out-Null
     & $ev -Root $v -Add -Pattern forgotten-probe -Session old -Category observation -Summary 'delegated: does the guard miss shallow clones?' -Source delegate-road -Owner 'delegate:x' -Due '2026-10-01T00:00:00Z' -At '2026-09-30T00:00:00Z'|Out-Null

@@ -29,23 +29,33 @@ evidence and first-installation bootstrap remain outside this checkout under the
 | When | Run under Monitor | Ends by itself |
 |---|---|---|
 | Any `scripts/run_timed.ps1` run (Finish, a suite) | `pwsh -NoProfile -File <repo>\scripts\watch_run.ps1 -Log <log> -Run finish-control -Brief` (a suite: `-Run control-suite`) | at END or RUNNER GONE |
-| Any heavy run, or two at once | `pwsh -NoProfile -File <lib>\Watch-Host.ps1 -WatchPid <runner pid> -ExitWhenPidsGone` | when the runners exit |
-| Any background agent | `pwsh -NoProfile -File <lib>\Watch-Subagents.ps1 -Session <session id> -SinceStart` | ALL FINISHED |
+| Any heavy run, or two at once | one shared `pwsh -NoProfile -File <lib>\Watch-Host.ps1 -WatchPid <owned runner PIDs> -ExitWhenPidsGone` | when the runners exit |
+| Explicit Claude background agents | `pwsh -NoProfile -File <lib>\Watch-Subagents.ps1 -Session <exact session ID or absolute directory> -Only <agent IDs>` (or `-SinceStart`) | ALL FINISHED |
 
-On `STALLED`: stop the agent, fix the cause (usually a tool call outside the working directories needs an
-unseen approval), relaunch. On `COMMIT LOW`: stop the newest heavy run. On `PRESSURE`: expect slowdown only.
-Read-only background agents: use Read/Grep/Glob, not shell commands, so no approval is ever needed.
+`STALLED` proves an unanswered tool wait; its cause remains UNPROVEN. Investigate the owned subject under native
+authority before intervention. `UNREADABLE` is missing evidence, never a healthy state. Watch-Subagents requires an
+explicit Claude session and refuses ambiguous/unsafe selectors; it does not guess the latest session or parse Codex.
+It masks known credential shapes using the existing Sync-Sessions library before truncating any tool diagnostic.
+Stalls append one event per transition; `-EventRoot` selects a disposable journal for tests. It never kills or retries.
+`COMMIT LOW` is actionable resource evidence: apply the owning run's recovery policy; it does not grant authority to
+kill unrelated work. `PRESSURE` reports slowdown risk. Reuse an existing observer instead of starting a duplicate.
+Report state changes, receipts and blockers immediately; routine long-gate heartbeat is at most every five minutes.
+Own Workbench Finish uses watcher `-Run workbench-finish`; native product Finish retains `finish-control`. These are
+distinct comparable run families in the existing timing history, not new stores or separate monitoring engines.
 
-Enforced on this machine by a user-level Claude Code hook (`~/.claude/settings.json` -> `hooks\Watch-Reminder.ps1`):
-every session starts with this table; launching a background agent or a `run_timed.ps1` run injects the exact
-command to monitor it. Agents that do not read Claude hooks (Codex, other machines) get the rule only once the
-wave-2 tooling contract tracks these tools in each repository and names them in `AGENTS.md`.
+The user-level Claude hook (`hooks\Watch-Reminder.ps1`) is a reporting adapter, never enforcement or approval.
+At the actual Workbench root SessionStart supplies this index/Pulse; a direct-native session receives no Workbench
+context. An explicit existing absolute Owner-Tools `-File` command opts in for that event only; mere mentions and
+unresolved variables do not. Archival remains separate at session start/end. Native README/AGENTS/Boot and native
+tools govern direct entry; neither product acquires an Owner-Tools dependency. No global client setting is changed.
+A post-tool reminder cannot prove prior live coverage: attach while the runner is alive; retain any coverage gap
+instead of automatically rerunning an expensive test. General management/observer-handle integration remains pending.
 
 ## Workspace memory and recovery
 | Tool | Purpose |
 |---|---|
 | `Hunt.ps1 [-Quick]` | the hunting dogs: invariants, liveness, versioning, untested tools, planted-bug mutants, lint; every BUG/GAP becomes an event, the last result shows in Pulse |
-| `Coordinator.ps1` / `-Brief` / `-Check` / `-Assign` / `-Close` / `-Dispatch` | the coordinator over every tool: reads the one journal (events) and holds each open item to an owner, a next action and a due time (TRIAGE, OVERDUE, OWNER, DISPATCHED, READY); hunts nothing, closes nothing without a recorded reason |
+| `Coordinator.ps1` / `-Brief` / `-Check` / `-Assign` / `-Close` / `-Dispatch` | one event-journal view: UNOWNED, OVERDUE, OWNER, DISPATCHED, ACTIVE; observations remain quiet. Explicit Owner=owner or Cause=owner-decision routes owner choices; technical decisions can remain ACTIVE. Incomplete/missing/unreadable journal returns UNREADABLE/exit 2 with valid partial diagnostics; mutation refuses before writes. Explicit empty journal is valid. Hunts/certifies nothing. |
 | `Pulse.ps1` | the live state any arriving agent sees first (repos, pending candidates, running, host, waiting on the owner, last session, the coordinator's queue); session start prints it |
 | `Delegate.ps1 -Pattern <id> -Question '...'` / `-Report <folder> -Reply <file>` / `-List` | the delegation road: a bounded brief for a cold agent (authority never grows, due = twice its budget); `-Report` is the return road: saves the reply, records the verdict, hands the item back to the agent |
 | `Spider.ps1 '<entity or phrase>'` | one question across sessions, events, both repos' files and commits, memory and owner packets; ranked, values masked, ~4 s |

@@ -834,7 +834,7 @@ V3 refresh: official Claude Code hooks reference https://code.claude.com/docs/en
 
 ## Runtime Checkpoint
 
-Resume Step: 1
+Resume Step: DONE
 Blocker: None
 Recovery Attempt: 0
 
@@ -848,6 +848,7 @@ Owner Evidence SHA256: 969CD3BA79CF918591F11D525795512FC9CE7298133E381E6B7FC671A
 Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools
 Sandbox Receipt: C:\Users\My Lab\Documents\ORVION-Owner-Review\workbench-observer-integrity-20261023-r2\runtime\sandbox\own-finish-receipt.json
 Sandbox Receipt SHA256: DCA62E70CBD397193A334596E948058E09C2420F37F25060A9F5E52B20E91B84
+Original literal8 outputs applied through the accepted native Workbench entry, all declared blobs match. Fresh own timed/watched full Finish still required.
 
 ## Verification Notes
 

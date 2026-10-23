@@ -4,22 +4,34 @@
 # (`<session>\subagents\agent-<id>.jsonl`), read from its end. It is an EVENT STREAM for the Monitor tool:
 # one line per state change, nothing while nothing changes, and it ends itself.
 #   NEW <id>        a transcript appeared after the watch started (or was present at start)
-#   STALLED <id>    its newest entry is a tool call with no result for -StallMinutes (an unseen approval
-#                   prompt, or a hung command); names the tool and its input
+#   STALLED <id>    its newest entry is a tool call with no result for -StallMinutes; cause UNPROVEN
 #   IDLE <id>       no transcript write for -IdleMinutes in any other unfinished state
 #   RECOVERED <id>  a stalled or idle agent wrote again
 #   FINISHED <id>   its newest entry is a final answer;  STOPPED <id>  it was interrupted or killed
 #   ALL FINISHED    every watched agent finished or stopped; the watch exits 0 (or 2 if any stalled)
-# -Once prints every agent's state and exits (2 when any is stalled). Read-only.
-param([string]$Session,[double]$StallMinutes=3,[double]$IdleMinutes=8,[int]$PollSeconds=15,[switch]$Once,[string[]]$Only,[switch]$SinceStart)
+# Explicit Claude transcript session only. Never guesses the latest session or another client's format.
+# -Once prints selected states and exits 2 on a stall or incomplete evidence. Reads transcripts; alarms append Events.
+param([string]$Session,[ValidateRange(0.001,10080)][double]$StallMinutes=3,[ValidateRange(0.001,10080)][double]$IdleMinutes=8,
+      [ValidateRange(1,3600)][int]$PollSeconds=15,[switch]$Once,[string[]]$Only,[switch]$SinceStart,
+      [string]$EventRoot=(Split-Path $PSScriptRoot -Parent))
 $ErrorActionPreference='Stop'
 # `pwsh -File` passes "a,b" as one string, not an array.
-$Only=@($Only|ForEach-Object{$_-split','}|ForEach-Object{$_.Trim()}|Where-Object{$_})
+$Only=@($Only|ForEach-Object{$_-split','}|ForEach-Object{$_.Trim()}|Where-Object{$_}|Sort-Object -Unique)
+if(@($Only|Where-Object{$_-notmatch'^[A-Za-z0-9_-]+$'}).Count){throw 'WATCHDOG_SELECTOR_INVALID'}
+if(!$Session){throw 'WATCHDOG_SESSION_REQUIRED: supply an explicit Claude session directory or exact ID'}
 $proj=Join-Path $env:USERPROFILE '.claude\projects'
-if(!$Session){$Session=(Get-ChildItem $proj -Recurse -Directory -Filter subagents|Sort-Object LastWriteTime -Descending|Select-Object -First 1).Parent.FullName}
-elseif(!(Test-Path -LiteralPath $Session)){$Session=(Get-ChildItem $proj -Recurse -Directory -Filter $Session|Select-Object -First 1).FullName}
-if(!$Session){throw 'NO_SESSION'}
+if(![IO.Path]::IsPathFullyQualified($Session)){
+    if($Session-notmatch'^[A-Za-z0-9_-]+$'){throw 'WATCHDOG_SESSION_INVALID'}
+    $sessionMatches=@(if(Test-Path -LiteralPath $proj){Get-ChildItem -LiteralPath $proj -Directory|ForEach-Object{Get-ChildItem -LiteralPath $_.FullName -Directory -Filter $Session}|Where-Object Name -eq $Session})
+    if($sessionMatches.Count-ne1){throw 'WATCHDOG_SESSION_UNRESOLVED: exact session ID must resolve once'}
+    $Session=$sessionMatches[0].FullName
+}
+if(!(Test-Path -LiteralPath $Session -PathType Container)){throw 'WATCHDOG_SESSION_UNRESOLVED'}
+$Session=[IO.Path]::GetFullPath($Session)
+for($ancestor=Get-Item -LiteralPath $Session;$ancestor;$ancestor=$ancestor.Parent){if($ancestor.Attributes-band[IO.FileAttributes]::ReparsePoint){throw 'WATCHDOG_SESSION_REPARSE_REFUSED'}}
 $dir=Join-Path $Session 'subagents'
+# Reuse the established bounded masking vocabulary, before truncating a diagnostic. Library mode never archives.
+. (Join-Path $PSScriptRoot 'Sync-Sessions.ps1') -Library -Root $EventRoot
 $started=Get-Date
 # The newest parseable entry, read from the end: transcripts are hundreds of KB and still being written.
 function Get-LastEntry([string]$Path){
@@ -36,9 +48,9 @@ function Get-LastEntry([string]$Path){
     };$null
 }
 function Get-AgentState([IO.FileInfo]$Transcript){
-    $last=Get-LastEntry $Transcript.FullName;if(!$last){return $null};$e=$last.Entry
+    if($Transcript.Attributes-band[IO.FileAttributes]::ReparsePoint){$last=$null}else{try{$last=Get-LastEntry $Transcript.FullName}catch{$last=$null}}
+    if(!$last-or!$last.Entry.message-or$null-eq$last.Entry.message.content){return [pscustomobject]@{Id=$Transcript.BaseName-replace'^agent-','';State='UNREADABLE';Quiet=0;What='WATCHDOG_TRANSCRIPT_UNREADABLE'}};$e=$last.Entry
     $c=@($e.message.content);$tool=@($c|Where-Object{$_.type-eq'tool_use'})|Select-Object -Last 1
-    $text=(@($c|Where-Object{$_.type-eq'text'}|ForEach-Object{$_.text})-join' ')
     # FINISHED only on stop_reason end_turn: a text block is written as its own line before the tool call that follows it,
     # with stop_reason null, for up to 22 s (measured 2026-10-20 on real agents); calling that "finished" ended the watch.
     # STOPPED only on the harness's own interruption markers, never on a tool result that merely says "was stopped".
@@ -46,34 +58,45 @@ function Get-AgentState([IO.FileInfo]$Transcript){
     $blocks=@(if($e.message.content-is[string]){$e.message.content}else{$c|ForEach-Object{if($_.text){$_.text}elseif($_.content-is[string]){$_.content}}})
     $interrupted=[bool]@($blocks|Where-Object{"$_".StartsWith('[Request interrupted')-or"$_".StartsWith('The user doesn''t want to proceed with this tool use')}).Count
     $state=if($last.InFlight){'WORKING'}elseif($e.type-eq'assistant'-and$tool){'TOOL'}elseif($e.type-eq'assistant'-and$e.message.stop_reason-eq'end_turn'){'FINISHED'}elseif($e.type-eq'user'-and$interrupted){'STOPPED'}else{'WORKING'}
-    $what=if($tool){$j=($tool.input|ConvertTo-Json -Compress -Depth 4)-replace'\s+',' ';"$($tool.name) $($j.Substring(0,[Math]::Min(160,$j.Length)))"}else{''}
+    $what=if($tool){$j=Hide-Secret ("$($tool.name) "+($tool.input|ConvertTo-Json -Compress -Depth 20));$j=$j-replace'\s+',' ';$j.Substring(0,[Math]::Min(160,$j.Length))}else{''}
     $quiet=((Get-Date)-$Transcript.LastWriteTime).TotalMinutes
     [pscustomobject]@{Id=$Transcript.BaseName-replace'^agent-','';State=$state;Quiet=[Math]::Round($quiet,1);What=$what}
 }
-$last=@{};$alarm=@{};$anyStall=$false
+$last=@{};$alarm=@{};$anyStall=$false;$anyUnreadable=$false
 while($true){
-    $files=@(if(Test-Path -LiteralPath $dir){Get-ChildItem -LiteralPath $dir -Filter 'agent-*.jsonl'})
+    $scanFault=$false
+    try{
+        if((Test-Path -LiteralPath $dir)-and((Get-Item -LiteralPath $dir).Attributes-band[IO.FileAttributes]::ReparsePoint)){throw 'reparse'}
+        $files=@(if(Test-Path -LiteralPath $dir){Get-ChildItem -LiteralPath $dir -File -Filter 'agent-*.jsonl'})
+    }catch{$scanFault=$true;$files=@()}
     if($SinceStart){$files=@($files|Where-Object{$_.CreationTime-ge$started.AddSeconds(-5)})}
-    $watched=@()
-    foreach($f in $files){
-        $s=Get-AgentState $f;if(!$s){continue}
-        if($Only.Count-and$s.Id-notin$Only){continue}
-        $watched+=$s
+    $watched=@(foreach($f in $files){
+        $id=$f.BaseName-replace'^agent-',''
+        if($Only.Count-and$id-notin$Only){continue}
+        Get-AgentState $f
+    })
+    $missing=@($Only|Where-Object{$_-notin$watched.Id})
+    if($Once-or((Get-Date)-$started).TotalMinutes-ge$StallMinutes){
+        foreach($id in $missing){$watched+=[pscustomobject]@{Id=$id;State='UNREADABLE';Quiet=0;What='WATCHDOG_SELECTED_TRANSCRIPT_MISSING'}}
+        if(!$watched.Count-or$scanFault){$watched+=[pscustomobject]@{Id='session';State='UNREADABLE';Quiet=0;What='WATCHDOG_SESSION_EVIDENCE_UNREADABLE'}}
+    }
+    foreach($s in $watched){
         if($Once){"{0} {1} quiet {2} min {3}" -f $s.Id,$s.State,$s.Quiet,$s.What;continue}
         if(!$last.ContainsKey($s.Id)){"NEW $($s.Id) ($($s.State))"}
-        $kind=if($s.State-eq'TOOL'-and$s.Quiet-ge$StallMinutes){'STALLED'}elseif($s.State-in'WORKING','TOOL'-and$s.Quiet-ge$IdleMinutes){'IDLE'}else{$null}
+        $kind=if($s.State-eq'UNREADABLE'){'UNREADABLE'}elseif($s.State-eq'TOOL'-and$s.Quiet-ge$StallMinutes){'STALLED'}elseif($s.State-in'WORKING','TOOL'-and$s.Quiet-ge$IdleMinutes){'IDLE'}else{$null}
         if($kind-and$alarm[$s.Id]-ne$kind){
-            if($kind-eq'STALLED'){$anyStall=$true;"STALLED $($s.Id): waiting $($s.Quiet) min on $($s.What) - stop it and fix the cause (permission scope or a hung command)"
-                try{$null=& (Join-Path $PSScriptRoot 'Events.ps1') -Add -Pattern agent-stall-unseen-approval -Source watchdog -Category failure -Severity high -Session (Split-Path $Session -Leaf) -Summary "agent $($s.Id) waited $StallMinutes+ min on $($s.What)" -Tags 'background subagent agent stuck hang waiting permission prompt'}catch{$null=$_}}  # improvement memory, never at the cost of the watch
+            if($kind-eq'STALLED'){$anyStall=$true;"STALLED $($s.Id): waiting $($s.Quiet) min on $($s.What); cause UNPROVEN. Investigate the owned run before any intervention."
+                try{$null=& (Join-Path $PSScriptRoot 'Events.ps1') -Root $EventRoot -Add -Pattern agent-tool-wait-cause-unproven -Source watchdog -Category failure -Severity high -Cause hypothesis -Session (Split-Path $Session -Leaf) -Summary "agent $($s.Id) waited $StallMinutes+ min on $($s.What); cause UNPROVEN" -Tags 'background subagent tool wait stall liveness'}catch{$anyUnreadable=$true;'WATCHDOG_JOURNAL_UNREADABLE: alarm evidence was not recorded'}}
+            elseif($kind-eq'UNREADABLE'){$anyUnreadable=$true;"UNREADABLE $($s.Id): $($s.What)"}
             else{"IDLE $($s.Id): no transcript write for $($s.Quiet) min ($($s.State))"}
             $alarm[$s.Id]=$kind
         }elseif(!$kind-and$alarm[$s.Id]-and$s.State-notin'FINISHED','STOPPED'){"RECOVERED $($s.Id) ($($s.State))";$alarm.Remove($s.Id)}
         if($s.State-in'FINISHED','STOPPED'-and$last[$s.Id]-ne$s.State){"$($s.State) $($s.Id)";$alarm.Remove($s.Id)}
         $last[$s.Id]=$s.State
     }
-    if($Once){exit $(if(@($watched|Where-Object{$_.State-eq'TOOL'-and$_.Quiet-ge$StallMinutes}).Count){2}else{0})}
+    if($Once){exit $(if(@($watched|Where-Object{$_.State-eq'UNREADABLE'-or($_.State-eq'TOOL'-and$_.Quiet-ge$StallMinutes)}).Count){2}else{0})}
     $open=@($watched|Where-Object{$_.State-notin'FINISHED','STOPPED'})
     $expected=if($Only.Count){$Only.Count}else{1}
-    if($watched.Count-ge$expected-and!$open.Count){"ALL FINISHED: $($watched.Count) agent(s)";exit $(if($anyStall){2}else{0})}
+    if($watched.Count-ge$expected-and!$open.Count){"ALL FINISHED: $($watched.Count) agent(s)";exit $(if($anyStall-or$anyUnreadable){2}else{0})}
     Start-Sleep -Seconds $PollSeconds
 }
