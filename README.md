@@ -2,6 +2,8 @@
 
 **After any interruption, start at [`RESUME.md`](RESUME.md)**: live resume point, latest session, the two repositories, boundaries.
 
+**For Workbench's own changes:** run `pwsh -NoProfile -File lib/Workbench.ps1 -Boot` from this root and follow [WORKFLOW.md](WORKFLOW.md). This initial local kernel supplies own admission/Finish/Review; full product supervision and workstation recovery remain separately governed. A product-only entry continues to use that product's own tools.
+
 Not repository authority. Platinum (`..\CRM`, PlatPlusHub/CRM) and Founder (`..\ORVION`, Shehabhub/ORVION) each decide
 through their own Boot, contracts and certification; everything here only drives, observes or preserves them.
 **Never put work inside a repository tree**: an ignored sandbox copy there hid 32 broken references from

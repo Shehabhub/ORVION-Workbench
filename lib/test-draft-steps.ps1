@@ -43,6 +43,12 @@ function Invoke-FixtureDraft($Fixture){
     [pscustomobject]@{Code=$LASTEXITCODE;Text=$out}
 }
 function Test-CreationCases{
+    $x=New-CreationFixture 'plan-without-writes'
+    $beforeConfig=(Get-FileHash -LiteralPath (Join-Path $x.Root '.git/config')).Hash
+    $planText=@(& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'apply-draft-steps.ps1') -Draft $x.Draft -Root $x.Root -Plan 2>&1)
+    $planExit=$LASTEXITCODE
+    $planValue=try{($planText-join[char]10)|ConvertFrom-Json -ErrorAction Stop}catch{$null}
+    Assert-DraftCase 'read-only Plan names the exact Unicode/space target and blob without creating it' ($planExit-eq0-and$planValue.Schema-eq1-and$planValue.Files.Count-eq1-and$planValue.Files[0].File-ceq$x.Relative-and$planValue.Files[0].Blob-ceq$x.Want-and!(Test-Path -LiteralPath $x.Path)-and(Get-FileHash -LiteralPath (Join-Path $x.Root '.git/config')).Hash-ceq$beforeConfig) ($planText-join' ')
     $x=New-CreationFixture 'create-unicode-space'
     $r=Invoke-FixtureDraft $x
     $actual=if(Test-Path -LiteralPath $x.Path){git -C $x.Root hash-object -- $x.Relative}else{'absent'}

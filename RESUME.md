@@ -1,7 +1,8 @@
 # ORVION recovery — start here after any interruption
 
-This file holds no state, so it never goes stale. It routes to the records that do. Transcripts are history; repository
-evidence and each repository's own Boot are authority.
+This file owns the active Workbench contract pointer and routes to the existing programme checkpoint. For Workbench's
+own changes run lib/Workbench.ps1 -Boot and follow WORKFLOW.md. Transcripts and dated HANDOFF snapshots are history;
+each product's own Boot remains its authority. This is not a second programme status report.
 
 0. **New to this programme (no history)?** Read [`HANDOFF.md`](HANDOFF.md) once: architecture, boundaries, governance,
    lessons, roadmap, owner decisions and the last verified state with its next actions. Then continue here.

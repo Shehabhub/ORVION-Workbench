@@ -1,9 +1,24 @@
-# ORVION agent tools (machine-local, untracked; workspace: ..\README.md)
+# ORVION agent tools (tracked local Workbench tools; workspace: ..\README.md)
 
 Proven agent tooling for both repositories. Not repository authority: each repository's own scripts and
 contracts decide; these only drive them. Run `Test-ScriptHazards.ps1` on every new scratch `.ps1`.
-Planned to be tracked in each repository by the wave-2 tooling contract; until then this folder is the copy
-(moved 2026-10-20 from Documents\ORVION-Sandbox\lib, which is superseded).
+Contract B supplied each product's own independent native adapters. This directory remains the Workbench agent's tools,
+not a dependency injected into direct-native product operation. Its historical move from Documents\ORVION-Sandbox\lib
+does not make that old copy an execution entry.
+
+## Workbench's own local cycle
+
+`Workbench.ps1 -Boot` routes own work; `-Execute` checks the accepted applier's read-only plan before writes;
+`-Gate -Staged` and `-Gate -Base <accepted-full-SHA> -Head <full-SHA>` use the
+accepted checker and preserve native product independence. `Test-WorkbenchChange.ps1` owns own scope, transitions,
+three-pass snapshots, exact local approval/root binding, machine clauses and receipt freshness. `run_timed.ps1` and
+`watch_run.ps1` are locally adopted reporting adapters; no product installation is needed. Use absolute script paths
+and the own explicit WorkingDirectory for self-Finish. The existing tests.ps1 remains the one full closure schedule.
+`test-workbench-governance.ps1` uses independent real-Git fixtures and short children for dispatch/refusal proofs;
+those children are not a replacement for the actual full Workbench tool suite. Failed fixture roots are preserved;
+WORKBENCH_TEST_ROOT selects their explicit parent, otherwise TEMP/ORVION-Workbench/tests is used. Accepted-code
+materializations use WORKBENCH_TEMP_ROOT or that same TEMP/ORVION-Workbench parent. Current prototype
+evidence and first-installation bootstrap remain outside this checkout under the existing task's own packet.
 
 ## Always, with the Monitor tool (never a hand-written alarm loop)
 | When | Run under Monitor | Ends by itself |

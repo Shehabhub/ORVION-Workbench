@@ -1,6 +1,6 @@
 # Replays literal Draft file steps; this is not an approval or scope-admission authority.
 # Preflight every target, operation and filtered blob before the first implementation write.
-param([Parameter(Mandatory)][string]$Draft,[Parameter(Mandatory)][string]$Root)
+param([Parameter(Mandatory)][string]$Draft,[Parameter(Mandatory)][string]$Root,[Alias('Plan')][switch]$Preview)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Invoke-DraftSteps.ps1')
 $t=[IO.File]::ReadAllText($Draft)-replace"`r`n","`n"
@@ -20,7 +20,7 @@ foreach($it in $items){
     if(Test-Path -LiteralPath $p -PathType Container){throw "TARGET_IS_DIRECTORY:$file"}
     $raw=if($exists){[IO.File]::ReadAllText($p)}else{$null}
     if($exists-and(Get-DraftContentBlob $Root $file $raw)-eq$want){
-        $plans+= [pscustomobject]@{File=$file;Path=$p;Skip=$true}
+        $plans+= [pscustomobject]@{File=$file;Path=$p;Skip=$true;Create=$false;Blob=$want}
         continue
     }
     $fences=@([regex]::Matches($it,'(?ms)^   ```text\n(.*?)^   ```(?=\n|$)')|ForEach-Object{
@@ -49,6 +49,11 @@ foreach($it in $items){
     $got=Get-DraftContentBlob $Root $file $text
     if($got-ne$want){throw "DRAFT_BLOB_MISMATCH:${file}:expected=$want actual=$got"}
     $plans+=[pscustomobject]@{File=$file;Path=$p;Skip=$false;Create=$creating;Before=$raw;Text=$text;Blob=$got}
+}
+if($Preview){
+    [ordered]@{Schema=1;Root=[IO.Path]::GetFullPath($Root);DraftSHA256=(Get-FileHash -LiteralPath $Draft -Algorithm SHA256).Hash;
+        Files=@($plans|ForEach-Object{[ordered]@{File=$_.File;Blob=$_.Blob;Skip=$_.Skip;Create=$_.Create}})}|ConvertTo-Json -Depth 5
+    exit 0
 }
 foreach($plan in $plans){
     if($plan.Skip){"ALREADY_APPLIED: $($plan.File)";continue}

@@ -1,7 +1,17 @@
 #!/bin/sh
-# Refuse a commit unless every tool check passes and nothing under the local-data folders is staged.
-if git diff --cached --name-only | grep -E '^(sessions|events|work)/' >/dev/null; then
-  echo "ORVION-Owner-Tools: local data (sessions/, events/, work/) is never committed" >&2
-  exit 1
+# Execute the accepted checker, never the proposed working checker. No full-suite duplication.
+set -eu
+root=$(git rev-parse --show-toplevel) || exit 1
+judge=$(mktemp "${TMPDIR:-/tmp}/workbench-judge-XXXXXXXX.ps1") || exit 1
+trap 'rm -f -- "$judge"' EXIT HUP INT TERM
+if git cat-file -e HEAD:lib/Test-WorkbenchChange.ps1 2>/dev/null; then
+    git show HEAD:lib/Test-WorkbenchChange.ps1 > "$judge" || exit 1
+    pwsh -NoProfile -File "$judge" -Root "$root" -Mode Gate -Staged -Base HEAD
+else
+    if [ -z "${WORKBENCH_BOOTSTRAP_JUDGE:-}" ] || [ -z "${WORKBENCH_BOOTSTRAP_SHA256:-}" ]; then
+        echo 'WORKBENCH: BLOCKED'
+        echo 'CODE: WB_EXPLICIT_REVIEWED_BOOTSTRAP_REQUIRED'
+        exit 1
+    fi
+    pwsh -NoProfile -File "$WORKBENCH_BOOTSTRAP_JUDGE" -ExpectedEvaluatorSha256 "$WORKBENCH_BOOTSTRAP_SHA256" -Root "$root" -Mode Gate -Staged -Base HEAD
 fi
-exec pwsh -NoProfile -File "$(git rev-parse --show-toplevel)/tests.ps1"

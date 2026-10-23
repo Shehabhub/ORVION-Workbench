@@ -4,3 +4,6 @@
 /events/
 /work/
 *.tmp
+
+.workbench-local-certification.json
+.workbench-certifications/
