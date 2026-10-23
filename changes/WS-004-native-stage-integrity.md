@@ -681,22 +681,22 @@ Failed focus-v1 read-only-object cleanup, focus-v3/v4 incomplete toy scaffolding
 
 ## Acceptance Criteria
 
-- [ ] All5 literal outputs reproduce their exact declared Git blobs, including the new focused suite; no native profile/criterion/receipt/masking/process/deletion engine is copied.
-- [ ] RESUME authority body remains exact; check: normalized-resume:RESUME.md=72C0F8CEF1A08BA4EF511A3CF103CFF9C550672712E418323842518B384431A1
-- [ ] Every native stage checks selected raw Draft and destination-filtered identity; every post-allocation stage matches the actual unique Git allocation before native Boot/writes. Clean root/normal hooks, native route/refusal and actual Git authorship remain mandatory.
-- [ ] Whole literal Plan scope is checked before the first implementation write; new file creation works, unrelated dirt remains untouched, and exact declared paths alone are staged.
-- [ ] Native applicability PASS and NOT APPLICABLE remain native decisions; unreadable evidence is non-success, and a post-commit diagnostic failure is never assumed to mean rollback.
-- [ ] Workflow appends land in the named legal section despite section ordering; native hooks and actual Finish/receipt/Review/Complete/bind remain their owning authorities.
-- [ ] Diagnostic failures/forbidden writes are nonzero, unsupported checks are explicit UNPROVEN, own CR synchronization is implicitly scoped, and the native range Gate is reused once rather than reimplemented.
-- [ ] Actual positive/refusal and causal removal callers pass; a real disposable native lifecycle is independently completed/bound without certifying either original or claiming full management readiness.
-- [ ] Existing tool index and workflow explain exact native selection, evidence limits, one native test schedule, original independence and remaining P3 management work without obsolete full-suite hook advice.
-- [ ] Exact selected sandbox own full timed/watched Finish, live Review/Complete/range and later distinct original matching-recipe receipt are inspected; no preserved history or product original is changed.
+- [x] All5 literal outputs reproduce their exact declared Git blobs, including the new focused suite; no native profile/criterion/receipt/masking/process/deletion engine is copied.
+- [x] RESUME authority body remains exact; check: normalized-resume:RESUME.md=72C0F8CEF1A08BA4EF511A3CF103CFF9C550672712E418323842518B384431A1
+- [x] Every native stage checks selected raw Draft and destination-filtered identity; every post-allocation stage matches the actual unique Git allocation before native Boot/writes. Clean root/normal hooks, native route/refusal and actual Git authorship remain mandatory.
+- [x] Whole literal Plan scope is checked before the first implementation write; new file creation works, unrelated dirt remains untouched, and exact declared paths alone are staged.
+- [x] Native applicability PASS and NOT APPLICABLE remain native decisions; unreadable evidence is non-success, and a post-commit diagnostic failure is never assumed to mean rollback.
+- [x] Workflow appends land in the named legal section despite section ordering; native hooks and actual Finish/receipt/Review/Complete/bind remain their owning authorities.
+- [x] Diagnostic failures/forbidden writes are nonzero, unsupported checks are explicit UNPROVEN, own CR synchronization is implicitly scoped, and the native range Gate is reused once rather than reimplemented.
+- [x] Actual positive/refusal and causal removal callers pass; a real disposable native lifecycle is independently completed/bound without certifying either original or claiming full management readiness.
+- [x] Existing tool index and workflow explain exact native selection, evidence limits, one native test schedule, original independence and remaining P3 management work without obsolete full-suite hook advice.
+- [x] Exact selected sandbox own full timed/watched Finish, live Review/Complete/range and later distinct original matching-recipe receipt are inspected; no preserved history or product original is changed.
 
 ## Review Gate
 
-- [ ] Inspect all actual criteria, exact5 output blobs, all required suite results, runner/watcher/host exits, role-bound fresh receipt and selected sandbox/original recipe/fingerprint match.
-- [ ] Inspect normal-hook full carrying range, native compatibility proof, preserved failures and clean source; no native bypass, fake certification, owner authentication or equal-OS enforcement claim.
-- [ ] Keep P3 G2c/G3/G4 management/monitor/partial recovery open; storage/recovery and Batch6 remain separately held.
+- [x] Inspect all actual criteria, exact5 output blobs, all required suite results, runner/watcher/host exits, role-bound fresh receipt and selected sandbox/original recipe/fingerprint match.
+- [x] Inspect normal-hook full carrying range, native compatibility proof, preserved failures and clean source; no native bypass, fake certification, owner authentication or equal-OS enforcement claim.
+- [x] Keep P3 G2c/G3/G4 management/monitor/partial recovery open; storage/recovery and Batch6 remain separately held.
 
 ## Runtime Checkpoint
 
@@ -719,6 +719,10 @@ Original literal5 outputs applied through the accepted native Workbench entry, a
 ## Verification Notes
 
 No original execution or Review yet. Append observed Verdict: Confirmed Complete, Reviewed Fingerprint and Reviewed Receipt only after actual own fresh evidence.
+Verdict: Confirmed Complete
+Reviewed Fingerprint: 1049AF03F507E419BD199C0228038C870B8E032747D4C332538752639A831A57
+Reviewed Receipt: C846653BDC46D68739F8A9C30990A842F66952B4E4B0CDEA072FA33353D93219
+Evidence: actual Original root, exact5 outputs, full real owning suite, actual timed/watched exits, matching role/recipe/Draft and independent live review. Runtime: C:\Users\My Lab\Documents\ORVION-Owner-Review\workbench-native-stage-integrity-20261023-r2\runtime\original. Synthetic fixture results are dispatch proof only; this root owns its distinct full Finish. No product/remote/recovery or equal-OS security claim.
 
 ## Notes
 
