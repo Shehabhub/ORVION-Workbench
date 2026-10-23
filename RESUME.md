@@ -23,3 +23,5 @@ evidence and each repository's own Boot are authority.
 4. **Boundaries.** Nothing is approved until the owner approves an exact SHA-256 (Gate 1); Drafts are committed only then.
    Publish and promote are the owner's (`CR_LIFECYCLE.md` §9). Batch 6 is ON HOLD; CTRL-19 is OPEN.
 5. **Before any task.** `lib\Events.ps1 -Find '<task in a few words>'`: what earlier agents learned, with the session that holds it.
+
+Active Workbench Contract: changes/WS-001-workbench-local-governance.md
