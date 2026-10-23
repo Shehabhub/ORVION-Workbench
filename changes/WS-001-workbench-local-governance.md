@@ -1818,7 +1818,7 @@ V2 findings addressed: canonical Implementation Steps formatting retained from t
 
 Resume Step: DONE
 Blocker: None
-Recovery Attempt: 0
+Recovery Attempt: 1
 
 ## Execution Log
 
@@ -1829,6 +1829,7 @@ Owner Evidence: C:\Users\My Lab\Documents\ORVION-Owner-Review\workbench-governan
 Owner Evidence SHA256: 80B961DE41941457AF323FD99D5574F3F4BD2C3539308D9E4D16724BFCD597F2
 Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools
 Original literal implementation applied with accepted original applier; all15 declared output blobs verified. A fresh original timed/watched self-Finish remains mandatory; no sandbox receipt is used.
+Original Finish attempt1 failed572s (runner1/watcher1), no receipt; preserved at C:\Users\My Lab\Documents\ORVION-Owner-Review\workbench-governance-20261023-r2-original-execution\finish.log. Chosen disposable fixture parent plus Git full range token reached Windows MAX_PATH260; exact checker refused unreadable evidence. Bounded recovery changes only task-owned fixture parent to C:\Users\My Lab\Documents\ORVION-Sandbox\evidence\WS001\tests, not source/Draft/config/guards. Exact unchanged owning suite first re-proven in sandbox: C:\Users\My Lab\Documents\ORVION-Owner-Review\workbench-governance-20261023-r2-original-execution\sandbox-path-proof-result.json, all cases including full-SHA illegal-intermediate scope refusal passed. A new original full timed/watched Finish remains required; prior failures and receipts are not relabelled.
 
 ## Verification Notes
 
