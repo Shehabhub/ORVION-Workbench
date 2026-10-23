@@ -815,22 +815,22 @@ V3 refresh: official Claude Code hooks reference https://code.claude.com/docs/en
 
 ## Acceptance Criteria
 
-- [ ] All8 exact literal outputs match their declared blobs; no replacement observer/queue/masking engine is introduced.
-- [ ] RESUME authority body remains unchanged; check: normalized-resume:RESUME.md=72C0F8CEF1A08BA4EF511A3CF103CFF9C550672712E418323842518B384431A1
-- [ ] Coordinator retains partial valid diagnostics but required queue reads/Brief return UNREADABLE/exit2 for corruption, missing file, unreadable IO or invalid dates; explicit empty valid journal passes.
-- [ ] Assignment/closure/dispatch refuses incomplete evidence before writes; invalid new due dates cannot poison a valid journal. The causal refusal mutant is detected.
-- [ ] Existing owner-decision cause/explicit owner routes OWNER; confirmed owned technical decisions stay ACTIVE, unclassified material decisions UNOWNED. Prior resolutions, due, delegation-return and recurrence remain covered.
-- [ ] Watchdog requires explicit unambiguous supported Claude identity; unsafe selectors refuse, duplicate IDs do not multiply observers, and unreadable/unsupported/missing selected evidence is visible and non-success.
-- [ ] Existing whole-line masking runs before diagnostic truncation, printing and event storage; actual synthetic live wait alarms once, recovers and finishes with its truthful failure history. No automatic kill/retry or invented cause.
-- [ ] Direct-native start/post-tool receives no Workbench context; actual Workbench root or explicit existing absolute Owner-Tools command opts in per event. Archival startup/end remains independent and no real follower is started by tests.
-- [ ] Hook protocol/quoted command parsing/error diagnostics are truthful; foreground post-tool does not claim live coverage or mandate expensive replay. Existing native per-run and shared host monitors are reused with five-minute routine heartbeat.
-- [ ] Own exact selected sandbox full timed/watched Finish and independent native Review/Complete/range pass; original later produces a distinct fresh matching-recipe receipt. Historical evidence/native product state stays preserved.
+- [x] All8 exact literal outputs match their declared blobs; no replacement observer/queue/masking engine is introduced.
+- [x] RESUME authority body remains unchanged; check: normalized-resume:RESUME.md=72C0F8CEF1A08BA4EF511A3CF103CFF9C550672712E418323842518B384431A1
+- [x] Coordinator retains partial valid diagnostics but required queue reads/Brief return UNREADABLE/exit2 for corruption, missing file, unreadable IO or invalid dates; explicit empty valid journal passes.
+- [x] Assignment/closure/dispatch refuses incomplete evidence before writes; invalid new due dates cannot poison a valid journal. The causal refusal mutant is detected.
+- [x] Existing owner-decision cause/explicit owner routes OWNER; confirmed owned technical decisions stay ACTIVE, unclassified material decisions UNOWNED. Prior resolutions, due, delegation-return and recurrence remain covered.
+- [x] Watchdog requires explicit unambiguous supported Claude identity; unsafe selectors refuse, duplicate IDs do not multiply observers, and unreadable/unsupported/missing selected evidence is visible and non-success.
+- [x] Existing whole-line masking runs before diagnostic truncation, printing and event storage; actual synthetic live wait alarms once, recovers and finishes with its truthful failure history. No automatic kill/retry or invented cause.
+- [x] Direct-native start/post-tool receives no Workbench context; actual Workbench root or explicit existing absolute Owner-Tools command opts in per event. Archival startup/end remains independent and no real follower is started by tests.
+- [x] Hook protocol/quoted command parsing/error diagnostics are truthful; foreground post-tool does not claim live coverage or mandate expensive replay. Existing native per-run and shared host monitors are reused with five-minute routine heartbeat.
+- [x] Own exact selected sandbox full timed/watched Finish and independent native Review/Complete/range pass; original later produces a distinct fresh matching-recipe receipt. Historical evidence/native product state stays preserved.
 
 ## Review Gate
 
-- [ ] Inspect all actual criteria, exact output blobs, independent selected sandbox receipt, original recipe/fingerprint/role, timed runner/watcher exits and fresh original receipt.
-- [ ] Inspect full normal-hook carrying range, clean source and preserved unsuccessful prototypes/history; no unproven client support, authentication, OS non-bypassability or full management claim.
-- [ ] Reuse existing P3 G2c as the sole remaining acceptance map; CTRL19 remains OPEN, Batch6/Phase8 held, no native product or remote modification.
+- [x] Inspect all actual criteria, exact output blobs, independent selected sandbox receipt, original recipe/fingerprint/role, timed runner/watcher exits and fresh original receipt.
+- [x] Inspect full normal-hook carrying range, clean source and preserved unsuccessful prototypes/history; no unproven client support, authentication, OS non-bypassability or full management claim.
+- [x] Reuse existing P3 G2c as the sole remaining acceptance map; CTRL19 remains OPEN, Batch6/Phase8 held, no native product or remote modification.
 
 ## Runtime Checkpoint
 
@@ -853,6 +853,10 @@ Original literal8 outputs applied through the accepted native Workbench entry, a
 ## Verification Notes
 
 No original execution or Review yet. Append observed Verdict: Confirmed Complete, Reviewed Fingerprint and Reviewed Receipt only after fresh native evidence.
+Verdict: Confirmed Complete
+Reviewed Fingerprint: BA9CFA22E7A24249568726EF92A2465B3AE3D14C442A81097AD8BEC3E0AFC7C6
+Reviewed Receipt: EEB72D1E730A9A6447B98AD7994DAE43B62F7136C55B403CDB15E694C489299E
+Evidence: actual Original root, exact8 outputs, full real owning suite, actual timed/watched exits, matching role/recipe/Draft and independent live review. Runtime: C:\Users\My Lab\Documents\ORVION-Owner-Review\workbench-observer-integrity-20261023-r2\runtime\original. Synthetic fixture results are dispatch proof only; this root owns its distinct full Finish. No product/remote/recovery or equal-OS security claim.
 
 ## Notes
 
