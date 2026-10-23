@@ -25,4 +25,4 @@ each product's own Boot remains its authority. This is not a second programme st
    Publish and promote are the owner's (`CR_LIFECYCLE.md` §9). Batch 6 is ON HOLD; CTRL-19 is OPEN.
 5. **Before any task.** `lib\Events.ps1 -Find '<task in a few words>'`: what earlier agents learned, with the session that holds it.
 
-Active Workbench Contract: changes/WS-002-execution-context-binding.md
+Active Workbench Contract: None
