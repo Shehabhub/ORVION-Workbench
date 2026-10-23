@@ -13,6 +13,125 @@ function Invoke-WorkbenchGit([string]$Checkout,[string[]]$Arguments) {
 function Get-WorkbenchDigest([string]$value) {
     [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($value)))
 }
+function Assert-WorkbenchExternalPath([string]$path) {
+    if(![IO.Path]::IsPathFullyQualified($path)){throw 'WB_CONTEXT_PATH_NOT_ABSOLUTE'}
+    $full=[IO.Path]::GetFullPath($path)
+    $cursor=Get-Item -LiteralPath $full -Force -ErrorAction SilentlyContinue
+    $probe=$full
+    while($probe){
+        $cursor=Get-Item -LiteralPath $probe -Force -ErrorAction SilentlyContinue
+        if($cursor-and($cursor.Attributes-band[IO.FileAttributes]::ReparsePoint)){throw 'WB_CONTEXT_REPARSE_REFUSED'}
+        $next=Split-Path $probe -Parent
+        if(!$next-or$next-eq$probe){break};$probe=$next
+    }
+    $full
+}
+function Test-WorkbenchUnder([string]$path,[string]$Parent) {
+    $path.StartsWith($Parent.TrimEnd('\','/')+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)
+}
+function Get-WorkbenchContext($record) {
+    if(!$record.Sections.Contains('Execution Context')){return $null}
+    $names=@('Original Root','Sandbox Parent','Tests Root','Temp Root','Runtime Root','PowerShell Version','Git Version','Minimum Physical GB','Minimum Commit GB')
+    $context=[ordered]@{}
+    foreach($line in @($record.Sections['Execution Context']-split'\n'|Where-Object{$_.Trim()})){
+        if($line-cnotmatch'^(?<name>[^:]+): (?<value>.+)$'-or$Matches.name-cnotin$names-or$context.Contains($Matches.name)){throw 'WB_EXECUTION_CONTEXT_INVALID'}
+        $context[$Matches.name]=$Matches.value
+    }
+    if($context.Count-ne$names.Count){throw 'WB_EXECUTION_CONTEXT_REQUIRED'}
+    foreach($name in 'Original Root','Sandbox Parent','Tests Root','Temp Root','Runtime Root'){$context[$name]=Assert-WorkbenchExternalPath $context[$name]}
+    if($context['Original Root']-ieq$context['Sandbox Parent']-or
+       (Test-WorkbenchUnder $context['Original Root'] $context['Sandbox Parent'])-or
+       (Test-WorkbenchUnder $context['Sandbox Parent'] $context['Original Root'])){throw 'WB_CONTEXT_ORIGINAL_SANDBOX_OVERLAP'}
+    $managed=@($context['Tests Root'],$context['Temp Root'],$context['Runtime Root'])
+    if(@($managed|Sort-Object -Unique).Count-ne3){throw 'WB_CONTEXT_MANAGED_ROOT_COLLISION'}
+    foreach($path in $managed){
+        if($path-ieq$context['Original Root']-or(Test-WorkbenchUnder $path $context['Original Root'])-or
+           (Test-WorkbenchUnder $context['Original Root'] $path)){throw 'WB_CONTEXT_LOCAL_DATA_ORIGINAL_OVERLAP'}
+        foreach($other in $managed){if($path-ine$other-and(Test-WorkbenchUnder $path $other)){throw 'WB_CONTEXT_MANAGED_ROOT_OVERLAP'}}
+    }
+    $rangeProbe=Join-Path $context['Tests Root'] ('orvion-wb-governance-'+('a'*32)+'/range-counterexample/'+('a'*40)+'..'+('b'*40))
+    if($rangeProbe.Length-ge260){throw 'WB_CONTEXT_FIXTURE_PATH_TOO_LONG'}
+    if($context['PowerShell Version']-cnotmatch'^[0-9]+\.[0-9]+\.[0-9]+$'-or$context['Git Version']-cnotmatch'^git version [0-9][A-Za-z0-9.()-]+$'){throw 'WB_CONTEXT_VERSION_INVALID'}
+    foreach($name in 'Minimum Physical GB','Minimum Commit GB'){
+        $number=0.0
+        if(![double]::TryParse($context[$name],[Globalization.NumberStyles]::AllowDecimalPoint,[Globalization.CultureInfo]::InvariantCulture,[ref]$number)-or$number-le0){throw 'WB_CONTEXT_RESOURCE_INVALID'}
+    }
+    $context
+}
+function Get-WorkbenchExecutionRole([string]$Checkout,$context) {
+    if([IO.Path]::GetFullPath($Checkout)-ieq$context['Original Root']){return 'ORIGINAL'}
+    if(!(Test-WorkbenchUnder ([IO.Path]::GetFullPath($Checkout)) $context['Sandbox Parent'])){throw 'WB_CONTEXT_EXECUTION_ROOT_UNDECLARED'}
+    $null=Assert-WorkbenchRoot $Checkout
+    $push=@(Invoke-WorkbenchGit $Checkout @('remote','get-url','--push','origin'))
+    if($push.Count-ne1-or$push[0]-cne'DISABLED'){throw 'WB_CONTEXT_SANDBOX_PUSH_NOT_DISABLED'}
+    'SANDBOX'
+}
+function Assert-WorkbenchContextRuntime([string]$Checkout,$context,[switch]$ResourceCheck) {
+    $role=Get-WorkbenchExecutionRole $Checkout $context
+    foreach($name in 'Tests Root','Temp Root','Runtime Root'){
+        if($context[$name]-ieq$Checkout-or(Test-WorkbenchUnder $context[$name] $Checkout)-or
+           (Test-WorkbenchUnder $Checkout $context[$name])){throw 'WB_CONTEXT_LOCAL_DATA_CHECKOUT_OVERLAP'}
+    }
+    if($PSVersionTable.PSVersion.ToString()-cne$context['PowerShell Version']-or
+       @(Invoke-WorkbenchGit $Checkout @('--version'))[0]-cne$context['Git Version']){throw 'WB_CONTEXT_EXECUTABLE_VERSION_MISMATCH'}
+    foreach($name in 'GIT_DIR','GIT_WORK_TREE','GIT_COMMON_DIR','GIT_INDEX_FILE','GIT_OBJECT_DIRECTORY','GIT_ALTERNATE_OBJECT_DIRECTORIES','GIT_CONFIG_COUNT','GIT_CONFIG_PARAMETERS'){
+        if([Environment]::GetEnvironmentVariable($name,'Process')){throw ('WB_CONTEXT_GIT_ENVIRONMENT_REFUSED:'+$name)}
+    }
+    foreach($binding in @(@('WORKBENCH_TEST_ROOT','Tests Root'),@('WORKBENCH_TEMP_ROOT','Temp Root'))){
+        $value=[Environment]::GetEnvironmentVariable($binding[0],'Process')
+        if($value-and[IO.Path]::GetFullPath($value)-ine$context[$binding[1]]){throw ('WB_CONTEXT_ENVIRONMENT_MISMATCH:'+$binding[0])}
+    }
+    if($env:WORKBENCH_TEST_EVIDENCE-and!(Test-WorkbenchUnder (Assert-WorkbenchExternalPath $env:WORKBENCH_TEST_EVIDENCE) $context['Runtime Root'])){throw 'WB_CONTEXT_EVIDENCE_ROOT_MISMATCH'}
+    if($ResourceCheck){
+        $memory=Get-CimInstance Win32_OperatingSystem -Property FreePhysicalMemory,FreeVirtualMemory -ErrorAction Stop
+        if(!$memory-or$null-eq$memory.FreePhysicalMemory-or$null-eq$memory.FreeVirtualMemory){throw 'WB_CONTEXT_RESOURCES_UNREADABLE'}
+        $physical=[double]$memory.FreePhysicalMemory/1MB;$commit=[double]$memory.FreeVirtualMemory/1MB
+        if($physical-lt[double]::Parse($context['Minimum Physical GB'],[Globalization.CultureInfo]::InvariantCulture)-or
+           $commit-lt[double]::Parse($context['Minimum Commit GB'],[Globalization.CultureInfo]::InvariantCulture)){throw 'WB_CONTEXT_RESOURCE_BUDGET_UNAVAILABLE'}
+    }
+    $role
+}
+function Get-WorkbenchRecipe([string]$Checkout,[string]$tree,$record) {
+    $context=Get-WorkbenchContext $record
+    if(!$context){return $null}
+    $files=@(Invoke-WorkbenchGit $Checkout @('ls-tree','-r','--name-only',$tree))
+    $tests=@($files|Where-Object{$_-cmatch'^lib/test-[^/]+\.(?i:ps1)$'}|Sort-Object -CaseSensitive)
+    $hazards=@($files|Where-Object{$_-match'\.ps1$'-and$_-notmatch'^(sessions|events|work|\.git)/'}|Sort-Object -CaseSensitive)
+    if(!$tests.Count-or$files-cnotcontains'tests.ps1'){throw 'WB_RECIPE_TEST_SCHEDULE_MISSING'}
+    $inputs=@(foreach($path in @('tests.ps1','lib/Workbench.ps1','lib/run_timed.ps1','lib/Events.ps1','lib/Hunt.ps1')+$hazards|Select-Object -Unique){
+        [ordered]@{Path=$path;Blob=@(Invoke-WorkbenchGit $Checkout @('rev-parse',"${tree}:$path"))[0]}
+    })
+    $material=[ordered]@{schema=1;context=$context;command='pwsh -NoProfile -File ${CHECKOUT}/tests.ps1';tests=$tests;hazards=$hazards;inputs=$inputs;tools=@('Events -Find contract-id','Hunt -Quick -NoRecord');maxHeavyRuns=1}
+    [pscustomobject]@{Digest=(Get-WorkbenchDigest ($material|ConvertTo-Json -Depth 8 -Compress));Material=$material;Context=$context}
+}
+function Enter-WorkbenchHeavyOperation($context) {
+    [void][IO.Directory]::CreateDirectory($context['Temp Root'])
+    $lock=Assert-WorkbenchExternalPath (Join-Path $context['Temp Root'] 'finish-heavy.lock')
+    try{[IO.File]::Open($lock,[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)}catch{throw 'WB_CONTEXT_HEAVY_OPERATION_IN_PROGRESS'}
+}
+function Assert-WorkbenchSandboxProof([string]$Checkout,$record,$context,$recipe,[switch]$Implementation) {
+    if((Get-WorkbenchExecutionRole $Checkout $context)-cne'ORIGINAL'){return $null}
+    $values=@{}
+    foreach($field in 'Sandbox Receipt','Sandbox Receipt SHA256'){
+        $found=@([regex]::Matches($record.Sections['Execution Log'],'(?m)^'+$field+': (?<value>[^\n]+)$'))
+        if($found.Count-ne1){throw 'WB_SANDBOX_PROOF_REQUIRED'}
+        $values[$field]=$found[0].Groups['value'].Value
+    }
+    Assert-WorkbenchArtifact $values['Sandbox Receipt'] $values['Sandbox Receipt SHA256']
+    $proofText=[IO.File]::ReadAllText($values['Sandbox Receipt'])
+    $proof=ConvertFrom-WorkbenchReceipt $proofText
+    $approval=Get-WorkbenchApprovalValues $record
+    if($proof.schema-ne2-or$proof.role-cne'SANDBOX'-or$proof.draftSHA256-cne$approval['Approved SHA256']-or
+       $proof.finishHead-cnotmatch'^[0-9a-f]{40}$'-or$proof.evaluator-cnotmatch'^[0-9a-f]{40}$'-or
+       (@($proof.profiles)-join',')-cne(@(Get-WorkbenchProfiles @(Get-WorkbenchScope $record))-join',')-or
+       $proof.contract-cnotmatch('^changes/'+[regex]::Escape($record.Id)+'-')-or
+       !(Test-WorkbenchUnder ([IO.Path]::GetFullPath($proof.root)) $context['Sandbox Parent'])-or$proof.root-ieq$Checkout){throw 'WB_SANDBOX_PROOF_WRONG_SUBJECT'}
+    $log=[IO.File]::ReadAllLines($proof.runLog)
+    if(!$log.Count-or$log[0]-cne$proof.runStart-or-not@($log|Where-Object{$_-match'^\[\+[^]]+ min\] END exit=0 '}).Count){throw 'WB_SANDBOX_PROOF_RUN_NOT_SUCCESSFUL'}
+    if($Implementation-and($proof.recipe-cne$recipe.Digest-or$proof.fingerprint-cne(Get-WorkbenchFingerprint $Checkout 'HEAD' $proof.contract)-or
+       $proof.evaluator-cne@(Invoke-WorkbenchGit $Checkout @('rev-parse','HEAD:lib/Test-WorkbenchChange.ps1'))[0])){throw 'WB_SANDBOX_PROOF_RECIPE_OR_INPUT_MISMATCH'}
+    $proof
+}
 function Assert-WorkbenchRelativePath([string]$Relative) {
     $segments=@($Relative-split'/')
     if(!$Relative-or[IO.Path]::IsPathRooted($Relative)-or$Relative-match'[\\\x00-\x1f<>:"|?*`]'-or
@@ -206,18 +325,28 @@ function Read-WorkbenchReceipt([string]$Checkout,[string]$Digest) {
     $receiptPath=if($Digest){Get-WorkbenchLocalPath $Checkout ".workbench-certifications/$Digest.json"}else{Get-WorkbenchLocalPath $Checkout '.workbench-local-certification.json'}
     if(!(Test-Path -LiteralPath $receiptPath -PathType Leaf)){throw 'WB_RECEIPT_MISSING'}
     $receiptText=[IO.File]::ReadAllText($receiptPath)
+    ConvertFrom-WorkbenchReceipt $receiptText
+}
+function ConvertFrom-WorkbenchReceipt([string]$receiptText) {
     $json=[System.Text.Json.JsonDocument]::Parse($receiptText)
     try{
         $names=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
         foreach($property in $json.RootElement.EnumerateObject()){if(!$names.Add($property.Name)){throw 'WB_RECEIPT_DUPLICATE_MEMBER'}}
         if($json.RootElement.GetProperty('schema').ValueKind-ne[System.Text.Json.JsonValueKind]::Number-or
-           $json.RootElement.GetProperty('schema').GetInt32()-ne1){throw 'WB_RECEIPT_SCHEMA_INVALID'}
-        if((@($names|Sort-Object)-join',')-cne'contract,digest,evaluator,fingerprint,finishHead,profiles,result,root,runLog,runStart,schema'){throw 'WB_RECEIPT_FIELDS_INVALID'}
+           $json.RootElement.GetProperty('schema').GetInt32()-notin@(1,2)){throw 'WB_RECEIPT_SCHEMA_INVALID'}
+        $schema=$json.RootElement.GetProperty('schema').GetInt32()
+        $expectedNames=if($schema-eq1){'contract,digest,evaluator,fingerprint,finishHead,profiles,result,root,runLog,runStart,schema'}else{'contract,digest,draftSHA256,evaluator,fingerprint,finishHead,profiles,proof,recipe,result,role,root,runLog,runStart,schema'}
+        if((@($names|Sort-Object)-join',')-cne$expectedNames){throw 'WB_RECEIPT_FIELDS_INVALID'}
     }finally{$json.Dispose()}
     $value=$receiptText|ConvertFrom-Json -ErrorAction Stop
-    if($value.schema-ne1-or$value.result-cne'READY'){throw 'WB_RECEIPT_INVALID'}
+    if($value.schema-notin@(1,2)-or$value.result-cne'READY'){throw 'WB_RECEIPT_INVALID'}
     $expected=$value.digest
     $material=[ordered]@{schema=$value.schema;root=$value.root;contract=$value.contract;finishHead=$value.finishHead;fingerprint=$value.fingerprint;profiles=@($value.profiles);evaluator=$value.evaluator;runLog=$value.runLog;runStart=$value.runStart;result=$value.result}
+    if($value.schema-eq2){
+        if($value.draftSHA256-cnotmatch'^[0-9A-F]{64}$'-or$value.recipe-cnotmatch'^[0-9A-F]{64}$'-or$value.role-cnotin@('SANDBOX','ORIGINAL')-or
+           ($value.proof-and$value.proof-cnotmatch'^[0-9A-F]{64}$')){throw 'WB_RECEIPT_CONTEXT_FIELDS_INVALID'}
+        $material['draftSHA256']=$value.draftSHA256;$material['recipe']=$value.recipe;$material['role']=$value.role;$material['proof']=$value.proof
+    }
     if((Get-WorkbenchDigest ($material|ConvertTo-Json -Compress -Depth 5))-cne$expected){throw 'WB_RECEIPT_DIGEST_INVALID'}
     $value
 }
@@ -233,6 +362,15 @@ function Assert-WorkbenchCompletion([string]$Checkout,[string]$tree,[string]$con
     if(!$reviewed.Count){throw 'WB_REVIEW_RECEIPT_MISSING'}
     $reviewDigest=$reviewed[-1].Groups['digest'].Value
     $receipt=Read-WorkbenchReceipt $Checkout $reviewDigest
+    $context=Get-WorkbenchContext $record
+    if($context){
+        $recipe=Get-WorkbenchRecipe $Checkout $tree $record
+        $approval=Get-WorkbenchApprovalValues $record
+        if($receipt.schema-ne2-or$receipt.recipe-cne$recipe.Digest-or$receipt.draftSHA256-cne$approval['Approved SHA256']-or
+           $receipt.role-cne(Get-WorkbenchExecutionRole $Checkout $context)){throw 'WB_RECEIPT_CONTEXT_MISMATCH'}
+        $sandbox=Assert-WorkbenchSandboxProof $Checkout $record $context $recipe
+        if($receipt.role-ceq'ORIGINAL'-and$receipt.proof-cne$sandbox.digest){throw 'WB_RECEIPT_SANDBOX_PROOF_MISMATCH'}
+    }
     if(!$Historical){$working=Read-WorkbenchReceipt $Checkout;if($working.digest-cne$reviewDigest){throw 'WB_WORKING_RECEIPT_NOT_REVIEWED'}}
     $evaluator=@(Invoke-WorkbenchGit $Checkout @('rev-parse',"${tree}:lib/Test-WorkbenchChange.ps1"))[0]
     if([IO.Path]::GetFullPath($receipt.root)-ine[IO.Path]::GetFullPath($Checkout)-or
@@ -281,6 +419,14 @@ function Test-WorkbenchTree([string]$Checkout,[string]$Before,[string]$After,[sw
     $oldRecord=$null
     $initialImport=$false
     if($beforeFiles-ccontains$contract){$oldRecord=Get-WorkbenchFields (Get-WorkbenchText $Checkout $Before $contract)}
+    $context=Get-WorkbenchContext $record
+    $contextRequired=$beforeFiles-ccontains'lib/Test-WorkbenchChange.ps1'-and
+        (Get-WorkbenchText $Checkout $Before 'lib/Test-WorkbenchChange.ps1').Contains('WB_EXECUTION_CONTEXT_REQUIRED',[StringComparison]::Ordinal)
+    if(!$oldRecord-and$contextRequired-and!$context){throw 'WB_EXECUTION_CONTEXT_REQUIRED'}
+    if($context){
+        $null=Get-WorkbenchExecutionRole $Checkout $context
+        if($record.Status-in@('Approved','In Progress','Complete')){$null=Assert-WorkbenchSandboxProof $Checkout $record $context $null}
+    }
     if($oldRecord){
         $legal=@{Draft=@('Draft','Approved','Cancelled');Approved=@('Approved','In Progress','Cancelled');'In Progress'=@('In Progress','Complete','Cancelled');Complete=@('Complete');Cancelled=@('Cancelled')}
         if($record.Status-cnotin$legal[$oldRecord.Status]){throw 'WB_ILLEGAL_TRANSITION'}
@@ -383,7 +529,7 @@ try {
     }elseif($Mode-eq'Range'){
         if($Base-cnotmatch'^[0-9a-f]{40}$'-or$Head-cnotmatch'^[0-9a-f]{40}$'){throw 'WB_FULL_RANGE_SHA_REQUIRED'}
         & git -C $Root merge-base --is-ancestor $Base $Head 2>$null;if($LASTEXITCODE){throw 'WB_RANGE_DIVERGED'}
-        foreach($commit in @(Invoke-WorkbenchGit $Root @('rev-list','--reverse',"$Base..$Head"))){
+        foreach($commit in @(Invoke-WorkbenchGit $Root @('rev-list','--reverse',"$Base..$Head",'--'))){
             $parents=@(@(Invoke-WorkbenchGit $Root @('rev-list','--parents','-n','1',$commit))[0]-split' ')
             if($parents.Count-ne2){throw 'WB_MERGE_RANGE_REFUSED'}
             $null=Test-WorkbenchTree $Root $parents[1] $commit -Historical

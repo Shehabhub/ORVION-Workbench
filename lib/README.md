@@ -14,6 +14,11 @@ accepted checker and preserve native product independence. `Test-WorkbenchChange
 three-pass snapshots, exact local approval/root binding, machine clauses and receipt freshness. `run_timed.ps1` and
 `watch_run.ps1` are locally adopted reporting adapters; no product installation is needed. Use absolute script paths
 and the own explicit WorkingDirectory for self-Finish. The existing tests.ps1 remains the one full closure schedule.
+New context-governed contracts bind the sandbox recipe, roots, relevant environment and versions to original execution.
+Use WORKFLOW.md and changes/TEMPLATE.md; original approval records the exact successful sandbox receipt artifact.
+Own Finish admits headroom/exclusive context use, invokes Events Find and Hunt Quick NoRecord, and runs that schedule
+once with its actual parent/recipe binding. The original always needs its own fresh receipt; historical schema1 records
+are preserved. These local controls are not human authentication or protection against equal OS privileges.
 `test-workbench-governance.ps1` uses independent real-Git fixtures and short children for dispatch/refusal proofs;
 those children are not a replacement for the actual full Workbench tool suite. Failed fixture roots are preserved;
 WORKBENCH_TEST_ROOT selects their explicit parent, otherwise TEMP/ORVION-Workbench/tests is used. Accepted-code

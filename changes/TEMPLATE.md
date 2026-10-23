@@ -32,6 +32,18 @@ V2: unique-adversarial-id | UTC-YYYY-MM-DD | absolute immutable V2 snapshot | SH
 V3: unique-refresh-id | UTC-YYYY-MM-DD | absolute selected Draft | SELECTED
 Selected Version: V3
 
+## Execution Context
+
+Original Root: absolute intended original Workbench root
+Sandbox Parent: absolute independently owned disposable parent outside the original
+Tests Root: absolute short external fixture parent, with proven safe full revision/path probe
+Temp Root: absolute external tool/operation-temp parent
+Runtime Root: absolute external evidence/log parent
+PowerShell Version: exact observed semantic version
+Git Version: exact observed git version output
+Minimum Physical GB: 1.5
+Minimum Commit GB: 3
+
 ## Implementation Steps
 
 Literal replayable steps and exact resulting blobs. No guessed switches, paths or mandatory commands.
@@ -53,6 +65,8 @@ Recovery Attempt: 0
 ## Execution Log
 
 Append only. At approval add exactly one Approved Draft, Approved SHA256, Owner Evidence, Owner Evidence SHA256 and Execution Root line. Use actual immutable paths/digests and the selected absolute root. Owner evidence must identify both the approved Draft digest and execution root. Do not invent approval.
+
+For the original role, also append exactly one Sandbox Receipt and Sandbox Receipt SHA256 line identifying the immutable successful schema2 sandbox artifact for this exact selected Draft. Preserve its log/source identity. Sandbox proof never claims original completion. A delegated decision requires actual live owner delegation and must be labelled delegated, never falsely attributed to a human exact-digest message.
 
 ## Verification Notes
 

@@ -15,6 +15,7 @@ $ErrorActionPreference='Stop'
 try{[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)}catch{}
 $temporaryJudge=$null
 $operationLease=$null
+$heavyLease=$null
 $toolDirectory=$null
 $temporaryParent=if($env:WORKBENCH_TEMP_ROOT){[IO.Path]::GetFullPath($env:WORKBENCH_TEMP_ROOT)}else{Join-Path ([IO.Path]::GetTempPath()) 'ORVION-Workbench'}
 function Read-WorkbenchEntryGit([string[]]$Arguments) {
@@ -43,6 +44,11 @@ function Get-WorkbenchAcceptedJudge {
     $fullJudge
 }
 try {
+    # This primitive must run before Git can select or materialize the accepted judge.
+    # The owning checker repeats context validation after trusted loading; neither prints values.
+    foreach($key in 'GIT_DIR','GIT_WORK_TREE','GIT_COMMON_DIR','GIT_INDEX_FILE','GIT_OBJECT_DIRECTORY','GIT_ALTERNATE_OBJECT_DIRECTORIES','GIT_CONFIG_COUNT','GIT_CONFIG_PARAMETERS'){
+        if([Environment]::GetEnvironmentVariable($key,'Process')){throw 'WB_BOOTSTRAP_GIT_ENVIRONMENT_REFUSED'}
+    }
     $Root=[IO.Path]::GetFullPath($Root)
     if($temporaryParent-ieq$Root-or$temporaryParent.StartsWith($Root.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'WB_TEMP_ROOT_INSIDE_CHECKOUT_REFUSED'}
     if([IO.Path]::GetFullPath($PSCommandPath)-ine(Join-Path $Root 'lib/Workbench.ps1')){throw 'WB_ENTRY_ROOT_MISMATCH'}
@@ -69,6 +75,9 @@ try {
     $tree=@(Read-WorkbenchEntryGit @('rev-parse','HEAD^{tree}'))[0]
     $profiles=@(Get-WorkbenchProfiles @(Get-WorkbenchScope $record))
     $fingerprint=Get-WorkbenchFingerprint $Root $tree $contract
+    $context=Get-WorkbenchContext $record
+    $recipe=if($context){Get-WorkbenchRecipe $Root $tree $record}else{$null}
+    if($context-and$Execute){$executionRole=Assert-WorkbenchContextRuntime $Root $context}
     if($Execute){
         $approval=Get-WorkbenchApprovalValues $record
         $selectedDraft=$approval['Approved Draft']
@@ -97,6 +106,7 @@ try {
         if(!$env:ORVION_TIMED_LOG-or!(Test-Path -LiteralPath $env:ORVION_TIMED_LOG -PathType Leaf)-or
            !$env:ORVION_TIMED_ROOT-or[IO.Path]::GetFullPath($env:ORVION_TIMED_ROOT)-ine$Root){throw 'WB_FINISH_NOT_TIMED_FROM_OWN_ROOT'}
         $runLog=[IO.Path]::GetFullPath($env:ORVION_TIMED_LOG)
+        if($context-and!(Test-WorkbenchUnder (Assert-WorkbenchExternalPath $runLog) $context['Runtime Root'])){throw 'WB_CONTEXT_RUN_LOG_MISMATCH'}
         if($runLog.StartsWith($Root.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'WB_LOG_INSIDE_CHECKOUT_REFUSED'}
         $logStream=[IO.File]::Open($runLog,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
         $logReader=[IO.StreamReader]::new($logStream,[Text.Encoding]::UTF8,$true)
@@ -117,9 +127,26 @@ try {
         }
         if(!$foundRunner){throw 'WB_TIMED_RUNNER_NOT_ANCESTOR'}
         if('WORKSTATION'-in$profiles-or'CI'-in$profiles){throw 'WB_REQUIRED_PROFILE_NOT_IMPLEMENTED'}
+        if($context){
+            $executionRole=Assert-WorkbenchContextRuntime $Root $context -ResourceCheck
+            $sandboxProof=Assert-WorkbenchSandboxProof $Root $record $context $recipe -Implementation
+            $heavyLease=Enter-WorkbenchHeavyOperation $context
+            $env:WORKBENCH_TEST_ROOT=$context['Tests Root']
+            $env:WORKBENCH_TEMP_ROOT=$context['Temp Root']
+            $env:WORKBENCH_SUITE_PARENT=[string]$PID
+            $env:WORKBENCH_SUITE_RECIPE=$recipe.Digest
+        }
         $workingReceipt=Get-WorkbenchLocalPath $Root '.workbench-local-certification.json'
         if(Test-Path -LiteralPath $workingReceipt){[IO.File]::Delete($workingReceipt)}
         $clock=[Diagnostics.Stopwatch]::StartNew()
+        if($context){
+            & pwsh -NoProfile -File (Join-Path $Root 'lib/Events.ps1') -Root $Root -Find $record.Id
+            if($LASTEXITCODE-ne0){throw 'WB_REQUIRED_EVENTS_READ_FAILED'}
+            'WORKBENCH_PREFLIGHT: Events Find READY'
+            & pwsh -NoProfile -File (Join-Path $Root 'lib/Hunt.ps1') -Root $Root -Quick -NoRecord
+            if($LASTEXITCODE-ne0){throw 'WB_REQUIRED_HUNT_FAILED'}
+            'WORKBENCH_PREFLIGHT: Hunt Quick READY (GAP/proposal text is not zero findings or approval)'
+        }
         & pwsh -NoProfile -File (Join-Path $Root 'tests.ps1')
         $testExit=$LASTEXITCODE
         if($testExit-ne0){"FAILED: pwsh -NoProfile -File tests.ps1 (exit $testExit)";throw "WB_REQUIRED_TESTS_FAILED:exit=$testExit"}
@@ -128,6 +155,12 @@ try {
         if((Get-WorkbenchFingerprint $Root $tree $contract)-cne$fingerprint){throw 'WB_FINGERPRINT_CHANGED_DURING_FINISH'}
         $receipt=[ordered]@{schema=1;root=$Root;contract=$contract;finishHead=$finishHead;fingerprint=$fingerprint;profiles=$profiles;
             evaluator=@(Read-WorkbenchEntryGit @('rev-parse','HEAD:lib/Test-WorkbenchChange.ps1'))[0];runLog=$runLog;runStart=$runStart;result='READY'}
+        if($context){
+            $receipt['schema']=2
+            $receipt['draftSHA256']=(Get-WorkbenchApprovalValues $record)['Approved SHA256']
+            $receipt['recipe']=$recipe.Digest;$receipt['role']=$executionRole
+            $receipt['proof']=if($sandboxProof){$sandboxProof.digest}else{$null}
+        }
         $digest=Get-WorkbenchDigest ($receipt|ConvertTo-Json -Depth 5 -Compress)
         $receipt['digest']=$digest
         $bytes=($receipt|ConvertTo-Json -Depth 5)
@@ -158,6 +191,7 @@ try {
     exit 0
 }catch{'WORKBENCH: BLOCKED';"CODE: $($_.Exception.Message)";exit 1}
 finally{
+    if($heavyLease){$heavyLease.Dispose()}
     if($operationLease){$operationLease.Dispose()}
     if($temporaryJudge-and(Test-Path -LiteralPath $temporaryJudge)){[IO.File]::Delete($temporaryJudge)}
     if($toolDirectory-and(Test-Path -LiteralPath $toolDirectory)){

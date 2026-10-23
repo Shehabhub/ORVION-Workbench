@@ -29,8 +29,8 @@ function Invoke-FixtureChecker([string]$checkout,[string[]]$Arguments) {
 function Assert-Fixture([string]$Name,[bool]$Condition,$Detail=$null) {
     if($Condition){"PASS $Name"}else{$script:failures++;"FAIL $Name $($Detail|ConvertTo-Json -Compress -Depth 4)"}
 }
-function Copy-Fixture([string]$From,[string]$Name) {
-    $destination=Join-Path $ownedRoot $Name
+function Copy-Fixture([string]$From,[string]$Name,[string]$fixtureParent=$ownedRoot) {
+    $destination=Join-Path $fixtureParent $Name
     $null=Invoke-FixtureGit $ownedRoot @('clone','--quiet','--no-local',$From,$destination)
     foreach($setting in @(@('core.hooksPath','.githooks'),@('core.autocrlf','true'),@('gc.auto','0'),@('maintenance.auto','false'),@('user.name','Fixture'),@('user.email','fixture@invalid.local'))){$null=Invoke-FixtureGit $destination @('config','--local',$setting[0],$setting[1])}
     $null=Invoke-FixtureGit $destination @('remote','set-url','--push','origin','DISABLED')
@@ -63,10 +63,17 @@ function New-ApprovedFixture([string]$Name) {
     $null=Approve-FixtureCheckout $checkout
     $checkout
 }
-function Start-FixtureChild([string[]]$Arguments,[string]$Directory) {
+function Start-FixtureChild([string[]]$Arguments,[string]$Directory,[hashtable]$extraEnvironment) {
     $info=[Diagnostics.ProcessStartInfo]::new((Get-Command pwsh -CommandType Application|Select-Object -First 1).Source)
     $info.UseShellExecute=$false;$info.CreateNoWindow=$true;$info.RedirectStandardOutput=$true;$info.RedirectStandardError=$true
     $info.WorkingDirectory=$Directory
+    foreach($key in 'WORKBENCH_TEST_ROOT','WORKBENCH_TEMP_ROOT','WORKBENCH_TEST_EVIDENCE','WORKBENCH_SUITE_PARENT','WORKBENCH_SUITE_RECIPE'){$null=$info.Environment.Remove($key)}
+    $activeFile=Join-Path $Directory 'changes/WS-001-fixture.md'
+    if(Test-Path -LiteralPath $activeFile){
+        $childContext=Get-WorkbenchContext (Get-WorkbenchFields ([IO.File]::ReadAllText($activeFile)))
+        if($childContext){$info.Environment['WORKBENCH_TEST_ROOT']=$childContext['Tests Root'];$info.Environment['WORKBENCH_TEMP_ROOT']=$childContext['Temp Root']}
+    }
+    if($extraEnvironment){foreach($key in $extraEnvironment.Keys){$info.Environment[$key]=$extraEnvironment[$key]}}
     foreach($argument in $Arguments){$info.ArgumentList.Add($argument)}
     $process=[Diagnostics.Process]::new();$process.StartInfo=$info;$null=$process.Start()
     [pscustomobject]@{Process=$process;Out=$process.StandardOutput.ReadToEndAsync();Err=$process.StandardError.ReadToEndAsync()}
@@ -78,7 +85,8 @@ function Receive-FixtureChild($child) {
     }finally{$child.Process.Dispose()}
 }
 function Invoke-FixtureFinish([string]$checkout,[string]$Label) {
-    $log=Join-Path $ownedRoot ($Label+'.log')
+    $runtime=Join-Path $ownedRoot 'execution-runtime';[void][IO.Directory]::CreateDirectory($runtime)
+    $log=Join-Path $runtime ($Label+'.log')
     $entryPath=Join-Path $checkout 'lib/Workbench.ps1'
     $command="& '"+$entryPath.Replace("'","''")+"' -Root '"+$checkout.Replace("'","''")+"' -Finish"
     $runner=Start-FixtureChild @('-NoProfile','-File',(Join-Path $checkout 'lib/run_timed.ps1'),'-Log',$log,'-WorkingDirectory',$checkout,'-Command',$command) $checkout
@@ -155,19 +163,138 @@ function Test-ExecuteFixture {
     Set-FixtureStatus $checkout 'In Progress'
     $null=Save-FixtureCommit $checkout @('changes/WS-001-fixture.md') 'Fixture begin literal execution'
     $entryPath=Join-Path $checkout 'lib/Workbench.ps1'
-    $outputLines=@(& pwsh -NoProfile -File $entryPath -Root $checkout -Execute 2>&1);$exitValue=$LASTEXITCODE
+    $badEnvironment=Receive-FixtureChild (Start-FixtureChild @('-NoProfile','-File',$entryPath,'-Root',$checkout,'-Execute') $checkout @{WORKBENCH_TEST_ROOT=(Join-Path $ownedRoot 'unapproved-tests')})
+    Assert-Fixture 'actual Execute rejects an unapproved fixture environment before writes' ($badEnvironment.Exit-ne0-and$badEnvironment.Output-match'WB_CONTEXT_ENVIRONMENT_MISMATCH'-and[Convert]::ToBase64String([IO.File]::ReadAllBytes($file))-ceq[Convert]::ToBase64String($beforeBytes)) $badEnvironment
+    $executionResult=Receive-FixtureChild (Start-FixtureChild @('-NoProfile','-File',$entryPath,'-Root',$checkout,'-Execute') $checkout)
+    $outputLines=@($executionResult.Output);$exitValue=$executionResult.Exit
     $executeBlob=(Invoke-FixtureGit $checkout @('hash-object','--path=feature.txt','--',$file)).Output[0]
     Assert-Fixture 'actual Execute uses accepted Plan and applier for an in-scope first write' ($exitValue-eq0-and$executeBlob-ceq$step.Blob-and($outputLines-join' ')-match'WORKBENCH_EXECUTE: DONE') $outputLines
     $null=Save-FixtureCommit $checkout @('feature.txt') 'Fixture literal implementation commit'
     $writeAt=(Get-Item -LiteralPath $file).LastWriteTimeUtc.Ticks
-    $outputLines=@(& pwsh -NoProfile -File $entryPath -Root $checkout -Execute 2>&1);$exitValue=$LASTEXITCODE
+    $executionResult=Receive-FixtureChild (Start-FixtureChild @('-NoProfile','-File',$entryPath,'-Root',$checkout,'-Execute') $checkout)
+    $outputLines=@($executionResult.Output);$exitValue=$executionResult.Exit
     Assert-Fixture 'actual Execute resumes Already Applied without rewriting the selected file' ($exitValue-eq0-and($outputLines-join' ')-match'ALREADY_APPLIED: feature.txt'-and(Get-Item -LiteralPath $file).LastWriteTimeUtc.Ticks-eq$writeAt) $outputLines
+}
+function New-ContextFixture([string]$Name,[hashtable]$Changes,[switch]$Original) {
+    $checkout=Copy-Fixture $draftSnapshot $Name
+    $file=Join-Path $checkout 'changes/WS-001-fixture.md'
+    $body=[IO.File]::ReadAllText($file)
+    $selected=Join-Path $evidence ($Name+'-selected.md')
+    $oldPath=[regex]::Match($body,'(?m)^V3: [^|]+ \| [^|]+ \| (?<path>[^|]+) \| SELECTED\r?$').Groups['path'].Value.Trim()
+    if(!$oldPath){throw 'CONTEXT_FIXTURE_SELECTED_PATH_MISSING'}
+    $body=$body.Replace($oldPath,$selected)
+    $fields=Get-WorkbenchFields $body
+    $contextBody=$fields.Sections['Execution Context']
+    $replacements=if($Changes){$Changes.Clone()}else{@{}}
+    if($Original){$replacements['Original Root']=$checkout;$replacements['Sandbox Parent']=Join-Path $ownedRoot 'proof-sandboxes'}
+    foreach($key in $replacements.Keys){
+        $pattern='(?m)^'+[regex]::Escape($key)+': [^\n]+$'
+        $value=$key+': '+$replacements[$key]
+        $contextBody=[regex]::Replace($contextBody,$pattern,[Text.RegularExpressions.MatchEvaluator]{param($match)$value})
+    }
+    $body=Set-WorkbenchSection $body 'Execution Context' $contextBody
+    Write-FixtureFile $file $body;Write-FixtureFile $selected $body
+    $null=Save-FixtureCommit $checkout @('changes/WS-001-fixture.md') ('Fixture context Draft '+$Name)
+    [pscustomobject]@{Root=$checkout;Selected=$selected;Digest=(Get-FileHash -LiteralPath $selected).Hash;DraftText=$body}
+}
+function Test-ContextAssurance {
+    $initialV3=$v3;$initialDraftDigest=$draftDigest
+    $without=Copy-Fixture $seed 'missing-context'
+    $missing=[regex]::Replace($text,'(?ms)^## Execution Context\r?\n.*?(?=^## )','')
+    Write-FixtureFile (Join-Path $without 'changes/WS-001-fixture.md') $missing
+    $refused=Save-FixtureCommit $without @('changes/WS-001-fixture.md') 'Forbidden missing context Draft' -AllowFailure
+    Assert-Fixture 'new actual allocation cannot omit the execution context' ($refused.Exit-ne0-and($refused.Output-join' ')-match'WB_EXECUTION_CONTEXT_REQUIRED') $refused
+    $baseContext=(Get-WorkbenchFields $text).Sections['Execution Context']
+    $sameRoot=[regex]::Replace($baseContext,'(?m)^Sandbox Parent: [^\n]+$',('Sandbox Parent: '+(Join-Path $testParent 'never-original')))
+    $longRoot=[regex]::Replace($baseContext,'(?m)^Tests Root: [^\n]+$',('Tests Root: '+(Join-Path $testParent ('long-'+('x'*160)))))
+    $badContexts=@(
+        [pscustomobject]@{Name='overlap';Body=$sameRoot;Code='WB_CONTEXT_ORIGINAL_SANDBOX_OVERLAP'},
+        [pscustomobject]@{Name='longpath';Body=$longRoot;Code='WB_CONTEXT_FIXTURE_PATH_TOO_LONG'},
+        [pscustomobject]@{Name='unknown';Body=($baseContext+[char]10+'Skip Tests: true');Code='WB_EXECUTION_CONTEXT_INVALID'}
+    )
+    foreach($badContext in $badContexts){
+        $badRoot=Copy-Fixture $seed ('invalid-context-'+$badContext.Name)
+        Write-FixtureFile (Join-Path $badRoot 'changes/WS-001-fixture.md') (Set-WorkbenchSection $text 'Execution Context' $badContext.Body)
+        $badCommit=Save-FixtureCommit $badRoot @('changes/WS-001-fixture.md') ('Forbidden context '+$badContext.Name) -AllowFailure
+        Assert-Fixture ('actual allocation rejects context '+$badContext.Name) ($badCommit.Exit-ne0-and($badCommit.Output-join' ')-match$badContext.Code) $badCommit
+    }
+    $budget=New-ContextFixture 'context-budget' @{'Minimum Physical GB'='999999'}
+    $v3=$budget.Selected;$draftDigest=$budget.Digest
+    $null=Approve-FixtureCheckout $budget.Root
+    Set-FixtureStatus $budget.Root 'In Progress';$null=Save-FixtureCommit $budget.Root @('changes/WS-001-fixture.md') 'Fixture begin unavailable budget'
+    $budgetRun=Invoke-FixtureFinish $budget.Root 'wb-budget-refused'
+    Assert-Fixture 'actual Finish refuses insufficient headroom before a test child' ($budgetRun.Runner.Exit-ne0-and$budgetRun.Output-match'WB_CONTEXT_RESOURCE_BUDGET_UNAVAILABLE'-and!(Test-Path -LiteralPath (Join-Path $budget.Root 'work/count.txt'))) $budgetRun
+    $version=New-ContextFixture 'context-version' @{'PowerShell Version'='0.0.1'}
+    $v3=$version.Selected;$draftDigest=$version.Digest
+    $null=Approve-FixtureCheckout $version.Root
+    Set-FixtureStatus $version.Root 'In Progress';$null=Save-FixtureCommit $version.Root @('changes/WS-001-fixture.md') 'Fixture begin wrong version'
+    $versionRun=Invoke-FixtureFinish $version.Root 'wb-version-refused'
+    Assert-Fixture 'actual Finish refuses a different executable version before a test child' ($versionRun.Runner.Exit-ne0-and$versionRun.Output-match'WB_CONTEXT_EXECUTABLE_VERSION_MISMATCH'-and!(Test-Path -LiteralPath (Join-Path $version.Root 'work/count.txt'))) $versionRun
+    $v3=$initialV3;$draftDigest=$initialDraftDigest
+    $busy=New-ApprovedFixture 'context-busy'
+    Set-FixtureStatus $busy 'In Progress';$null=Save-FixtureCommit $busy @('changes/WS-001-fixture.md') 'Fixture begin shared heavy lease'
+    $busyRecord=Get-WorkbenchFields ([IO.File]::ReadAllText((Join-Path $busy 'changes/WS-001-fixture.md')))
+    $heavy=Enter-WorkbenchHeavyOperation (Get-WorkbenchContext $busyRecord)
+    try{
+        $busyRun=Invoke-FixtureFinish $busy 'wb-heavy-refused'
+        Assert-Fixture 'actual Finish refuses a shared heavy-operation overlap before a test child' ($busyRun.Runner.Exit-ne0-and$busyRun.Output-match'WB_CONTEXT_HEAVY_OPERATION_IN_PROGRESS'-and!(Test-Path -LiteralPath (Join-Path $busy 'work/count.txt'))) $busyRun
+    }finally{$heavy.Dispose()}
+    $originalCase=New-ContextFixture 'original-context' @{} -Original
+    $v3=$originalCase.Selected;$draftDigest=$originalCase.Digest
+    $attempt=Approve-FixtureCheckout $originalCase.Root -AllowFailure
+    Assert-Fixture 'original Approval refuses absent sandbox proof through the actual hook' ($attempt.Exit-ne0-and($attempt.Output-join' ')-match'WB_SANDBOX_PROOF_REQUIRED') $attempt
+    Write-FixtureFile (Join-Path $originalCase.Root 'changes/WS-001-fixture.md') $originalCase.DraftText
+    Write-FixtureFile (Join-Path $originalCase.Root 'RESUME.md') ('# Fixture'+[char]10+'Active Workbench Contract: None'+[char]10)
+    $null=Invoke-FixtureGit $originalCase.Root @('add','--','changes/WS-001-fixture.md','RESUME.md')
+    $proofParent=Join-Path $ownedRoot 'proof-sandboxes';[void][IO.Directory]::CreateDirectory($proofParent)
+    $proofRoot=Copy-Fixture $originalCase.Root 'sandbox' $proofParent
+    $null=Approve-FixtureCheckout $proofRoot
+    Set-FixtureStatus $proofRoot 'In Progress';Write-FixtureFile (Join-Path $proofRoot 'feature.txt') ('after'+[char]10)
+    $null=Save-FixtureCommit $proofRoot @('changes/WS-001-fixture.md','feature.txt') 'Fixture sandbox implementation for exact original context'
+    $proofRun=Invoke-FixtureFinish $proofRoot 'wb-context-sandbox'
+    Assert-Fixture 'actual isolated sandbox emits its own versioned recipe receipt' ($proofRun.Runner.Exit-eq0) $proofRun
+    $proofReceipt=Read-WorkbenchReceipt $proofRoot
+    Assert-Fixture 'sandbox receipt explicitly binds Draft and sandbox role' ($proofReceipt.schema-eq2-and$proofReceipt.role-ceq'SANDBOX'-and$proofReceipt.draftSHA256-ceq$draftDigest) $proofReceipt
+    $artifact=Join-Path $evidence 'context-sandbox-receipt.json'
+    [IO.File]::Copy((Join-Path $proofRoot '.workbench-local-certification.json'),$artifact,$false)
+    $originalFile=Join-Path $originalCase.Root 'changes/WS-001-fixture.md'
+    $originalText=[IO.File]::ReadAllText($originalFile);$originalRecord=Get-WorkbenchFields $originalText
+    $originalText=Set-WorkbenchSection $originalText 'Execution Log' ($originalRecord.Sections['Execution Log']+[char]10+"Sandbox Receipt: $artifact"+[char]10+"Sandbox Receipt SHA256: $((Get-FileHash -LiteralPath $artifact).Hash)")
+    Write-FixtureFile $originalFile $originalText
+    $approvedOriginal=Approve-FixtureCheckout $originalCase.Root
+    Assert-Fixture 'actual original Approval admits exact successful sandbox artifact' ($approvedOriginal.Exit-eq0) $approvedOriginal
+    Set-FixtureStatus $originalCase.Root 'In Progress';Write-FixtureFile (Join-Path $originalCase.Root 'feature.txt') ('after'+[char]10)
+    $null=Save-FixtureCommit $originalCase.Root @('changes/WS-001-fixture.md','feature.txt') 'Fixture original matches sandbox implementation'
+    $originalRun=Invoke-FixtureFinish $originalCase.Root 'wb-context-original'
+    Assert-Fixture 'actual original needs and produces its own fresh recipe receipt' ($originalRun.Runner.Exit-eq0) $originalRun
+    $originalReceipt=Read-WorkbenchReceipt $originalCase.Root
+    Assert-Fixture 'original receipt binds sandbox proof without transplanting it' ($originalReceipt.role-ceq'ORIGINAL'-and$originalReceipt.proof-ceq$proofReceipt.digest-and$originalReceipt.digest-cne$proofReceipt.digest-and$originalReceipt.root-cne$proofReceipt.root) $originalReceipt
+    $count=[IO.File]::ReadAllText((Join-Path $originalCase.Root 'work/count.txt'))
+    Write-FixtureFile (Join-Path $originalCase.Root 'feature.txt') ('changed after sandbox'+[char]10)
+    $null=Save-FixtureCommit $originalCase.Root @('feature.txt') 'Fixture changed input after sandbox proof'
+    $staleRun=Invoke-FixtureFinish $originalCase.Root 'wb-context-stale'
+    Assert-Fixture 'actual original rejects stale sandbox input before any repeated tests' ($staleRun.Runner.Exit-ne0-and$staleRun.Output-match'WB_SANDBOX_PROOF_RECIPE_OR_INPUT_MISMATCH'-and[IO.File]::ReadAllText((Join-Path $originalCase.Root 'work/count.txt'))-ceq$count) $staleRun
+    $sourceRoot=Split-Path $PSScriptRoot -Parent
+    $raw=Receive-FixtureChild (Start-FixtureChild @('-NoProfile','-File',(Join-Path $sourceRoot 'tests.ps1')) $sourceRoot @{WORKBENCH_SUITE_PARENT=[string]$PID;WORKBENCH_SUITE_RECIPE=('A'*64)})
+    Assert-Fixture 'actual raw full-suite caller rejects a claimed parent and recipe before tests' ($raw.Exit-ne0-and$raw.Output-match'WB_RAW_FULL_SUITE_REFUSED'-and$raw.Output-notmatch'PASS hazards') $raw
+    $badGit=@{GIT_DIR=(Join-Path $seed '.git')}
+    $bootstrap=Receive-FixtureChild (Start-FixtureChild @('-NoProfile','-File',(Join-Path $sourceRoot 'lib/Workbench.ps1'),'-Root',$sourceRoot,'-Boot') $sourceRoot $badGit)
+    Assert-Fixture 'actual entry refuses a redirected Git environment before evaluator loading' ($bootstrap.Exit-ne0-and$bootstrap.Output-match'WB_BOOTSTRAP_GIT_ENVIRONMENT_REFUSED') $bootstrap
+    $mutantRoot=Copy-Fixture $draftSnapshot 'bootstrap-mutant'
+    $mutantPath=Join-Path $mutantRoot 'lib/Workbench.ps1'
+    $mutantText=[IO.File]::ReadAllText($mutantPath)
+    $primitive='(?ms)^    # This primitive must run.*?(?=^    \$Root=\[IO\.Path\])'
+    if(@([regex]::Matches($mutantText,$primitive)).Count-ne1){throw 'BOOTSTRAP_ENVIRONMENT_MUTANT_STALE'}
+    $mutantText=[regex]::Replace($mutantText,$primitive,'')
+    Write-FixtureFile $mutantPath $mutantText
+    $mutantBoot=Receive-FixtureChild (Start-FixtureChild @('-NoProfile','-File',$mutantPath,'-Root',$mutantRoot,'-Boot') $mutantRoot $badGit)
+    Assert-Fixture 'removing pre-bootstrap environment validation is killed by the actual caller predicate' ($mutantBoot.Output-notmatch'WB_BOOTSTRAP_GIT_ENVIRONMENT_REFUSED') $mutantBoot
 }
 try {
     $seed=Join-Path $ownedRoot 'seed';[void][IO.Directory]::CreateDirectory($seed)
     $null=Invoke-FixtureGit $seed @('init','--quiet')
     foreach($setting in @(@('user.name','Fixture'),@('user.email','fixture@invalid.local'),@('core.hooksPath','.git/hooks'),@('core.autocrlf','true'),@('gc.auto','0'),@('maintenance.auto','false'))){$null=Invoke-FixtureGit $seed @('config','--local',$setting[0],$setting[1])}
-    foreach($relative in 'lib/Test-WorkbenchChange.ps1','lib/Workbench.ps1','lib/run_timed.ps1','lib/watch_run.ps1','lib/apply-draft-steps.ps1','lib/Invoke-DraftSteps.ps1','.githooks/pre-commit'){
+    foreach($relative in 'lib/Test-WorkbenchChange.ps1','lib/Workbench.ps1','lib/run_timed.ps1','lib/watch_run.ps1','lib/apply-draft-steps.ps1','lib/Invoke-DraftSteps.ps1','lib/Events.ps1','lib/Hunt.ps1','lib/Sync-Sessions.ps1','.githooks/pre-commit'){
         $source=Join-Path (Split-Path $PSScriptRoot -Parent) $relative
         Write-FixtureFile (Join-Path $seed $relative) ([IO.File]::ReadAllText($source))
     }
@@ -186,6 +313,8 @@ if(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'work/fail')){exit 7}
 exit 0
 '@
     Write-FixtureFile (Join-Path $seed 'tests.ps1') ($shortTests+[char]10)
+    Write-FixtureFile (Join-Path $seed 'lib/test-synthetic-fixture.ps1') ('# Synthetic dispatch fixture only; this is not the real owning suite.'+[char]10+'exit 0'+[char]10)
+    Write-FixtureFile (Join-Path $seed 'lib/test-case-extension.PS1') ('# Windows discovery control, synthetic dispatch proof only.'+[char]10+'exit 0'+[char]10)
     $null=Invoke-FixtureGit $seed @('add','.')
     $null=Invoke-FixtureGit $seed @('commit','--quiet','-m','Synthetic accepted checker seed; fixture trust assumption only')
     $baseline=(Invoke-FixtureGit $seed @('rev-parse','HEAD')).Output[0]
@@ -221,6 +350,17 @@ $baseline
 ## Out of Scope
 Every other engineering path and all real roots.
 
+## Execution Context
+Original Root: $(Join-Path $testParent 'never-original')
+Sandbox Parent: $ownedRoot
+Tests Root: $(Join-Path $testParent 'child-tests')
+Temp Root: $(Join-Path $ownedRoot 'execution-temp')
+Runtime Root: $(Join-Path $ownedRoot 'execution-runtime')
+PowerShell Version: $($PSVersionTable.PSVersion.ToString())
+Git Version: $((Invoke-FixtureGit $seed @('--version')).Output[0])
+Minimum Physical GB: 1.5
+Minimum Commit GB: 3
+
 ## Draft Assurance
 V1: fixture-design | $date | $v1 | $sha1
 V2: fixture-adversarial | $date | $v2 | $sha2
@@ -254,6 +394,8 @@ Fixture only.
     $draftCommit=Save-FixtureCommit $draftRoot @('changes/WS-001-fixture.md') 'Fixture Draft'
     $draftSnapshot=Copy-Fixture $draftRoot 'unapproved-seed'
     Assert-Fixture 'actual hook admits a Draft allocation' ($draftCommit.Exit-eq0)
+    $discoveryRecipe=Get-WorkbenchRecipe $draftRoot 'HEAD' (Get-WorkbenchFields $text)
+    Assert-Fixture 'recipe retains the existing Windows uppercase-extension test discovery' (@($discoveryRecipe.Material.tests)-ccontains'lib/test-case-extension.PS1')
     $core=Invoke-FixtureChecker $seed @('-Mode','Boot')
     Assert-Fixture 'CORE Boot has no product dependency or remote' ($core.Exit-eq0-and($core.Output-join' ')-match'MODE: PLAN') $core
 
@@ -378,6 +520,7 @@ Fixture only.
     $endpoint=(Invoke-FixtureGit $counterexample @('diff','--name-only',$approvedHead,$goodEnd)).Output
     $badRange=Invoke-FixtureChecker $counterexample @('-Mode','Range','-Base',$approvedHead,'-Head',$goodEnd)
     Assert-Fixture 'valid endpoints do not hide an invalid intermediate transition' (!$endpoint.Count-and$badRange.Exit-ne0-and($badRange.Output-join' ')-match'WB_WRITE_SCOPE_REFUSED') $badRange
+    Test-ContextAssurance
     $watcher=Join-Path $PSScriptRoot 'watch_run.ps1'
     $replay=Invoke-FixtureWatch $watcher 'wb-alert-positive'
     Assert-Fixture 'actual Brief caller reports generic unreadable and refused outcomes' ($replay.Exit-ne0-and$replay.Output-match'TOOL: UNREADABLE'-and$replay.Output-match'PUBLISH: REFUSED') $replay
