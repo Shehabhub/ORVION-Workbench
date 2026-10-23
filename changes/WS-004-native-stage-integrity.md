@@ -700,7 +700,7 @@ Failed focus-v1 read-only-object cleanup, focus-v3/v4 incomplete toy scaffolding
 
 ## Runtime Checkpoint
 
-Resume Step: 1
+Resume Step: DONE
 Blocker: None
 Recovery Attempt: 0
 
@@ -714,6 +714,7 @@ Owner Evidence SHA256: CD21CCA9B1929D6ED89926DDC6E39C79C8086458AA1A2D378D50AD14D
 Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools
 Sandbox Receipt: C:\Users\My Lab\Documents\ORVION-Owner-Review\workbench-native-stage-integrity-20261023-r2\runtime\sandbox\own-finish-receipt.json
 Sandbox Receipt SHA256: BCA1F47A865E96D3A67EE1CCDDF526E051D2951A00211A31A64BB1FA7A722129
+Original literal5 outputs applied through the accepted native Workbench entry, all declared blobs match. Fresh own timed/watched full Finish still required.
 
 ## Verification Notes
 

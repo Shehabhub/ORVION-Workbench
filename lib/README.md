@@ -62,17 +62,37 @@ instead of automatically rerunning an expensive test. General management/observe
 | `Events.ps1 -Find '<task>'` / `-Brief` / `-Add` | improvement memory: relevant past failures, discoveries, decisions; watchers record alarms |
 | `Sync-Sessions.ps1` | verbatim archive of every ORVION session + `sessions\index.jsonl` (hook runs it at start and end) |
 | `Backup-Workspace.ps1 -Destination <usb>` / `Restore-Workspace.ps1 -From <backup>` | everything a clone cannot restore; encrypted drive required; restore never overwrites |
-| `..\tests.ps1` | every check: hazard scan of all scripts + each `test-*.ps1` (pre-commit runs it) |
+| `..\tests.ps1` | sole full closure schedule: hazards plus each owning test suite; only own timed Finish may launch it with the bound recipe. The normal hook checks admission/freshness, not another full run. |
 
 ## Contract lifecycle
 | Tool | Purpose |
 |---|---|
-| `Invoke-ContractStage.ps1 -Config <x>.psd1 -Stage approve|implement|review|complete|bind` | executes an owner-approved Draft on the real checkout; every git read throws on failure |
-| `Test-ContractReview.ps1 -Config <x>.psd1 [-FinishLog <log>]` | read-only live-Git Review checks (scope, authors, allocation blob, every criterion) |
+| `Invoke-ContractStage.ps1 -Config <x>.psd1 -Stage approve|implement|review|complete|bind` | bounded native transport: exact selected Draft/filter identity, native Boot and normal hooks before transitions; whole applier Plan before writes, declared paths only, actual Git authorship. Native gates remain authority. |
+| `Test-ContractReview.ps1 -Config <x>.psd1 [-FinishLog <log>]` | read-only pre-Review diagnostics plus one native range Gate; exit1 observed failure, exit2 UNPROVEN/unsupported evidence, exit0 only for the measured class. Never certifies all descriptive/native criteria or replaces independent Review. |
 | `Invoke-DraftSteps.ps1` (dot-source) | turns a sandbox diff into literal Draft steps with blobs |
 | `apply-draft-steps.ps1 -Draft <d> -Root <clone>` | proves a Draft's steps reproduce its blobs |
 | `Invoke-DraftRehearsal.ps1` | full lifecycle rehearsal of a frozen Draft in a disposable clone (push DISABLED) |
 | `lifecycle.ps1` (dot-source) | shared helpers, including `Stop-ProcessTreeFully` |
+
+These are the Workbench agent's adapters. Direct entry into one product uses that product's own tools only.
+An explicitly selected native transport config names the exact Root, baseline, native SPEC/slug, selected Draft,
+raw SHA256, filtered allocation blob and configured Git user; every post-allocation stage matches that blob to
+its single actual Git allocation before invoking a native child or writing. Do not infer a target from an old folder or another
+SPEC with the same number. Read the actual native Boot ACTION/WRITE/START_CONTEXT or refusal preserved by the
+adapter. Creation uses the existing literal applier's whole Plan; absent HEAD content is not a creation failure.
+Never rerun approve after a diagnostic failure without inspecting actual commits/status: a native transition
+may already have succeeded. Native applicability can truthfully be PASS or NOT APPLICABLE; the adapter cannot
+grant an exemption. Existing explicit retirement remains scoped, and no invented model/coauthor enters commits.
+
+After implementation commit/DONE, invoke that selected repository's own timed/watched Finish exactly once;
+this stage adapter schedules none of its child tests. Independently inspect actual criteria and its own fresh
+receipt, supply the real review entry, Complete, then native bind. Failed/unknown diagnostics are visible;
+unsupported checks require their owning native evidence, not fabricated approval or a copied criterion engine.
+Entry appends name their owning legal section regardless of section order. Reuse existing lifecycle/process and
+owned-fixture cleanup helpers. `test-native-stage.ps1` owns focused stub-boundary positives/refusals/mutants;
+those fixtures never substitute for a real native lifecycle or an original receipt. General single/multi-target
+management, observer handles, recipe bridging and partial recovery remain governed by P3 G2c and are not supplied
+by this prerequisite. New tools must enter through the existing tested governance; this index is discovery only.
 
 ## Explicit dual owner operations
 
