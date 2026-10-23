@@ -55,8 +55,8 @@ instead of automatically rerunning an expensive test. General management/observe
 | Tool | Purpose |
 |---|---|
 | `Hunt.ps1 [-Quick]` | the hunting dogs: invariants, liveness, versioning, untested tools, planted-bug mutants, lint; every BUG/GAP becomes an event, the last result shows in Pulse |
-| `Coordinator.ps1` / `-Brief` / `-Check` / `-Assign` / `-Close` / `-Dispatch` | one event-journal view: UNOWNED, OVERDUE, OWNER, DISPATCHED, ACTIVE; observations remain quiet. Explicit Owner=owner or Cause=owner-decision routes owner choices; technical decisions can remain ACTIVE. Incomplete/missing/unreadable journal returns UNREADABLE/exit 2 with valid partial diagnostics; mutation refuses before writes. Explicit empty journal is valid. Hunts/certifies nothing. |
-| `Pulse.ps1` | the live state any arriving agent sees first (repos, pending candidates, running, host, waiting on the owner, last session, the coordinator's queue); session start prints it |
+| `Coordinator.ps1` / `-Brief` / `-Check` / `-Snapshot` / `-Assign` / `-Close` / `-Dispatch` | one event-journal classifier: UNOWNED, OVERDUE, OWNER, DISPATCHED, ACTIVE. Snapshot returns one schema1 object with Readable, Items and the same Brief lines; an incomplete snapshot explicitly has Readable=false. Explicit Owner=owner or Cause=owner-decision routes owner choices; technical decisions can remain ACTIVE. Text consumers retain UNREADABLE/exit 2 and mutation refuses before writes. Explicit empty journal is valid. Hunts/certifies nothing. |
+| `Pulse.ps1` | arrival state from actual Git reads and one Coordinator snapshot shared by owner waits and queue. Inherited assignments stay intact; technical decisions are not owner waits. Missing/failed selected Git or journal evidence is UNREADABLE/exit 2; explicit empty journal or genuinely absent upstream is readable. DIRTY is an observation, never write authority. No fetch, test, retry or certification. |
 | `Delegate.ps1 -Pattern <id> -Question '...'` / `-Report <folder> -Reply <file>` / `-List` | the delegation road: a bounded brief for a cold agent (authority never grows, due = twice its budget); `-Report` is the return road: saves the reply, records the verdict, hands the item back to the agent |
 | `Spider.ps1 '<entity or phrase>'` | one question across sessions, events, both repos' files and commits, memory and owner packets; ranked, values masked, ~4 s |
 | `Events.ps1 -Find '<task>'` / `-Brief` / `-Add` | improvement memory: relevant past failures, discoveries, decisions; watchers record alarms |
@@ -71,7 +71,7 @@ instead of automatically rerunning an expensive test. General management/observe
 | `Test-ContractReview.ps1 -Config <x>.psd1 [-FinishLog <log>]` | read-only pre-Review diagnostics plus one native range Gate; exit1 observed failure, exit2 UNPROVEN/unsupported evidence, exit0 only for the measured class. Never certifies all descriptive/native criteria or replaces independent Review. |
 | `Invoke-DraftSteps.ps1` (dot-source) | turns a sandbox diff into literal Draft steps with blobs |
 | `apply-draft-steps.ps1 -Draft <d> -Root <clone>` | proves a Draft's steps reproduce its blobs |
-| `Invoke-DraftRehearsal.ps1` | full lifecycle rehearsal of a frozen Draft in a disposable clone (push DISABLED) |
+| `Invoke-DraftRehearsal.ps1` | bounded literal/native-entry probes in a disposable clone: deliberately interrupts Finish and uses later sandbox-specific hook/worktree arrangements. Not a complete Finish/lifecycle proof; never transplant its results as original certification. |
 | `lifecycle.ps1` (dot-source) | shared helpers, including `Stop-ProcessTreeFully` |
 
 These are the Workbench agent's adapters. Direct entry into one product uses that product's own tools only.

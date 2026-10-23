@@ -6,12 +6,12 @@ each product's own Boot remains its authority. This is not a second programme st
 
 0. **New to this programme (no history)?** Read [`HANDOFF.md`](HANDOFF.md) once: architecture, boundaries, governance,
    lessons, roadmap, owner decisions and the last verified state with its next actions. Then continue here.
-1. **Exact resume point.** Run `pwsh -NoProfile -File "C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools\lib\Pulse.ps1"`.
+1. **Exact resume point.** Run `pwsh -NoProfile -File "C:\Users\My Lab\Documents\GitHub\ORVION-Workbench\lib\Pulse.ps1" -Root "C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools"`.
    Its `in flight` lines name the active work and that work's own `RESUME.md` (last verified checkpoint, ordered resumable
-   steps, evidence, blockers, where to stop for the owner). Cannot run commands? Search `events\events.jsonl` (this folder)
+   steps, evidence, blockers, where to stop for the owner). Cannot run commands? Search `C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools\events\events.jsonl` (the preserved single journal)
    for `RESUME HERE`; the newest such line names the same file.
 2. **Latest session.** Pulse's `last` line names it; every session, newest first, with its raw transcript path:
-   `sessions\INDEX.md`. Search them all: `lib\Spider.ps1 '<SPEC id, error, script or phrase>'`.
+   `C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools\sessions\INDEX.md`. Search them all: `lib\Spider.ps1 -Root 'C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools' '<SPEC id, error, script or phrase>'`.
 3. **The programme: one programme, two independent repositories.**
    - Platinum `C:\Users\My Lab\Documents\GitHub\CRM` (PlatPlusHub/CRM) and Founder `C:\Users\My Lab\Documents\GitHub\ORVION`
      (Shehabhub/ORVION). In each: `README.md`, then `AGENTS.md`, then
@@ -23,6 +23,8 @@ each product's own Boot remains its authority. This is not a second programme st
      certification per repository.
 4. **Boundaries.** Nothing is approved until the owner approves an exact SHA-256 (Gate 1); Drafts are committed only then.
    Publish and promote are the owner's (`CR_LIFECYCLE.md` §9). Batch 6 is ON HOLD; CTRL-19 is OPEN.
-5. **Before any task.** `lib\Events.ps1 -Find '<task in a few words>'`: what earlier agents learned, with the session that holds it.
+5. **Before any task.** `lib\Events.ps1 -Root 'C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools' -Find '<task in a few words>'`: what earlier agents learned, with the session that holds it.
+
+Source/data transition: this checkout is the selected source, with the existing local accepted hook. The old ORVION-Owner-Tools root remains the ONE event/session data store until separately tested migration. Explicit Root arguments above select it; no journal/working receipt is transplanted here. HANDOFF.md is dated history. This routing does not authorize a native operation or certify restored state.
 
 Active Workbench Contract: changes/WS-005-arrival-source-readiness.md

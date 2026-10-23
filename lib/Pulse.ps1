@@ -2,28 +2,39 @@
 # Codex and others run it themselves). Everything is read at call time; nothing here is stored or authoritative.
 #   repos      each repository: branch@HEAD, clean, ahead/behind its upstream as of the last fetch, pending candidates
 #   running    the session archiver, timed runs (with their log's last line), host memory
-#   waiting    open owner decisions (events with category decision)
+#   waiting    genuine owner choices from the SAME Coordinator snapshot as the queue
 #   last       the newest other session: task, when it ended, where it stopped
 #   queue      the coordinator's queue (Coordinator.ps1 -Brief): counts by state, the three most urgent items
 # Read-only; a failing git read prints UNREADABLE for that repository instead of guessing.
 param([string]$Root=(Split-Path $PSScriptRoot -Parent),[string]$Session=$env:CLAUDE_CODE_SESSION_ID,
       [string[]]$Repos=@('CRM','ORVION'|ForEach-Object{Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) $_}))
 $ErrorActionPreference='Stop'
+$pulseUnreadable=$false
 function Get-GitLine{param([string]$Repo)$o=& git -C $Repo @args 2>$null;if($LASTEXITCODE){throw "git $($args-join' ')"};"$o".Trim()}
 "ORVION PULSE $([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm')) UTC"
-foreach($r in $Repos|Where-Object{Test-Path (Join-Path $_ '.git')}){
+foreach($r in $Repos){
     $name=Split-Path $r -Leaf
     try{
+        if(!(Test-Path -LiteralPath (Join-Path $r '.git'))){throw 'selected repository missing'}
         $head=Get-GitLine $r rev-parse --short HEAD;$branch=Get-GitLine $r rev-parse --abbrev-ref HEAD
         $dirty=@(& git -C $r status --porcelain 2>$null).Count;if($LASTEXITCODE){throw 'status'}
-        $ab=try{(Get-GitLine $r rev-list --left-right --count 'HEAD...@{u}')-split'\s+'}catch{$null}
+        $upstream=Get-GitLine $r for-each-ref --format='%(upstream)' "refs/heads/$branch"
+        $ab=if($upstream){(Get-GitLine $r rev-list --left-right --count "HEAD...$upstream")-split'\s+'}else{$null}
         # a pending tail already contained in the upstream was released: say so, it is only a leftover branch
-        $pending=@(& git -C $r for-each-ref --format='%(refname:short) %(objectname)' 'refs/heads/orvion/*-pending' 2>$null|ForEach-Object{
-            $n,$sha=$_-split' ';& git -C $r merge-base --is-ancestor $sha '@{u}' 2>$null;$gone=$LASTEXITCODE-eq0
-            "$n@$($sha.Substring(0,7))$(if($gone){' (released, leftover branch)'})"})
+        $pendingRows=@(& git -C $r for-each-ref --format='%(refname:short) %(objectname)' 'refs/heads/orvion/*-pending' 2>$null)
+        if($LASTEXITCODE-ne0){throw 'pending refs unreadable'}
+        $pending=@(foreach($pendingRow in $pendingRows){
+            $n,$sha=$pendingRow-split' ';$gone=$false
+            if($upstream){
+                & git -C $r merge-base --is-ancestor $sha $upstream 2>$null
+                if($LASTEXITCODE-notin0,1){throw 'pending ancestry unreadable'}
+                $gone=$LASTEXITCODE-eq0
+            }
+            "$n@$($sha.Substring(0,7))$(if($gone){' (released, leftover branch)'}elseif(!$upstream){' (upstream unavailable)'})"
+        })
         $state=if($ab){"$($ab[0]) ahead / $($ab[1]) behind upstream (last fetch)"}else{'no upstream'}
         "repo     $name $branch@$head $(if($dirty){"DIRTY($dirty)"}else{'clean'}), $state$(if($pending){"; pending: $($pending-join', ')"})"
-    }catch{"repo     $name UNREADABLE ($($_.Exception.Message))"}
+    }catch{$pulseUnreadable=$true;"repo     $name UNREADABLE ($($_.Exception.Message))"}
 }
 $procs=@(Get-CimInstance Win32_Process -Filter "Name='pwsh.exe'"|Where-Object{$_.CommandLine})
 $follow=@($procs|Where-Object{$_.CommandLine-match'Sync-Sessions\.ps1.*-Follow'})
@@ -33,20 +44,29 @@ $timed=@($procs|Where-Object{$_.CommandLine-match'run_timed\.ps1'}|ForEach-Objec
     "pid $($_.ProcessId)$(if($log){" $log"})$(if($last){": $($last.Substring(0,[Math]::Min(80,$last.Length)))"})"})
 $os=Get-CimInstance Win32_OperatingSystem
 "running  archiver $(if($follow){"following (pid $($follow[0].ProcessId))"}else{'NOT running (start a session or: Sync-Sessions.ps1 -Follow)'}); timed runs: $(if($timed){$timed-join' | '}else{'none'}); host: $([math]::Round($os.FreePhysicalMemory/1MB,1)) GB free, commit headroom $([math]::Round($os.FreeVirtualMemory/1MB,1)) GB"
-# Decisions and lessons from the event log (latest record per pattern decides).
-$log=Join-Path $Root 'events\events.jsonl'
-$latest=@(if(Test-Path $log){[IO.File]::ReadAllLines($log)|Where-Object{$_}|ForEach-Object{try{$_|ConvertFrom-Json}catch{$null=$_}}|Where-Object{$_}|Group-Object pattern|ForEach-Object{@($_.Group|Sort-Object at)[-1]}})
-$waiting=@($latest|Where-Object{$_.category-eq'decision'-and$_.status-eq'open'})
-"waiting  on the owner: $($waiting.Count)"
-foreach($w in $waiting){"         - $($w.pattern): $($w.summary.Substring(0,[Math]::Min(150,$w.summary.Length)))$(if($w.summary.Length-gt150){'...'})"}
+# One journal read/classifier: inherited assignment and unreadable evidence are Coordinator-owned.
+$pulseSnapshot=$null
+try{
+    $snapshotRows=@(& (Join-Path $PSScriptRoot 'Coordinator.ps1') -Root $Root -Snapshot)
+    if($snapshotRows.Count-ne1-or$snapshotRows[0].Schema-ne1-or$snapshotRows[0].Readable-isnot[bool]){throw 'snapshot unavailable'}
+    $pulseSnapshot=$snapshotRows[0]
+    if(!$pulseSnapshot.Readable){throw 'required journal incomplete'}
+    $waiting=@($pulseSnapshot.Items|Where-Object state -eq 'OWNER')
+    "waiting  on the owner: $($waiting.Count)"
+    foreach($w in $waiting){"         - $($w.pattern): $($w.summary.Substring(0,[Math]::Min(150,$w.summary.Length)))$(if($w.summary.Length-gt150){'...'})"}
+}catch{$pulseUnreadable=$true;'waiting  UNREADABLE (required Coordinator evidence unavailable/incomplete)'}
 $ixPath=Join-Path $Root 'sessions\index.jsonl'
 $prev=@(if(Test-Path $ixPath){[IO.File]::ReadAllLines($ixPath)|Where-Object{$_}|ForEach-Object{try{$_|ConvertFrom-Json}catch{$null=$_}}|Where-Object{$_}|Where-Object{$_.id-ne$Session-and$_.prompts}|Sort-Object end})|Select-Object -Last 1
 if($prev){"last     session $($prev.id.Substring(0,[Math]::Min(8,$prev.id.Length))) [$($prev.repo) $($prev.client)] `"$(@($prev.title,$prev.firstPrompt)|Where-Object{$_}|Select-Object -First 1)`" ended $(([datetime]$prev.end).ToUniversalTime().ToString('yyyy-MM-dd HH:mm')); last ask: `"$($prev.lastPrompt)`""}
 # every open observation, held to an owner, a next action and a due time; the most urgent first
-try{& (Join-Path $PSScriptRoot 'Coordinator.ps1') -Root $Root -Brief}catch{"queue    UNREADABLE ($($_.Exception.Message))"}
+if($pulseSnapshot){
+    if(!$pulseSnapshot.Readable){'queue    UNREADABLE (valid partial diagnostics only)'}
+    $pulseSnapshot.Brief
+}else{'queue    UNREADABLE (no valid Coordinator snapshot)'}
 $hl=Join-Path $Root 'work\hunt-last.txt'
 if(Test-Path $hl){
     $h=@(Get-Content $hl);$age=[int]([DateTime]::UtcNow-(Get-Item $hl).LastWriteTimeUtc).TotalHours
     "hunt     $($h[0]) ($age h ago$(if($age-ge24){'; stale: run Hunt.ps1'}))"
 }else{'hunt     never run: pwsh -NoProfile -File lib\Hunt.ps1'}
 "tools    Coordinator.ps1 | Spider.ps1 '<anything>' (all sources) | Events.ps1 -Find '<task>' | Delegate.ps1 -List | Hunt.ps1 | sessions\INDEX.md | lib\README.md"
+exit $(if($pulseUnreadable){2}else{0})

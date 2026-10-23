@@ -7,3 +7,7 @@
 
 .workbench-local-certification.json
 .workbench-certifications/
+
+# Proposed derived discovery views are regenerated locally, not authored source authority.
+/ai-map.json
+/repository-index.md

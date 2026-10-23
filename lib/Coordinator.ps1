@@ -19,6 +19,7 @@
 [CmdletBinding(DefaultParameterSetName='queue')]
 param([Parameter(ParameterSetName='queue')][switch]$Check,
       [Parameter(ParameterSetName='brief',Mandatory)][switch]$Brief,
+      [Parameter(ParameterSetName='snapshot',Mandatory)][switch]$Snapshot,
       [Parameter(ParameterSetName='assign',Mandatory)][string]$Assign,
       [Parameter(ParameterSetName='assign',Mandatory)][string]$Owner,
       [Parameter(ParameterSetName='assign',Mandatory)][string]$Action,
@@ -49,7 +50,7 @@ $records=@(try{
 $incomplete=$readFault-or$bad-gt0
 # Viewing partial evidence is useful; acting on it would lose work. Never echo raw corrupt data or exception text.
 if($incomplete){
-    'COORDINATOR_UNREADABLE: required journal evidence is incomplete; valid partial records follow.'
+    if(!$Snapshot){'COORDINATOR_UNREADABLE: required journal evidence is incomplete; valid partial records follow.'}
     if($Assign-or$Close-or$Dispatch){throw 'COORDINATOR_UNREADABLE: mutation refused before journal writes'}
 }
 
@@ -105,11 +106,19 @@ if($Close){
 if($Dispatch){$null=Find-OpenItem $Dispatch;Show-PriorResolution $Question $Dispatch;& (Join-Path $PSScriptRoot 'Delegate.ps1') -Root $Root -Pattern $Dispatch -Question $Question -Mode $Mode -Minutes $Minutes;exit 0}
 
 $count="$(($order.Keys|Sort-Object{$order[$_]}|ForEach-Object{$k=$_;"$($k.ToLower()) $(@($items|Where-Object state -eq $k).Count)"})-join' | ') | observations $observations$(if($bad){" | journal: $bad unreadable line(s) skipped"})"
-if($Brief){
+$briefLines=@(
     "cases    $count (Coordinator.ps1 for all)"
     foreach($i in @($escalated|Select-Object -First 3)){"         - $(Format-QueueLine $i)"}
     # what is in flight, newest first: after an interruption this is where work resumes (cold-start rehearsal, 2026-10-20)
     foreach($i in @($items|Where-Object state -in 'ACTIVE','DISPATCHED'|Sort-Object last -Descending|Select-Object -First 2)){"         in flight: $($i.pattern) ($($i.owner)): $($i.action.Substring(0,[Math]::Min(260,$i.action.Length)))"}
+)
+if($Snapshot){
+    # One derived view for reporting consumers; not a state store or approval interface.
+    [pscustomobject]@{Schema=1;Readable=(!$incomplete);Items=@($items);Brief=@($briefLines)}
+    return
+}
+if($Brief){
+    $briefLines
     exit $(if($incomplete){2}else{0})
 }
 "COORDINATOR $($Now.ToString('yyyy-MM-dd HH:mm')) UTC: $($items.Count) case(s): $count"

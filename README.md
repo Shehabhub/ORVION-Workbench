@@ -1,5 +1,12 @@
-# ORVION-Owner-Tools — the one local workspace outside both repositories
+# ORVION Workbench - independent management source
 
+Private source repository: https://github.com/Shehabhub/ORVION-Workbench . Current selected checkout: `C:\Users\My Lab\Documents\GitHub\ORVION-Workbench`, an actual Git root. Local `.githooks` must be configured; cloning alone does not install hooks or recover journals/receipts. Existing native repositories remain independent siblings. Managed sandbox/test/temp/runtime stay outside this checkout under the accepted context.
+
+What belongs in Git: reviewed code/tests/governance, contracts, selected portable plans and minimum safe unique authority/assurance knowledge required for reproducibility or continuation. An essential generated lock can be important; disposable handwritten scratch can be excluded. Secrets, sensitive transcripts and unique ignored working evidence need protected external recovery; Gitignore is not backup. This source-only clone does not restore the whole workstation. Generated local search views and disposable runtime are excluded; native tracked projections retain native authority.
+
+Current plan and layout: [docs/EXECUTION-PLAN.md](docs/EXECUTION-PLAN.md), [docs/WORKSPACE-LAYOUT.md](docs/WORKSPACE-LAYOUT.md). These become the selected plan after this scope's original completion and programme-checkpoint cutover. Until then the current external plan/checkpoint own live progress. General native management, indexing, consolidated-data cutover, hosted enforcement and clean-Windows recovery remain pending. Old ORVION-Owner-Tools data/archiver is preserved; no parallel blank archive is initialized here.
+
+The remaining dated inventory below is historical context. Prefer the current source plan/checkpoint and actual Boot over its older path/remote/status statements.
 **After any interruption, start at [`RESUME.md`](RESUME.md)**: live resume point, latest session, the two repositories, boundaries.
 
 **For Workbench's own changes:** run `pwsh -NoProfile -File lib/Workbench.ps1 -Boot` from this root and follow [WORKFLOW.md](WORKFLOW.md). This initial local kernel supplies own admission/Finish/Review; full product supervision and workstation recovery remain separately governed. A product-only entry continues to use that product's own tools.
