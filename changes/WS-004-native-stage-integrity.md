@@ -2,8 +2,8 @@
 
 ## Status
 
-[x] Draft
-[ ] Approved
+[ ] Draft
+[x] Approved
 [ ] In Progress
 [ ] Complete
 [ ] Cancelled
@@ -707,6 +707,13 @@ Recovery Attempt: 0
 ## Execution Log
 
 Draft preparation only. Append exact selected approval/root and actual native own lifecycle evidence. Original Approval additionally binds the immutable successful selected sandbox receipt and SHA256; it never transplants that receipt as original certification.
+Approved Draft: C:\Users\My Lab\Documents\ORVION-Owner-Review\workbench-native-stage-integrity-20261023-r2\V3-DRAFT.md
+Approved SHA256: CF8A1DB51E390E059DDE1305FE913278ABE0413E16FD7BD97156B50AA0E60965
+Owner Evidence: C:\Users\My Lab\Documents\ORVION-Owner-Review\workbench-native-stage-integrity-20261023-r2\runtime\original\approval-binding.txt
+Owner Evidence SHA256: CD21CCA9B1929D6ED89926DDC6E39C79C8086458AA1A2D378D50AD14D7C807A5
+Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools
+Sandbox Receipt: C:\Users\My Lab\Documents\ORVION-Owner-Review\workbench-native-stage-integrity-20261023-r2\runtime\sandbox\own-finish-receipt.json
+Sandbox Receipt SHA256: BCA1F47A865E96D3A67EE1CCDDF526E051D2951A00211A31A64BB1FA7A722129
 
 ## Verification Notes
 
