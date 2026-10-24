@@ -1,0 +1,40 @@
+{
+  "name": "Workbench acceptance",
+  "on": {
+    "push": {
+      "branches": [
+        "workbench-preflight"
+      ]
+    }
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "jobs": {
+    "workbench-acceptance": {
+      "name": "workbench-acceptance",
+      "runs-on": "windows-2025",
+      "timeout-minutes": 60,
+      "steps": [
+        {
+          "name": "Checkout",
+          "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+          "with": {
+            "fetch-depth": 0,
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "Provision pinned grammar",
+          "shell": "pwsh",
+          "run": "$ErrorActionPreference='Stop'\n$tools=Join-Path $env:RUNNER_TEMP 'workbench-tools'\n[void](New-Item -ItemType Directory -Path $tools -ErrorAction Stop)\n$archive=Join-Path $tools 'actionlint.zip'\nInvoke-WebRequest -Uri 'https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_windows_amd64.zip' -OutFile $archive\nif((Get-FileHash -LiteralPath $archive).Hash -cne '6E7241B51E6817EA6A047693D8E6FED13B31819C9A0DD6C5A726E1592D22F6E9'){throw 'CI_TOOL_ARCHIVE_CHANGED'}\n$zip=[IO.Compression.ZipFile]::OpenRead($archive)\ntry{\n    $entries=@($zip.Entries | Where-Object {$_.FullName -ceq 'actionlint.exe'})\n    if($entries.Count -ne 1){throw 'CI_TOOL_ENTRY_INVALID'}\n    [IO.Compression.ZipFileExtensions]::ExtractToFile($entries[0],(Join-Path $tools 'actionlint.exe'),$false)\n}finally{$zip.Dispose()}\nif((Get-FileHash -LiteralPath (Join-Path $tools 'actionlint.exe')).Hash -cne '54CA21BE3DE4C7CFA26914AA8B61BD76BF573EF3CAAC5F80D110558CDF241718'){throw 'CI_TOOL_BINARY_CHANGED'}"
+        },
+        {
+          "name": "Verify",
+          "shell": "pwsh",
+          "run": "& ./lib/Workbench.ps1 -CI -Candidate $env:GITHUB_SHA -CIRuntimeRoot (Join-Path $env:RUNNER_TEMP (\"workbench-ci-\" + $env:GITHUB_RUN_ID + \"-\" + $env:GITHUB_RUN_ATTEMPT)) -Actionlint (Join-Path $env:RUNNER_TEMP \"workbench-tools/actionlint.exe\"); exit $LASTEXITCODE"
+        }
+      ]
+    }
+  }
+}

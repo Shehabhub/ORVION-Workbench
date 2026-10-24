@@ -111,7 +111,7 @@ Minimum Commit GB: 3
 
 ## Runtime Checkpoint
 
-Resume Step: 1
+Resume Step: DONE
 Blocker: None
 Recovery Attempt: 0
 
@@ -125,6 +125,7 @@ Owner Evidence SHA256: 1D9563BF75606AB943C4FFB62F3AAEB26F75606A2381658C7D13530AA
 Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
 Sandbox Receipt: C:\Users\My Lab\Documents\ORVION-Owner-Review\hosted-workflow-20261024\runtime\sandbox\own-finish-receipt.json
 Sandbox Receipt SHA256: AD1BA2A6ACB2BD6A217CC9B67907DCD897447A87E238ADD816E1EC47A3C99679
+Original literal workflow output applied through the accepted native Workbench entry, all declared blobs match. Fresh own timed/watched full Finish still required.
 
 ## Verification Notes
 
