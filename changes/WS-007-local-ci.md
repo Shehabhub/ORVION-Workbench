@@ -566,23 +566,23 @@ Minimum Commit GB: 3
 
 ## Acceptance Criteria
 
-- [ ] Exact installed output lib/Test-WorkbenchChange.ps1. check: blob:lib/Test-WorkbenchChange.ps1=0359914cae98f493a59d202649cd2fe2ee29fcf3
-- [ ] Exact installed output lib/Workbench.ps1. check: blob:lib/Workbench.ps1=ba881d88847a566a7b4d6896411fa5b6720f05e3
-- [ ] Exact installed output tests.ps1. check: blob:tests.ps1=cb0df646baa1ff2f753595176ea6ff350fd13982
-- [ ] Exact installed output lib/test-workbench-governance.ps1. check: blob:lib/test-workbench-governance.ps1=95b3e48995fe12663f61fc3f4a37555025fdb890
-- [ ] Exact installed output WORKFLOW.md. check: blob:WORKFLOW.md=20549676f70e25b58f97c2eed5412e10560bdab0
-- [ ] Exact installed output lib/README.md. check: blob:lib/README.md=9e4e21accdea3f4baa5a73312a39220c2ee5e5ac
-- [ ] RESUME authority body unchanged. check: normalized-resume:RESUME.md=1F392B6A18CC44442BCABE3E23BF82571975C585E8C70496881136170FECE520
-- [ ] A real clean candidate CI invocation runs the existing deterministic schedule once through the actual driver, timed runner and watcher, produces a CI_TEST_ONLY result, and never native certification. Terminal None requires its proven parent/context.
-- [ ] Owning causal tests reject wrong/stale SHA/root/context/parent, altered recipe/schedule/helper/evaluator, skipped/omitted tests, child/observer failures and certification misuse; native approval/sandbox proof/Finish/Review/Complete remain mandatory. Unsupported WORKSTATION remains fail-closed.
-- [ ] Real pinned actionlint grammar plus closed JSON/YAML semantics accept the defined positive and reject unsafe triggers, permissions, conditional skips, unpinned actions, branch/path omissions, duplicate keys and missing owning entry. No hosted result or private protection is inferred.
-- [ ] This role has its own new successful timed/watched native Finish and independent live Review before Complete. Literal reproduction/idempotence and relevant causal refusals are observed; historical receipts and all unrelated repositories remain unchanged. Final Complete and full accepted-range judgments are post-Review obligations, never claimed in advance.
+- [x] Exact installed output lib/Test-WorkbenchChange.ps1. check: blob:lib/Test-WorkbenchChange.ps1=0359914cae98f493a59d202649cd2fe2ee29fcf3
+- [x] Exact installed output lib/Workbench.ps1. check: blob:lib/Workbench.ps1=ba881d88847a566a7b4d6896411fa5b6720f05e3
+- [x] Exact installed output tests.ps1. check: blob:tests.ps1=cb0df646baa1ff2f753595176ea6ff350fd13982
+- [x] Exact installed output lib/test-workbench-governance.ps1. check: blob:lib/test-workbench-governance.ps1=95b3e48995fe12663f61fc3f4a37555025fdb890
+- [x] Exact installed output WORKFLOW.md. check: blob:WORKFLOW.md=20549676f70e25b58f97c2eed5412e10560bdab0
+- [x] Exact installed output lib/README.md. check: blob:lib/README.md=9e4e21accdea3f4baa5a73312a39220c2ee5e5ac
+- [x] RESUME authority body unchanged. check: normalized-resume:RESUME.md=1F392B6A18CC44442BCABE3E23BF82571975C585E8C70496881136170FECE520
+- [x] A real clean candidate CI invocation runs the existing deterministic schedule once through the actual driver, timed runner and watcher, produces a CI_TEST_ONLY result, and never native certification. Terminal None requires its proven parent/context.
+- [x] Owning causal tests reject wrong/stale SHA/root/context/parent, altered recipe/schedule/helper/evaluator, skipped/omitted tests, child/observer failures and certification misuse; native approval/sandbox proof/Finish/Review/Complete remain mandatory. Unsupported WORKSTATION remains fail-closed.
+- [x] Real pinned actionlint grammar plus closed JSON/YAML semantics accept the defined positive and reject unsafe triggers, permissions, conditional skips, unpinned actions, branch/path omissions, duplicate keys and missing owning entry. No hosted result or private protection is inferred.
+- [x] This role has its own new successful timed/watched native Finish and independent live Review before Complete. Literal reproduction/idempotence and relevant causal refusals are observed; historical receipts and all unrelated repositories remain unchanged. Final Complete and full accepted-range judgments are post-Review obligations, never claimed in advance.
 
 ## Review Gate
 
-- [ ] Independently inspect six exact outputs, actual positive/refusal logs, trusted admission and unchanged programme/P3 boundaries.
-- [ ] Observe this role's own fresh receipt/log/runner/watcher/host exits and implementation/evaluator/recipe/Draft identity. Do not use old WS005/006 proof or claim sandbox as original.
-- [ ] Check scope, original baseline unchanged, normal hook, clean committed implementation, criteria and carrying transitions available now. Complete/full-range results must be verified afterwards. No publication or hosted/trusted-main claim.
+- [x] Independently inspect six exact outputs, actual positive/refusal logs, trusted admission and unchanged programme/P3 boundaries.
+- [x] Observe this role's own fresh receipt/log/runner/watcher/host exits and implementation/evaluator/recipe/Draft identity. Do not use old WS005/006 proof or claim sandbox as original.
+- [x] Check scope, original baseline unchanged, normal hook, clean committed implementation, criteria and carrying transitions available now. Complete/full-range results must be verified afterwards. No publication or hosted/trusted-main claim.
 
 ## Runtime Checkpoint
 
@@ -606,7 +606,13 @@ ORIGINAL exact six literal outputs applied through accepted native Workbench -Ex
 ## Verification Notes
 
 No future lifecycle verdict is asserted. Detailed bounded observations and role-specific fresh proof remain external. Original execution requires separate exact lawful owner approval and fresh original preconditions.
-
+Verdict: Confirmed Complete
+Reviewed Fingerprint: 3E614F8E8D6977D1339D63AEC682AEF75FFAA2A153604C25D0580D448F4D28AB
+Reviewed Receipt: FE9833BD6C4EAAC189C5E7E215E5B8D0970198C3AC556C5DCD7ADA1EFC9A0645
+Evidence: C:\Users\My Lab\Documents\ORVION-Owner-Review\ci-capability-20261024\runtime\original\independent-finish-review.json
+Actual ORIGINAL six outputs, scope, unchanged normalized RESUME, normal hooks and carrying implementation range verified with pinned previous accepted evaluator. Own timed/watched Finish:21 suites,00:15:32,all exits0. One actual original-root CI owns21 suites at the exact implementation SHA; CI_TEST_ONLY and Certification=false; working receipt and all three archive receipts unchanged. Frozen causal/literal/profile proof retained; no sandbox receipt is treated as original certification.
+Review diagnostic attempt1 was refused because dot-sourced Head default shadowed a task-local variable; preserved failure and causal observation, renamed only that external diagnostic variable, then read-only attempt2 READY. No frozen payload change or expensive verification replay.
+This records actual independent acceptance before native Review and Complete. Their verdicts and the final carrying range remain separate required native observations. No publication, hosted enforcement, trusted-main, product, programme or storage change.
 
 ## Selection reasons and sources
 
