@@ -956,21 +956,21 @@ Accepted Pulse failed5 of9 relevant caller checks; corrected caller passes9, and
 
 ## Acceptance Criteria
 
-- [ ] All10 literal outputs match their declared blobs, including new caller test and selected docs; no native engine or event classifier is duplicated.
-- [ ] RESUME routes to selected source and the ONE preserved external event/session data store; check: normalized-resume:RESUME.md=1F392B6A18CC44442BCABE3E23BF82571975C585E8C70496881136170FECE520
-- [ ] Pulse owner waits and queue consume the same Coordinator snapshot; inherited owner assignment survives and category alone cannot classify an owner decision.
-- [ ] Required unreadable journal/Git/missing selected root is visible and exits2; readable empty journal, actual dirty tree and genuinely unconfigured upstream keep their true meanings without granting permission.
-- [ ] Actual owning positives and causal mutants prove both allowed/refused behavior; the owner-list test cannot be satisfied by a queue match. Existing Coordinator CLI/mutation/incomplete-evidence tests remain valid.
-- [ ] Before Complete, verify exact installed plan/layout bytes, selected identity, README routes and canonical-cutover readiness against the bounded readiness record. The existing external plan remains selected; no activation is claimed. The separately authorized post-Complete operation below owns actual activation and single-live-location verification.
-- [ ] Source-retention guidance distinguishes recovery/authority value from mere generation, keeps essential reproducibility inputs and protects unique sensitive evidence externally; derived local maps are ignored without changing native map authority.
-- [ ] The rehearsal index identifies its actual interrupted/narrow proof class; no partial rehearsal, source clone, reporter exit or local hook is presented as full native/recovery/hosted/equal-OS proof.
-- [ ] This execution role has its own fresh timed/watched derived full verification and reviewed matching receipt; original role additionally binds the exact successful sandbox proof before original execution. No receipt transplant or unrelated native test replay.
+- [x] All10 literal outputs match their declared blobs, including new caller test and selected docs; no native engine or event classifier is duplicated.
+- [x] RESUME routes to selected source and the ONE preserved external event/session data store; check: normalized-resume:RESUME.md=1F392B6A18CC44442BCABE3E23BF82571975C585E8C70496881136170FECE520
+- [x] Pulse owner waits and queue consume the same Coordinator snapshot; inherited owner assignment survives and category alone cannot classify an owner decision.
+- [x] Required unreadable journal/Git/missing selected root is visible and exits2; readable empty journal, actual dirty tree and genuinely unconfigured upstream keep their true meanings without granting permission.
+- [x] Actual owning positives and causal mutants prove both allowed/refused behavior; the owner-list test cannot be satisfied by a queue match. Existing Coordinator CLI/mutation/incomplete-evidence tests remain valid.
+- [x] Before Complete, verify exact installed plan/layout bytes, selected identity, README routes and canonical-cutover readiness against the bounded readiness record. The existing external plan remains selected; no activation is claimed. The separately authorized post-Complete operation below owns actual activation and single-live-location verification.
+- [x] Source-retention guidance distinguishes recovery/authority value from mere generation, keeps essential reproducibility inputs and protects unique sensitive evidence externally; derived local maps are ignored without changing native map authority.
+- [x] The rehearsal index identifies its actual interrupted/narrow proof class; no partial rehearsal, source clone, reporter exit or local hook is presented as full native/recovery/hosted/equal-OS proof.
+- [x] This execution role has its own fresh timed/watched derived full verification and reviewed matching receipt; original role additionally binds the exact successful sandbox proof before original execution. No receipt transplant or unrelated native test replay.
 
 ## Review Gate
 
-- [ ] Inspect actual role/root, ten blobs, normalized routing, all required suites and final runner/watcher/host exits; original also matches selected sandbox recipe/fingerprint and approval.
-- [ ] Independently inspect normal-hook carrying transitions, real positive/mutant evidence, source-retention and pre-Complete route readiness; preserve failures/history and native original independence. Final accepted whole-range judgment remains required after the Complete commit; actual canonical activation remains a separately observed post-Complete effect.
-- [ ] Keep generic native management, relocation/indexing/recovery/hosted protection and Batch6 hold explicitly open; no future result claimed.
+- [x] Inspect actual role/root, ten blobs, normalized routing, all required suites and final runner/watcher/host exits; original also matches selected sandbox recipe/fingerprint and approval.
+- [x] Independently inspect normal-hook carrying transitions, real positive/mutant evidence, source-retention and pre-Complete route readiness; preserve failures/history and native original independence. Final accepted whole-range judgment remains required after the Complete commit; actual canonical activation remains a separately observed post-Complete effect.
+- [x] Keep generic native management, relocation/indexing/recovery/hosted protection and Batch6 hold explicitly open; no future result claimed.
 
 ## Runtime Checkpoint
 
@@ -993,6 +993,10 @@ Original literal10 outputs applied through the accepted native Workbench entry, 
 ## Verification Notes
 
 No original implementation or Review yet. Append observed Verdict: Confirmed Complete, Reviewed Fingerprint and Reviewed Receipt only after actual role-specific evidence.
+Verdict: Confirmed Complete
+Reviewed Fingerprint: 3DE2317F8C1A2514585035B971D2FCB285A541FB59D93BF6593866EDB980D772
+Reviewed Receipt: E703219A73CD76451FBB4DA83CFCC70D8055AF81DEC53989EDE4FFEE5C738DFD
+Evidence: actual Original root, exact10 outputs, full real owning suite, actual timed/watched exits, matching role/recipe/Draft and independent live review. Runtime: C:\Users\My Lab\Documents\ORVION-Owner-Review\workbench-native-supervision-20261023\runtime\readiness-r4\original. Synthetic fixture results are dispatch proof only; this root owns its distinct full Finish. No product/remote/recovery or equal-OS security claim.
 
 ## Notes
 
