@@ -2,8 +2,8 @@
 
 ## Status
 
-[x] Draft
-[ ] Approved
+[ ] Draft
+[x] Approved
 [ ] In Progress
 [ ] Complete
 [ ] Cancelled
@@ -593,6 +593,14 @@ Recovery Attempt: 0
 ## Execution Log
 
 External isolated preparation only. No original approval or implementation is granted. The sandbox uses explicitly synthetic root-bound authority for this rehearsal only. Use existing native lifecycle tools and preserve exact artifacts.
+Approved Draft: C:\Users\My Lab\Documents\ORVION-Owner-Review\ci-capability-20261024\assurance\V3\DRAFT.md
+Approved SHA256: 24497384B425910D572C651486395761E4D5DECCF7701BBC59B5FD4436A265FC
+Owner Evidence: C:\Users\My Lab\Documents\ORVION-Owner-Review\ci-capability-20261024\runtime\original\owner-approval.md
+Owner Evidence SHA256: BFD07F32361578C63FEDAEDD151C2BF79631F4BBBA5C8123214FE1ECCD1FEFF2
+Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
+Sandbox Receipt: C:\Users\My Lab\Documents\ORVION-Owner-Review\ci-capability-20261024\runtime\sandbox\own-finish-receipt.json
+Sandbox Receipt SHA256: C3CB1A26F20A355CE4E12D6EB363A4DB1A7B027D7E9FFAB5E5B2E6B2781376B1
+Authority: Actual owner WS-007 Gate 1 directive supplied in this session; exact original root, baseline and six outputs. No remote or subsequent capability authority.
 
 ## Verification Notes
 
