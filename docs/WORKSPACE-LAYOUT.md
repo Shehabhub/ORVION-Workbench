@@ -1,6 +1,6 @@
 # ORVION-Workbench - Target Workspace and Repository Layout
 
-Version 1.3 | 2026-10-24 | Owner-created source root reconciled; data cutover remains pending
+Version 1.5 | 2026-10-24 | Owner-created source root reconciled; data cutover remains pending
 
 ## HANDOFF
 
@@ -10,13 +10,13 @@ Version 1.3 | 2026-10-24 | Owner-created source root reconciled; data cutover re
 - CHANGED: This document gives full target names, evidence placement, selection semantics, ownership and migration rules. No directory creation/move, source installation or exact implementation approval is implied.
 - REMAINING: Introduce each required surface through its owning plan stage and frozen scope; prove consumers and recovery before cutover.
 - DO NOT TOUCH: Accepted paths during active operations; frozen Drafts/history; original receipts/refs/configurations; raw archives/secrets. No nested product repositories, shared-Git sandbox shortcut or automatic deletion.
-- NEXT: Continue the existing WS005 isolated prototype. Use this layout to prevent new scattering; apply only the small part actually required by its approved scope. Storage migration remains stage 5.
+- NEXT: WS005 readiness and source-plan cutover are COMPLETE. Follow the sole live checkpoint and canonical execution plan for the remaining P3 capability. Preserve the historical dirty prototype and use a fresh independent exact-baseline clone for a new proposal. Storage migration remains stage 5; proposed data/config paths are not installed.
 
 ## 1. Actual source root and external operational boundary
 
 Owner-selected source repository: `C:\Users\My Lab\Documents\GitHub\ORVION-Workbench`.
 
-The owner independently cloned the private Shehabhub/ORVION-Workbench repo here and authorized work in it on client date 2026-10-24. Observed HEAD f42c5a098ca69a156e38e7ae8d9a5475c850f288, clean independent Git directory, no alternates, own Boot READY. The existing `.githooks` adapter was enabled in local config and actual admission passed. This is source admission only, not a fresh Finish or recovered local data.
+The owner independently cloned the private Shehabhub/ORVION-Workbench repo here and authorized work in it on client date 2026-10-24. Observed HEAD f42c5a098ca69a156e38e7ae8d9a5475c850f288, clean independent Git directory, no alternates, own Boot READY. The existing `.githooks` adapter was enabled in local config and actual admission passed. That is the historical source-admission observation. WS005 R4 later completed at 2310836a2b70f6e98b85a30a490efd286a85417f with its own fresh original Finish/Review/Complete/range and actual canonical plan/layout cutover. Old-root local data remains unmigrated; general native management and recovered workstation state are still unproven.
 
 The earlier non-Git parent/control/data topology is superseded by this actual source placement. Do not move/nest the owner clone, recreate its history or weaken the checker to put sandboxes/tests/temp/runtime under it. Source stays at the exact requested path. Existing packets/factory and the one old ORVION-Owner-Tools journal/archive remain external and unchanged until tested cutover. A future consolidated `C:\Users\My Lab\Documents\GitHub\ORVION-Workbench-Data` sibling groups those operational roles; that target is not created or installed yet. No guessed aliases, parallel live journal or blank replacement history.
 
@@ -24,12 +24,33 @@ Keep the current Git repository/history, `lib` and existing command names. Prese
 
 Legend: EXISTING means an actual current file/name, not proof it already occupies this target path. PROPOSED means a new surface that still needs its owning contract. CONDITIONAL means create only when its actual implementation is earned. Examples such as WS005/run-001 are identifiers, not instructions to allocate a contract or create all folders now.
 
+### Proposed independent Workbench trusted-main checkout
+
+Target: `C:\Users\My Lab\Documents\GitHub\ORVION-Workbench-trusted-main`.
+
+This is a PROPOSED independent Git checkout of the same authorized private Shehabhub/ORVION-Workbench repository. It is an external sibling of source, not a linked worktree, nested repository, submodule, shared common Git directory or shared object store/alternates. Its role is trusted evaluation from previously accepted Workbench governance and owner-controlled release judgment. Its existence, configuration, credentials, trusted baseline and operational capability have NOT been established by this documentation change. Do not create or configure it here.
+
+The complete workspace therefore includes these explicit external bindings (locations are roles, never inferred dispatch authority):
+
+    Documents/GitHub/
+    |-- ORVION-Workbench/                  [EXISTING source; own local lifecycle]
+    |-- ORVION-Workbench-trusted-main/     [PROPOSED independent trusted evaluation/release checkout]
+    |-- ORVION-Workbench-Data/             [PROPOSED operational data; Stage 5, not installed]
+    |-- CRM/                              [EXISTING independent Platinum source]
+    |-- CRM-trusted-main/                 [EXISTING independent Platinum trusted checkout]
+    |-- ORVION/                           [EXISTING independent Founder source]
+    `-- ORVION-trusted-main/               [EXISTING independent Founder trusted checkout]
+
+Stage 3 of EXECUTION-PLAN.md owns hosted acceptance, governed preflight publication, exact SHA binding, trusted-baseline evaluation and candidate self-exemption refusal, enforceable private GitHub branch protection, separately authorized promotion and separate local/hosted/trusted/remote evidence. A proposed checkout or local hook is not activated hosted protection. Owner-reviewed private-plan/ruleset limitations remain dated evidence until revalidated at implementation; never change visibility, purchase a plan, alter account permissions or enable/bypass settings without separate authority. Unavailable private protection remains an exact capability blocker. The initial hosted bootstrap must use explicitly reviewed accepted authority and separate authorization, not self-approval or an impossible prior-workflow dependency. Stage 6 owns clean-machine recovery and fresh remote enforcement checks for this trusted boundary.
+
 ## 2. Full control repository tree
 
     ORVION-Workbench/                                 [actual independent Git source root]
     |-- .git/                                    [local Git metadata; never copied into tracked payload]
     |-- .gitattributes                           [EXISTING]
     |-- .gitignore                               [EXISTING; not a security boundary]
+    |-- .github/                                 [PROPOSED hosted security scope; not installed]
+    |   `-- workflows/                           [PROPOSED Workbench-specific hosted acceptance; filename/check identity earned in Stage 3]
     |-- .githooks/
     |   `-- pre-commit                           [EXISTING accepted admission adapter]
     |-- AGENTS.md                                [EXISTING agent route]
@@ -47,10 +68,11 @@ Legend: EXISTING means an actual current file/name, not proof it already occupie
     |   |-- WS-001-workbench-local-governance.md  [EXISTING immutable history]
     |   |-- WS-002-execution-context-binding.md  [EXISTING immutable history]
     |   |-- WS-003-observer-integrity.md          [EXISTING immutable history]
-    |   `-- WS-004-native-stage-integrity.md      [EXISTING; later contracts use actual allocation]
-    |-- docs/                                    [PROPOSED selected durable documentation only]
-    |   |-- EXECUTION-PLAN.md                     [future single live plan location after cutover]
-    |   `-- WORKSPACE-LAYOUT.md                   [future location of this architecture]
+    |   |-- WS-004-native-stage-integrity.md      [EXISTING immutable history]
+    |   `-- WS-005-arrival-source-readiness.md    [EXISTING Complete R4; later contracts use actual allocation]
+    |-- docs/                                    [EXISTING selected durable documentation]
+    |   |-- EXECUTION-PLAN.md                     [EXISTING single selected source plan]
+    |   `-- WORKSPACE-LAYOUT.md                   [EXISTING selected architecture]
     |-- config/                                  [PROPOSED non-secret examples only]
     |   `-- roots.example.psd1                   [example of logical roots; schema not frozen]
     |-- lib/                                     [preserve ALL existing names below]
@@ -106,7 +128,7 @@ Legend: EXISTING means an actual current file/name, not proof it already occupie
     |   |-- test-sync-sessions-survival.ps1
     |   |-- test-backup-restore.ps1
     |   |-- test-remove-owned.ps1
-    |   `-- test-pulse.ps1                        [PROPOSED owning test for the recorded gap]
+    |   `-- test-pulse.ps1                        [EXISTING WS005 owning caller tests]
     `-- workstation/                             [CONDITIONAL stage 6 requirements, not empty scaffold]
         `-- requirements.psd1                     [only if a separate owned manifest is earned]
 
@@ -247,7 +269,7 @@ Platinum CRM, Founder ORVION and their trusted checkouts stay independent at the
 
 Encrypted recovery copies belong on their actual approved backup medium outside the sole working disk. They are not replaced by data/evidence or a Git push. Store recovery proof/pointers under its owning unit; never copy credentials into a local recovery folder. External Windows tools/authentication and installed services are dependencies to diagnose, not directories copied into this repo.
 
-The owner-authorized private remote is https://github.com/Shehabhub/ORVION-Workbench; accepted f42c5a0 main was published and downloaded with matching tree and read-only Boot. Important external plan/layout artifacts are not part of that initial push yet. Their future canonical ORVION-Workbench/docs placement requires the owning source contract and a single-live-location cutover.
+The owner-authorized private remote is https://github.com/Shehabhub/ORVION-Workbench; accepted f42c5a0 main was published and downloaded with matching tree and read-only Boot. WS005 R4 subsequently installed the canonical docs and completed the single-live-location cutover locally; its six commits through 2310836a2b70f6e98b85a30a490efd286a85417f are unpublished. Separate exact publication authorization, bounded subject/history/privacy review and fresh readback remain required. Source publication is distinct from protected recovery of unique external assurance/receipts.
 
 Track the minimum safe material whose loss would remove knowledge, exact authority, reproducibility or the ability to resume: source/tests/governance, actual contracts, selected plans, safe templates and selected non-secret assurance/decision evidence. A generated dependency lock can be essential; a handwritten scratch note can be disposable. Normally regenerate local maps/search views, caches, scratch, clones and repetitive raw logs. Generated local projection policy does not change native repositories' required tracked maps.
 
@@ -260,8 +282,9 @@ This layout does not implement hosted enforcement or authorize unrelated remotes
 | Current location | Target treatment; not a move command |
 |---|---|
 | Documents/GitHub/ORVION-Workbench | actual selected source clone, same accepted history and private origin; keep this Git root |
+| Documents/GitHub/ORVION-Workbench-trusted-main | PROPOSED independent checkout of the same authorized repo for previously trusted evaluation/owner release; no creation/configuration in this correction; Stage 3 implementation and Stage 6 recovery |
 | Documents/GitHub/ORVION-Owner-Tools | preserved old clone and the one current sessions/events/work store; route explicitly until tested migration, no parallel live journal |
-| Documents/ORVION-Owner-Review | current selected plan/layout eventually enter ORVION-Workbench/docs; live packets are mapped explicitly; required sealed old bundles may retain their structure under data/legacy/ORVION-Owner-Review |
+| Documents/ORVION-Owner-Review | prior external plan/layout copies are preserved history after WS005 selected the source docs; other live packets are mapped explicitly; required sealed old bundles may retain their structure under data/legacy/ORVION-Owner-Review |
 | Documents/ORVION-Sandbox | map live sandbox/runtime/test/checkpoint material by actual role; required historical bundles may use data/legacy/ORVION-Sandbox; do not sweep the directory wholesale |
 | Documents/ORVION-Owner-Tools | identify old external release scripts/evidence versus replaced copies; preserve required history under data/legacy/ORVION-Owner-Tools; no second active lib |
 | Documents/ORVION-drafts-backup | inventory required provenance under data/legacy/ORVION-drafts-backup; never treat these copies as current selected authority |
@@ -271,12 +294,12 @@ The mapping must record what remains, is copied, becomes active, stays historica
 
 ## 6. Adoption order and architectural checks
 
-1. Plan stages 1-3: preserve lib names, actual selected root/operation handling, exact assurance pointers and native independence. Create WS005 prototype outputs only in its existing declared external roots until its contract says otherwise.
+1. Plan stages 1-3: preserve lib names, actual selected root/operation handling, exact assurance pointers and native independence. Keep completed WS005 outputs/history intact; create new proposal outputs only in their exact declared independent external roots. A historical WS005 packet/tree example is not a new contract allocation or authority.
 2. Stage 4: introduce derived control map and local federated catalog through actual consumers. Correct the incomplete Spider coverage without unbounded disk/archive crawling. Prove missing/stale/read failures and actual fresh-agent discovery.
 3. Stage 5: inventory/copy/hash/consumer-cutover/restore proof before consolidating external data. Preserve the actual new source clone. Prove parent-derived defaults, hooks, process working directories, recipe/approval root bindings, active processes, backup and session paths. Do not rewrite frozen historical absolute paths; preserve source-to-new-location mapping.
 4. Moving original roots changes exact authority inputs. Existing frozen root-bound approvals cannot be silently reused. Select a quiescent boundary and approved migration/successor route; do not move during Finish or ongoing archiving without its proven controlled cutover.
 5. Check the deepest actual generated Windows fixture/revision/path probe against the installed toolchain. The existing checker has a concrete 260-character refusal. Prefer short unit/run identifiers and data/tests; do not change registry settings or weaken the guard to fit a diagram.
-6. Retain the sole current live checkpoint and selected execution plan until a proven cutover to their future locations. At cutover establish one live location plus explicit historical provenance; never maintain two manually synchronized live plans.
+6. WS005 has selected the source docs through actual verified cutover. Retain that one live source location, the sole current external programme checkpoint and preserved previous plan/history. Any later storage/checkpoint relocation needs its own proven approved boundary; never repeat WS005 cutover or maintain two manually synchronized live plans.
 7. Plan stage 6 proves encrypted clean-machine recovery of the selected real layout. Stage 7 retains ADR-0033 closure and the owner-held Batch 6 decision.
 
 Acceptance attacks: outside-root creation; junction/sibling/ancestor escape; duplicate common Git/output roots; unknown/ignored evidence omitted; stale/partial index displayed as complete; changed selected bytes; pointer falsely treated as approval; raw secret in generated tracked view; frozen metadata rewritten during migration; old path consumer still writing elsewhere; missing archive source deleting a retained session from index; interrupted copy/refresh/quarantine; required evidence offered to purge; clean restore unable to run an actual entry.
@@ -284,6 +307,10 @@ Acceptance attacks: outside-root creation; junction/sibling/ancestor escape; dup
 This diagram does not require every proposed file/folder now. Create only earned implemented surfaces. No generic framework, new resident watcher, semantic index, scheduler or extra governance engine is authorized by naming folders. This remains the smallest compatible evolution of the current tools.
 
 ## 7. Source basis and change record
+
+- 2026-10-24 / v1.5: add the proposed independent ORVION-Workbench-trusted-main external binding and conditional hosted workflow role. Stage 3 owns security acceptance and Stage 6 its recovery; all source/data classifications and tool names retained. No checkout or workflow created and no settings/remote action authorized.
+
+- 2026-10-24 / v1.4: mark installed docs, WS005 Complete and test-pulse accurately; retain all library names, directory roles/classifications, proposed data/config paths, retention and migration boundaries. No data relocation, new interface or management implementation is implied.
 
 - Existing control README/AGENTS/RESUME/WORKFLOW, changes/TEMPLATE.md, lib/README.md and Test-WorkbenchChange root/assurance checks; actual library inventory on 2026-10-23.
 - Existing native scripts/generate-ai-map.ps1: deterministic source-derived projections and non-writing freshness check.
@@ -294,4 +321,4 @@ This diagram does not require every proposed file/folder now. Create only earned
 - 2026-10-23 / v1.1: owner selected Documents/GitHub/ORVION-Workbench as the exact common parent. Added the existing nested hooks/fixtures library files found during recursive path-consumer inspection. Current operational roots remain unchanged pending proof.
 - 2026-10-23 / v1: owner requested a concrete complete layout, including tools, plan drafts/improvements, assurance snapshots and selection. Added this architectural companion without relocating source/data or changing current exact contracts.
 
-Canonical routing: proposed source document until this exact own scope completes. Then select the installed source docs in the sole programme checkpoint; external prior revisions remain history, never a second manually synchronized authority.
+Canonical routing: WS005 R4 completed the actual post-Complete cutover. This source docs location is selected by the sole programme checkpoint; prior external revisions remain unchanged historical evidence. A later governed revision updates these same files; it does not repeat cutover or create another live plan.
