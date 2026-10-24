@@ -2,8 +2,8 @@
 
 ## Status
 
-[x] Draft
-[ ] Approved
+[ ] Draft
+[x] Approved
 [ ] In Progress
 [ ] Complete
 [ ] Cancelled
@@ -86,6 +86,13 @@ Recovery Attempt: 0
 ## Execution Log
 
 Isolated preparation only. Synthetic exact-root sandbox approval is permitted only in the independent rehearsal; it grants no original or remote authority. No original Gate 1 exists.
+Approved Draft: C:\Users\My Lab\Documents\ORVION-Owner-Review\source-scaffold-20261024\assurance\V3\DRAFT.md
+Approved SHA256: 4B418E65A458360A170A6E97A5DD5150E23DD4E5891CFE6F011A7DE42C1AC0D2
+Owner Evidence: C:\Users\My Lab\Documents\ORVION-Owner-Review\source-scaffold-20261024\runtime\original\owner-approval.md
+Owner Evidence SHA256: 6681D05296B9C6EE093081396C8DEBF3DB5F855637CB59CDAF3B70DA603A72A8
+Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
+Sandbox Receipt: C:\Users\My Lab\Documents\ORVION-Owner-Review\source-scaffold-20261024\runtime\sandbox\own-finish-receipt.json
+Sandbox Receipt SHA256: 09CF9730B8B01C844CD7AAD03C702F43C8B6BA24FE3DA122C0C9077257D795B5
 
 ## Verification Notes
 
