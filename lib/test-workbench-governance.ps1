@@ -1,4 +1,5 @@
 # Real local Git/caller fixtures. Synthetic owner assertions and short test children are NOT live approval or full-suite certification.
+param([switch]$CIOnly)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Test-WorkbenchChange.ps1')
 . (Join-Path $PSScriptRoot 'remove-owned.ps1')
@@ -67,7 +68,7 @@ function Start-FixtureChild([string[]]$Arguments,[string]$Directory,[hashtable]$
     $info=[Diagnostics.ProcessStartInfo]::new((Get-Command pwsh -CommandType Application|Select-Object -First 1).Source)
     $info.UseShellExecute=$false;$info.CreateNoWindow=$true;$info.RedirectStandardOutput=$true;$info.RedirectStandardError=$true
     $info.WorkingDirectory=$Directory
-    foreach($key in 'WORKBENCH_TEST_ROOT','WORKBENCH_TEMP_ROOT','WORKBENCH_TEST_EVIDENCE','WORKBENCH_SUITE_PARENT','WORKBENCH_SUITE_RECIPE'){$null=$info.Environment.Remove($key)}
+    foreach($key in 'WORKBENCH_TEST_ROOT','WORKBENCH_TEMP_ROOT','WORKBENCH_TEST_EVIDENCE','WORKBENCH_SUITE_PARENT','WORKBENCH_SUITE_RECIPE','WORKBENCH_SUITE_MODE','WORKBENCH_CI_CANDIDATE','WORKBENCH_CI_RUNTIME'){$null=$info.Environment.Remove($key)}
     $activeFile=Join-Path $Directory 'changes/WS-001-fixture.md'
     if(Test-Path -LiteralPath $activeFile){
         $childContext=Get-WorkbenchContext (Get-WorkbenchFields ([IO.File]::ReadAllText($activeFile)))
@@ -289,6 +290,152 @@ function Test-ContextAssurance {
     Write-FixtureFile $mutantPath $mutantText
     $mutantBoot=Receive-FixtureChild (Start-FixtureChild @('-NoProfile','-File',$mutantPath,'-Root',$mutantRoot,'-Boot') $mutantRoot $badGit)
     Assert-Fixture 'removing pre-bootstrap environment validation is killed by the actual caller predicate' ($mutantBoot.Output-notmatch'WB_BOOTSTRAP_GIT_ENVIRONMENT_REFUSED') $mutantBoot
+}
+
+function Assert-CIRefusal([string]$Name,[scriptblock]$Operation,[string]$Code) {
+    $caught='NONE'
+    try{& $Operation}catch{$caught=$_.Exception.Message}
+    $observations.Add([pscustomobject]@{Kind='ci-refusal';Name=$Name;Observed=$caught;Expected=$Code})
+    Assert-Fixture $Name ($caught-cmatch$Code) $caught
+}
+function Test-CICapability {
+    $policy=Get-WorkbenchWorkflowPolicy
+    $validJson=$policy|ConvertTo-Json -Depth 20
+    Assert-WorkbenchWorkflowText $validJson
+    Assert-Fixture 'CI closed JSON workflow policy accepts its exact positive control' $true
+    $mutations=@(
+        @('privileged trigger',{$args[0].on=@{pull_request_target=@{}}}),
+        @('write permission',{$args[0].permissions.contents='write'}),
+        @('dynamic job skip',{$args[0].jobs.'workbench-acceptance'.if='${{ github.ref == ''refs/heads/other'' }}'}),
+        @('wrong branch',{$args[0].on.push.branches=@('other')}),
+        @('path filter',{$args[0].on.push.paths=@('docs/**')}),
+        @('unpinned action',{$args[0].jobs.'workbench-acceptance'.steps[0].uses='actions/checkout@main'}),
+        @('persisted credential',{$args[0].jobs.'workbench-acceptance'.steps[0].with.'persist-credentials'=$true}),
+        @('omitted mandatory entry',{$args[0].jobs.'workbench-acceptance'.steps[2].run='Write-Output green'}),
+        @('continue on failure',{$args[0].jobs.'workbench-acceptance'.'continue-on-error'=$true}),
+        @('untrusted runner',{$args[0].jobs.'workbench-acceptance'.'runs-on'='self-hosted'}),
+        @('extra job',{$args[0].jobs.extra=@{}})
+    )
+    foreach($mutation in $mutations){
+        $value=Get-WorkbenchWorkflowPolicy;& $mutation[1] $value
+        $body=$value|ConvertTo-Json -Depth 20
+        Assert-CIRefusal ('CI policy rejects '+$mutation[0]) {Assert-WorkbenchWorkflowText $body} '^WB_CI_WORKFLOW_POLICY$'
+    }
+    Assert-CIRefusal 'CI rejects duplicate JSON keys' {Assert-WorkbenchWorkflowText ($validJson.Replace('"contents": "read"','"contents": "write", "contents": "read"'))} '^WB_CI_WORKFLOW_POLICY$'
+    Assert-CIRefusal 'CI rejects ambiguous YAML rather than regex approval' {Assert-WorkbenchWorkflowText 'name: not-closed-json'} '^WB_CI_WORKFLOW_JSON_REQUIRED$'
+    # Independent initial synthetic trust fixture; no real approval, receipt or production authority.
+    $ciRoot=Join-Path $ownedRoot 'ci-caller';[void][IO.Directory]::CreateDirectory($ciRoot)
+    $null=Invoke-FixtureGit $ciRoot @('init','--quiet')
+    foreach($pair in @(@('user.name','CI fixture'),@('user.email','ci@invalid.local'),@('core.autocrlf','true'),@('core.hooksPath','.git/hooks'))){$null=Invoke-FixtureGit $ciRoot @('config','--local',$pair[0],$pair[1])}
+    foreach($relative in 'lib/Test-WorkbenchChange.ps1','lib/Workbench.ps1','lib/run_timed.ps1','lib/watch_run.ps1','lib/Test-ScriptHazards.ps1','lib/Events.ps1','lib/Hunt.ps1','tests.ps1'){
+        Write-FixtureFile (Join-Path $ciRoot $relative) ([IO.File]::ReadAllText((Join-Path (Split-Path $PSScriptRoot -Parent) $relative)))
+    }
+    Write-FixtureFile (Join-Path $ciRoot 'RESUME.md') ('Active Workbench Contract: None'+[char]10)
+    Write-FixtureFile (Join-Path $ciRoot '.gitignore') ('work/'+[char]10+'.workbench-local-certification.json'+[char]10+'.workbench-certifications/'+[char]10)
+    Write-FixtureFile (Join-Path $ciRoot 'lib/test-synthetic.ps1') "'PASS synthetic CI child (dispatch proof only)'`nexit 0`n"
+    $null=Invoke-FixtureGit $ciRoot @('add','.')
+    $null=Invoke-FixtureGit $ciRoot @('commit','--quiet','-m','Synthetic initial CI fixture trust only')
+    $ciHead=(Invoke-FixtureGit $ciRoot @('rev-parse','HEAD')).Output[0]
+    # Keep the Windows fixture-path probe short even though owning fixture names are descriptive.
+    $ciRuntime=Join-Path $testParent ('ci-'+[guid]::NewGuid().ToString('N').Substring(0,8))
+    $ciRecipe=Get-WorkbenchCIRecipe $ciRoot $ciHead $ciRuntime
+    Assert-Fixture 'CI recipe binds full candidate, ordered tests, runtime and evaluator inputs' ($ciRecipe.Material.candidate-ceq$ciHead-and$ciRecipe.Material.schedule.tests.Count-eq1-and@($ciRecipe.Material.schedule.inputs|Where-Object{$_.Path-ceq'lib/Test-WorkbenchChange.ps1'}).Count-eq1)
+    Assert-CIRefusal 'CI refuses stale candidate SHA' {Get-WorkbenchCIRecipe $ciRoot ('0'*40) $ciRuntime} '^WB_CI_CANDIDATE_MISMATCH$'
+    Assert-CIRefusal 'CI refuses overlapping runtime root' {Get-WorkbenchCIRecipe $ciRoot $ciHead $ciRoot} '^WB_CI_RUNTIME_OVERLAP$'
+    Assert-CIRefusal 'CI refuses forged direct parent context' {Assert-WorkbenchCISuiteParent $ciRoot $ciHead $ciRuntime $ciRecipe.Digest $PID} '^WB_CI_SUITE_PARENT_REQUIRED$'
+    Assert-CIRefusal 'CI refuses missing timed context and observer' {Assert-WorkbenchCITimed $ciRoot $ciRuntime} '^WB_CI_TIMED_CONTEXT_REQUIRED$'
+    Assert-CIRefusal 'CI refuses missing concurrent watcher' {Assert-WorkbenchCIObserved $ciRoot (Join-Path $ciRuntime 'not-observed.log')} '^WB_CI_OBSERVER_REQUIRED$'
+    Assert-CIRefusal 'CI workflow profile cannot omit its required workflow' {Assert-WorkbenchWorkflowSet $ciRoot $ciHead '' $ciRuntime -RequireWorkflow} '^WB_CI_WORKFLOW_REQUIRED$'
+    $badBinary=Join-Path $ownedRoot 'unreviewed-tool.exe';Write-FixtureFile $badBinary 'not the pinned binary'
+    Assert-CIRefusal 'CI refuses substituted grammar tool before execution' {Assert-WorkbenchCITool $badBinary} '^WB_CI_GRAMMAR_TOOL_IDENTITY$'
+    $entryCI=Join-Path $ciRoot 'lib/Workbench.ps1'
+    $worker=Receive-FixtureChild (Start-FixtureChild @('-NoProfile','-File',$entryCI,'-Root',$ciRoot,'-CI','-CIWorker','-Candidate',$ciHead,'-CIRuntimeRoot',$ciRuntime,'-Actionlint',$badBinary) $ciRoot)
+    Assert-Fixture 'CI actual fixed entry refuses invalid tool before tests' ($worker.Exit-ne0-and$worker.Output-match'WB_CI_GRAMMAR_TOOL_IDENTITY'-and$worker.Output-notmatch'PASS hazards') $worker
+    $fakeEnv=@{WORKBENCH_SUITE_MODE='CI';WORKBENCH_SUITE_PARENT=[string]$PID;WORKBENCH_SUITE_RECIPE=$ciRecipe.Digest;WORKBENCH_CI_CANDIDATE=$ciHead;WORKBENCH_CI_RUNTIME=$ciRuntime}
+    $forged=Receive-FixtureChild (Start-FixtureChild @('-NoProfile','-File',(Join-Path $ciRoot 'tests.ps1')) $ciRoot $fakeEnv)
+    Assert-Fixture 'CI actual raw driver refuses environment-only authority at terminal None' ($forged.Exit-ne0-and$forged.Output-match'WB_RAW_FULL_SUITE_REFUSED'-and$forged.Output-notmatch'PASS hazards') $forged
+    $native=Receive-FixtureChild (Start-FixtureChild @('-NoProfile','-File',$entryCI,'-Root',$ciRoot,'-Finish') $ciRoot $fakeEnv)
+    Assert-Fixture 'CI environment cannot issue native lifecycle certification' ($native.Exit-ne0-and$native.Output-match'WB_ACTIVE_CONTRACT_REQUIRED'-and!(Test-Path -LiteralPath (Join-Path $ciRoot '.workbench-local-certification.json'))) $native
+
+    $verifiedGrammar=Assert-WorkbenchCITool $env:WORKBENCH_ACTIONLINT
+    $workflowProbe=Join-Path $ownedRoot 'semantic-grammar-positive.yml'
+    Write-FixtureFile $workflowProbe $validJson
+    $grammarOutput=@(& $verifiedGrammar '-shellcheck=' '-pyflakes=' $workflowProbe 2>&1);$grammarExit=$LASTEXITCODE
+    Assert-Fixture 'CI real pinned upstream grammar accepts the semantic positive' ($grammarExit-eq0) $grammarOutput
+    $unknown=$validJson.Replace('"shell": "pwsh"','"shell_typo": "pwsh"')
+    Write-FixtureFile $workflowProbe $unknown
+    $grammarOutput=@(& $verifiedGrammar '-shellcheck=' '-pyflakes=' $workflowProbe 2>&1);$grammarExit=$LASTEXITCODE
+    Assert-Fixture 'CI real grammar rejects an unknown workflow schema key' ($grammarExit-ne0) $grammarOutput
+    $ciCall=@('-NoProfile','-File',$entryCI,'-Root',$ciRoot,'-CI','-Candidate',$ciHead,'-CIRuntimeRoot',$ciRuntime,'-Actionlint',$verifiedGrammar)
+    $positive=Receive-FixtureChild (Start-FixtureChild $ciCall $ciRoot)
+    $observations.Add([pscustomobject]@{Kind='ci-actual-positive';Root=$ciRoot;Runtime=$ciRuntime;Exit=$positive.Exit;Output=$positive.Output})
+    $ciResult=if(Test-Path -LiteralPath (Join-Path $ciRuntime 'ci-result.json')){Get-Content -LiteralPath (Join-Path $ciRuntime 'ci-result.json') -Raw|ConvertFrom-Json}else{$null}
+    Assert-Fixture 'CI actual terminal-None caller owns exactly one successful timed/watched schedule' ($positive.Exit-eq0-and$ciResult.Result-ceq'READY'-and$ciResult.Certification-eq$false-and$ciResult.Recipe-ceq$ciRecipe.Digest) $positive
+    Assert-Fixture 'CI actual success creates neither native working nor archived certification' (!(Test-Path -LiteralPath (Join-Path $ciRoot '.workbench-local-certification.json'))-and!(Test-Path -LiteralPath (Join-Path $ciRoot '.workbench-certifications')))
+    foreach($scenario in 'child-exit','omitted-schedule','omitted-hazards','stale-recipe','watcher-exit'){
+        # Each mutant is independent synthetic initial trust data, never a bypassed production transition.
+        $mutantCI=Join-Path $ownedRoot ('ci-'+$scenario);[void][IO.Directory]::CreateDirectory($mutantCI)
+        foreach($relative in @((Invoke-FixtureGit $ciRoot @('ls-files')).Output)){
+            Write-FixtureFile (Join-Path $mutantCI $relative) ([IO.File]::ReadAllText((Join-Path $ciRoot $relative)))
+        }
+        if($scenario-ceq'child-exit'){Write-FixtureFile (Join-Path $mutantCI 'lib/test-synthetic.ps1') "'PASS forged green child'`nexit 7`n"}
+        elseif($scenario-ceq'omitted-schedule'){
+            $driver=Join-Path $mutantCI 'tests.ps1';$driverText=[IO.File]::ReadAllText($driver)
+            $needle='foreach($relativeTest in $suiteRecipe.Material.tests)'
+            if(!$driverText.Contains($needle)){throw 'CI_SCHEDULE_MUTANT_STALE'}
+            Write-FixtureFile $driver ($driverText.Replace($needle,'foreach($relativeTest in @())'))
+        }elseif($scenario-ceq'omitted-hazards'){
+            $driver=Join-Path $mutantCI 'tests.ps1';$driverText=[IO.File]::ReadAllText($driver)
+            $needle='else{"PASS hazards ($($scripts.Count) scripts)"}'
+            if(!$driverText.Contains($needle)){throw 'CI_HAZARDS_MUTANT_STALE'}
+            Write-FixtureFile $driver ($driverText.Replace($needle,'else{"synthetic hazard omission"}'))
+        }elseif($scenario-ceq'stale-recipe'){
+            $driver=Join-Path $mutantCI 'lib/Workbench.ps1';$driverText=[IO.File]::ReadAllText($driver)
+            $needle='$env:WORKBENCH_SUITE_RECIPE=$ciRecipe.Digest'
+            if(!$driverText.Contains($needle)){throw 'CI_RECIPE_MUTANT_STALE'}
+            Write-FixtureFile $driver ($driverText.Replace($needle,"`$env:WORKBENCH_SUITE_RECIPE=('A'*64)"))
+        }else{
+            $observerFile=Join-Path $mutantCI 'lib/watch_run.ps1'
+            $observerText=[IO.File]::ReadAllText($observerFile)
+            if(!$observerText.Contains("exit [int](`$body -notmatch '^END exit=0\b')")){throw 'CI_WATCHER_MUTANT_STALE'}
+            Write-FixtureFile $observerFile ($observerText.Replace("exit [int](`$body -notmatch '^END exit=0\b')",'exit 7'))
+        }
+        $null=Invoke-FixtureGit $mutantCI @('init','--quiet')
+        foreach($pair in @(@('user.name','CI mutant fixture'),@('user.email','ci@invalid.local'),@('core.autocrlf','true'),@('core.hooksPath','.git/hooks'))){$null=Invoke-FixtureGit $mutantCI @('config','--local',$pair[0],$pair[1])}
+        $null=Invoke-FixtureGit $mutantCI @('add','.');$null=Invoke-FixtureGit $mutantCI @('commit','--quiet','-m','Isolated causal CI fixture trust only')
+        $mutantHead=(Invoke-FixtureGit $mutantCI @('rev-parse','HEAD')).Output[0]
+        $mutantRuntime=Join-Path $testParent ('ci-'+[guid]::NewGuid().ToString('N').Substring(0,8))
+        $failure=Receive-FixtureChild (Start-FixtureChild @('-NoProfile','-File',(Join-Path $mutantCI 'lib/Workbench.ps1'),'-Root',$mutantCI,'-CI','-Candidate',$mutantHead,'-CIRuntimeRoot',$mutantRuntime,'-Actionlint',$verifiedGrammar) $mutantCI)
+        $expectedFailure=if($scenario-in@('omitted-schedule','omitted-hazards')){'WB_CI_REQUIRED_TEST_NOT_OBSERVED'}else{'WB_CI_CHILD_OR_OBSERVER_FAILED'}
+        $observations.Add([pscustomobject]@{Kind='ci-actual-mutant';Scenario=$scenario;Runtime=$mutantRuntime;Exit=$failure.Exit;Output=$failure.Output;Expected=$expectedFailure})
+        Assert-Fixture ('CI actual '+$scenario+' cannot become success') ($failure.Exit-ne0-and$failure.Output-match$expectedFailure-and!(Test-Path -LiteralPath (Join-Path $mutantRuntime 'ci-result.json'))) $failure
+    }
+
+
+    foreach($changedPath in 'tests.ps1','lib/Workbench.ps1','lib/Test-WorkbenchChange.ps1','lib/watch_run.ps1'){
+        $target=Join-Path $ciRoot $changedPath;$saved=[IO.File]::ReadAllText($target)
+        try{
+            Write-FixtureFile $target ($saved+[char]10+'# unauthorized mutation')
+            Assert-CIRefusal ('CI refuses changed helper/evaluator/schedule '+$changedPath) {Get-WorkbenchCIRecipe $ciRoot $ciHead $ciRuntime} '^WB_CI_CLEAN_CANDIDATE_REQUIRED$'
+        }finally{Write-FixtureFile $target $saved}
+    }
+    $wrongEntry=Receive-FixtureChild (Start-FixtureChild @('-NoProfile','-File',$entryCI,'-Root',$ownedRoot,'-CI','-Candidate',$ciHead,'-CIRuntimeRoot',$ciRuntime,'-Actionlint',$verifiedGrammar) $ciRoot)
+    Assert-Fixture 'CI actual entry refuses a substituted physical root' ($wrongEntry.Exit-ne0-and$wrongEntry.Output-match'WB_ENTRY_ROOT_MISMATCH') $wrongEntry
+    $unparented=Receive-FixtureChild (Start-FixtureChild @('-NoProfile','-File',$entryCI,'-Root',$ciRoot,'-CI','-CIWorker','-Candidate',$ciHead,'-CIRuntimeRoot',$ciRuntime,'-Actionlint',$verifiedGrammar) $ciRoot)
+    Assert-Fixture 'CI actual internal worker refuses an unapproved raw invocation' ($unparented.Exit-ne0-and$unparented.Output-match'WB_CI_TIMED_CONTEXT_REQUIRED') $unparented
+
+    # A content mutation is detected before any child starts, even with an unchanged claimed SHA.
+    $scheduleFile=Join-Path $ciRoot 'lib/test-synthetic.ps1';$before=[IO.File]::ReadAllText($scheduleFile)
+    Write-FixtureFile $scheduleFile 'exit 0 # altered schedule'
+    Assert-CIRefusal 'CI refuses altered scheduled test at the claimed candidate' {Get-WorkbenchCIRecipe $ciRoot $ciHead $ciRuntime} '^WB_CI_CLEAN_CANDIDATE_REQUIRED$'
+    Write-FixtureFile $scheduleFile $before
+}
+
+if($CIOnly){
+    try{Test-CICapability}catch{$failures++;"FAIL CI fixture: $($_.Exception.Message)"}
+    if($env:WORKBENCH_TEST_EVIDENCE){Write-FixtureFile $env:WORKBENCH_TEST_EVIDENCE ($observations|ConvertTo-Json -Depth 7)}
+    if($failures-eq0){$null=Remove-OrvionOwnedTree $ownedRoot @($testParent)}else{"PRESERVED_FIXTURES: $ownedRoot"}
+    "WORKBENCH CI OWNING CHECK: $failures failed";exit [int]($failures-gt0)
 }
 try {
     $seed=Join-Path $ownedRoot 'seed';[void][IO.Directory]::CreateDirectory($seed)
@@ -521,6 +668,7 @@ Fixture only.
     $badRange=Invoke-FixtureChecker $counterexample @('-Mode','Range','-Base',$approvedHead,'-Head',$goodEnd)
     Assert-Fixture 'valid endpoints do not hide an invalid intermediate transition' (!$endpoint.Count-and$badRange.Exit-ne0-and($badRange.Output-join' ')-match'WB_WRITE_SCOPE_REFUSED') $badRange
     Test-ContextAssurance
+    Test-CICapability
     $watcher=Join-Path $PSScriptRoot 'watch_run.ps1'
     $replay=Invoke-FixtureWatch $watcher 'wb-alert-positive'
     Assert-Fixture 'actual Brief caller reports generic unreadable and refused outcomes' ($replay.Exit-ne0-and$replay.Output-match'TOOL: UNREADABLE'-and$replay.Output-match'PUBLISH: REFUSED') $replay

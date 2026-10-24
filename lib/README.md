@@ -121,3 +121,8 @@ After partial success, inspect that result and the refs, then rerun the same rev
 - `git grep` exits 1 for an unreadable blob, exactly as for "no match"; a failed native command reads as empty.
 - `$Pid`, `$Host`, `$Input`, `$Matches`... are automatic variables; `Git`/`H`/`R` collide with commands/aliases.
 - A one-element pipeline result is a scalar: wrap lists in `@()`.
+
+
+## Workbench local CI test context
+
+Use Workbench.ps1 -CI -Candidate <exact-40-character-lowercase-HEAD> -CIRuntimeRoot <new-external-directory> -Actionlint <external-pinned-actionlint.exe>. The existing engine starts its timed runner/watcher and tests.ps1 once; inspect ci.log, watcher.log, runner.exit, watcher.exit and ci-result.json at that external root. Nonzero, omitted owning suites, changed candidate/recipe/inputs, absent observer or forged direct suite parent refuses. Never invoke tests.ps1 or -CIWorker to bypass the parent. Native Finish/approval/receipt/Review/Complete remain independent and unchanged. This CI result cannot certify original work. Get-WorkbenchCITool owns the pinned tool identities; Get-WorkbenchWorkflowPolicy owns the exact deliberately narrow JSON/YAML workflow policy. No workflow file, hosted bootstrap, remote enforcement or publication is installed by this capability. Future provisioning is a separately governed dependency, not an implicit download or owner-credential use.

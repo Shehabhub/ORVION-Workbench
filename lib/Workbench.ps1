@@ -6,6 +6,11 @@ param([Parameter(ParameterSetName='Boot',Mandatory)][switch]$Boot,
       [Parameter(ParameterSetName='Review',Mandatory)][switch]$Review,
       [Parameter(ParameterSetName='Complete',Mandatory)][switch]$Complete,
       [Parameter(ParameterSetName='Execute',Mandatory)][switch]$Execute,
+      [Parameter(ParameterSetName='CI',Mandatory)][switch]$CI,
+      [Parameter(ParameterSetName='CI',Mandatory)][string]$Candidate,
+      [Parameter(ParameterSetName='CI',Mandatory)][string]$CIRuntimeRoot,
+      [Parameter(ParameterSetName='CI')][switch]$CIWorker,
+      [string]$Actionlint,
       [Parameter(ParameterSetName='Gate')][switch]$Staged,
       [Parameter(ParameterSetName='Gate')][string]$Base='HEAD',
       [Parameter(ParameterSetName='Gate')][string]$Head,
@@ -61,6 +66,70 @@ try {
     }
     . $judge -Root $Root
     $Root=Assert-WorkbenchRoot $Root
+
+    if($CI){
+        $ciRecipe=Get-WorkbenchCIRecipe $Root $Candidate $CIRuntimeRoot
+        $Actionlint=Assert-WorkbenchCITool $Actionlint
+        $env:WORKBENCH_ACTIONLINT=$Actionlint
+        $CIRuntimeRoot=$ciRecipe.Material.runtime
+        if(!$CIWorker){
+            if(Test-Path -LiteralPath $CIRuntimeRoot){throw 'WB_CI_RUNTIME_ALREADY_EXISTS'}
+            [void][IO.Directory]::CreateDirectory($CIRuntimeRoot)
+            $ciLog=Join-Path $CIRuntimeRoot 'ci.log'
+            # Invoke only the existing timed runner/watcher and this fixed worker. No caller command API.
+            $quote={param($value) "'"+$value.Replace("'","''")+"'"}
+            $command='& pwsh -NoProfile -File '+(& $quote $PSCommandPath)+' -Root '+(& $quote $Root)+' -CI -CIWorker -Candidate '+$Candidate+' -CIRuntimeRoot '+(& $quote $CIRuntimeRoot)+' -Actionlint '+(& $quote $Actionlint)
+            $children=[Collections.Generic.List[object]]::new()
+            try{
+                foreach($role in 'watcher','runner'){
+                    $info=[Diagnostics.ProcessStartInfo]::new((Get-Command pwsh -CommandType Application|Select-Object -First 1).Source)
+                    $info.UseShellExecute=$false;$info.CreateNoWindow=$true;$info.WorkingDirectory=$Root
+                    $info.RedirectStandardOutput=$true;$info.RedirectStandardError=$true
+                    foreach($key in 'WORKBENCH_SUITE_PARENT','WORKBENCH_SUITE_RECIPE','WORKBENCH_SUITE_MODE','WORKBENCH_CI_CANDIDATE','WORKBENCH_CI_RUNTIME','WORKBENCH_TEST_EVIDENCE','ORVION_TIMED_LOG','ORVION_TIMED_ROOT','ORVION_TIMED_PID'){$null=$info.Environment.Remove($key)}
+                    $info.Environment['WORKBENCH_TEST_ROOT']=$ciRecipe.Context['Tests Root'];$info.Environment['WORKBENCH_TEMP_ROOT']=$ciRecipe.Context['Temp Root']
+                    $ciArguments=if($role-ceq'watcher'){@('-NoProfile','-File',(Join-Path $Root 'lib/watch_run.ps1'),'-Log',$ciLog,'-Run','workbench-ci','-Brief','-PollSeconds','2','-Csv',(Join-Path $CIRuntimeRoot 'timings.csv'))}else{@('-NoProfile','-File',(Join-Path $Root 'lib/run_timed.ps1'),'-Log',$ciLog,'-WorkingDirectory',$Root,'-Command',$command)}
+                    foreach($argument in $ciArguments){$info.ArgumentList.Add($argument)}
+                    $process=[Diagnostics.Process]::new();$process.StartInfo=$info;$null=$process.Start()
+                    $children.Add([pscustomobject]@{Role=$role;Process=$process;Out=$process.StandardOutput.ReadToEndAsync();Err=$process.StandardError.ReadToEndAsync()})
+                }
+                foreach($child in $children|Sort-Object Role){
+                    $child.Process.WaitForExit()
+                    [IO.File]::WriteAllText((Join-Path $CIRuntimeRoot ($child.Role+'.log')),($child.Out.GetAwaiter().GetResult()+$child.Err.GetAwaiter().GetResult()),[Text.UTF8Encoding]::new($false))
+                    [IO.File]::WriteAllText((Join-Path $CIRuntimeRoot ($child.Role+'.exit')),[string]$child.Process.ExitCode)
+                }
+                if(@($children|Where-Object{$_.Process.ExitCode-ne0}).Count){throw 'WB_CI_CHILD_OR_OBSERVER_FAILED'}
+                $actual=Get-WorkbenchCIRecipe $Root $Candidate $CIRuntimeRoot
+                if($actual.Digest-cne$ciRecipe.Digest){throw 'WB_CI_INPUT_CHANGED'}
+                $logText=[IO.File]::ReadAllText($ciLog)
+                $previousPosition=-1
+                foreach($test in $ciRecipe.Material.schedule.tests){
+                    $matchesTest=[regex]::Matches($logText,'(?m)^\[\+[^]]+\] PASS '+[regex]::Escape((Split-Path $test -Leaf))+'\r?$')
+                    if($matchesTest.Count-ne1-or$matchesTest[0].Index-le$previousPosition){throw 'WB_CI_REQUIRED_TEST_NOT_OBSERVED'}
+                    $previousPosition=$matchesTest[0].Index
+                }
+                if([regex]::Matches($logText,'(?m)^\[\+[^]]+\] PASS hazards \(').Count-ne1-or
+                   [regex]::Matches($logText,'(?m)^\[\+[^]]+\] PASS the real journal is untouched by the checks\r?$').Count-ne1){throw 'WB_CI_REQUIRED_TEST_NOT_OBSERVED'}
+                if([regex]::Matches($logText,'(?m)^\[\+[^]]+\] TESTS: all passed in ').Count-ne1-or$logText-notmatch'END exit=0 '-or$logText-notmatch'WORKBENCH_CI_WORKER: READY'){throw 'WB_CI_SCHEDULE_NOT_PROVED'}
+                [ordered]@{Kind='CI_TEST_ONLY';Candidate=$Candidate;Root=$Root;Recipe=$ciRecipe.Digest;Result='READY';RunnerExit=0;WatcherExit=0;Certification=$false}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $CIRuntimeRoot 'ci-result.json') -Encoding utf8
+                'WORKBENCH_CI: READY (tests only; no native certification)'
+            }finally{foreach($child in $children){$child.Process.Dispose()}}
+            exit 0
+        }
+        $operationLease=Enter-WorkbenchOperation $Root
+        Assert-WorkbenchCITimed $Root $CIRuntimeRoot
+        $null=Assert-WorkbenchContextRuntime $Root $ciRecipe.Context -ResourceCheck
+        $heavyLease=Enter-WorkbenchHeavyOperation $ciRecipe.Context
+        $env:WORKBENCH_TEST_ROOT=$ciRecipe.Context['Tests Root'];$env:WORKBENCH_TEMP_ROOT=$ciRecipe.Context['Temp Root']
+        $env:WORKBENCH_SUITE_PARENT=[string]$PID;$env:WORKBENCH_SUITE_RECIPE=$ciRecipe.Digest;$env:WORKBENCH_SUITE_MODE='CI'
+        $env:WORKBENCH_CI_CANDIDATE=$Candidate;$env:WORKBENCH_CI_RUNTIME=$CIRuntimeRoot
+        Assert-WorkbenchWorkflowSet $Root $Candidate $Actionlint $ciRecipe.Context['Temp Root']
+        & pwsh -NoProfile -File (Join-Path $Root 'tests.ps1')
+        if($LASTEXITCODE-ne0){throw 'WB_CI_REQUIRED_TESTS_FAILED'}
+        Assert-WorkbenchCIObserved $Root (Join-Path $CIRuntimeRoot 'ci.log')
+        if((Get-WorkbenchCIRecipe $Root $Candidate $CIRuntimeRoot).Digest-cne$ciRecipe.Digest){throw 'WB_CI_INPUT_CHANGED'}
+        'WORKBENCH_CI_WORKER: READY';exit 0
+    }
+
     $operationLease=Enter-WorkbenchOperation $Root
     $contract=Get-WorkbenchPointer ([IO.File]::ReadAllText((Join-Path $Root 'RESUME.md')))
     if($contract-eq'None'){throw 'WB_ACTIVE_CONTRACT_REQUIRED'}
@@ -126,7 +195,7 @@ try {
             $ancestorId=[int]$processRow.ParentProcessId
         }
         if(!$foundRunner){throw 'WB_TIMED_RUNNER_NOT_ANCESTOR'}
-        if('WORKSTATION'-in$profiles-or'CI'-in$profiles){throw 'WB_REQUIRED_PROFILE_NOT_IMPLEMENTED'}
+        if('WORKSTATION'-in$profiles){throw 'WB_REQUIRED_PROFILE_NOT_IMPLEMENTED'}
         if($context){
             $executionRole=Assert-WorkbenchContextRuntime $Root $context -ResourceCheck
             $sandboxProof=Assert-WorkbenchSandboxProof $Root $record $context $recipe -Implementation
@@ -136,6 +205,9 @@ try {
             $env:WORKBENCH_SUITE_PARENT=[string]$PID
             $env:WORKBENCH_SUITE_RECIPE=$recipe.Digest
         }
+        $env:WORKBENCH_SUITE_MODE='FINISH'
+        if($Actionlint){$env:WORKBENCH_ACTIONLINT=Assert-WorkbenchCITool $Actionlint}
+        if('CI'-in$profiles){Assert-WorkbenchWorkflowSet $Root $tree $Actionlint $temporaryParent -RequireWorkflow}
         $workingReceipt=Get-WorkbenchLocalPath $Root '.workbench-local-certification.json'
         if(Test-Path -LiteralPath $workingReceipt){[IO.File]::Delete($workingReceipt)}
         $clock=[Diagnostics.Stopwatch]::StartNew()

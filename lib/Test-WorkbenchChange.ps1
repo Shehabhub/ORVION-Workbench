@@ -104,6 +104,130 @@ function Get-WorkbenchRecipe([string]$Checkout,[string]$tree,$record) {
     $material=[ordered]@{schema=1;context=$context;command='pwsh -NoProfile -File ${CHECKOUT}/tests.ps1';tests=$tests;hazards=$hazards;inputs=$inputs;tools=@('Events -Find contract-id','Hunt -Quick -NoRecord');maxHeavyRuns=1}
     [pscustomobject]@{Digest=(Get-WorkbenchDigest ($material|ConvertTo-Json -Depth 8 -Compress));Material=$material;Context=$context}
 }
+
+# CI is a test context, never a native receipt or owner approval. Windows/amd64 only.
+function Get-WorkbenchCITool {
+    [ordered]@{Version='1.7.12';SHA256='54CA21BE3DE4C7CFA26914AA8B61BD76BF573EF3CAAC5F80D110558CDF241718';ArchiveSHA256='6E7241B51E6817EA6A047693D8E6FED13B31819C9A0DD6C5A726E1592D22F6E9';Platform='windows-amd64'}
+}
+function Assert-WorkbenchCITool([string]$Actionlint) {
+    $full=Assert-WorkbenchExternalPath $Actionlint
+    $tool=Get-WorkbenchCITool
+    if(!$IsWindows-or[Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture-ne'X64'-or
+       !(Test-Path -LiteralPath $full -PathType Leaf)-or(Get-FileHash -LiteralPath $full).Hash-cne$tool.SHA256){throw 'WB_CI_GRAMMAR_TOOL_IDENTITY'}
+    $full
+}
+function Get-WorkbenchWorkflowPolicy {
+    $provision=@'
+$ErrorActionPreference='Stop'
+$tools=Join-Path $env:RUNNER_TEMP 'workbench-tools'
+[void](New-Item -ItemType Directory -Path $tools -ErrorAction Stop)
+$archive=Join-Path $tools 'actionlint.zip'
+Invoke-WebRequest -Uri 'https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_windows_amd64.zip' -OutFile $archive
+if((Get-FileHash -LiteralPath $archive).Hash -cne '6E7241B51E6817EA6A047693D8E6FED13B31819C9A0DD6C5A726E1592D22F6E9'){throw 'CI_TOOL_ARCHIVE_CHANGED'}
+$zip=[IO.Compression.ZipFile]::OpenRead($archive)
+try{
+    $entries=@($zip.Entries | Where-Object {$_.FullName -ceq 'actionlint.exe'})
+    if($entries.Count -ne 1){throw 'CI_TOOL_ENTRY_INVALID'}
+    [IO.Compression.ZipFileExtensions]::ExtractToFile($entries[0],(Join-Path $tools 'actionlint.exe'),$false)
+}finally{$zip.Dispose()}
+if((Get-FileHash -LiteralPath (Join-Path $tools 'actionlint.exe')).Hash -cne '54CA21BE3DE4C7CFA26914AA8B61BD76BF573EF3CAAC5F80D110558CDF241718'){throw 'CI_TOOL_BINARY_CHANGED'}
+'@
+    # JSON is a deliberately closed YAML subset. No YAML aliases/duplicate keys or expressions can add hidden behavior.
+    [ordered]@{name='Workbench acceptance';on=[ordered]@{push=[ordered]@{branches=@('workbench-preflight')}};
+        permissions=[ordered]@{contents='read'};jobs=[ordered]@{'workbench-acceptance'=[ordered]@{
+            name='workbench-acceptance';'runs-on'='windows-2025';'timeout-minutes'=60;
+            steps=@([ordered]@{name='Checkout';uses='actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683';with=[ordered]@{'fetch-depth'=0;'persist-credentials'=$false}},
+                [ordered]@{name='Provision pinned grammar';shell='pwsh';run=$provision},
+                [ordered]@{name='Verify';shell='pwsh';run='& ./lib/Workbench.ps1 -CI -Candidate $env:GITHUB_SHA -CIRuntimeRoot (Join-Path $env:RUNNER_TEMP ("workbench-ci-" + $env:GITHUB_RUN_ID + "-" + $env:GITHUB_RUN_ATTEMPT)) -Actionlint (Join-Path $env:RUNNER_TEMP "workbench-tools/actionlint.exe"); exit $LASTEXITCODE'})}}}
+}
+function Assert-WorkbenchJsonPolicy($policyActual,$policyExpected) {
+    if($policyExpected-is[Collections.IDictionary]){
+        if($policyActual.ValueKind-ne[Text.Json.JsonValueKind]::Object){throw 'WB_CI_WORKFLOW_POLICY'}
+        $names=@($policyActual.EnumerateObject()|ForEach-Object{$_.Name})
+        if($names.Count-ne$policyExpected.Count-or(@($names|Sort-Object -CaseSensitive)-join'|')-cne(@($policyExpected.Keys|Sort-Object -CaseSensitive)-join'|')){throw 'WB_CI_WORKFLOW_POLICY'}
+        foreach($key in $policyExpected.Keys){Assert-WorkbenchJsonPolicy ($policyActual.GetProperty($key)) $policyExpected[$key]}
+    }elseif($policyExpected-is[array]){
+        if($policyActual.ValueKind-ne[Text.Json.JsonValueKind]::Array-or$policyActual.GetArrayLength()-ne$policyExpected.Count){throw 'WB_CI_WORKFLOW_POLICY'}
+        for($index=0;$index-lt$policyExpected.Count;$index++){Assert-WorkbenchJsonPolicy $policyActual[$index] $policyExpected[$index]}
+    }else{
+        if($policyActual.GetRawText()-cne(ConvertTo-Json -InputObject $policyExpected -Compress)){throw 'WB_CI_WORKFLOW_POLICY'}
+    }
+}
+function Assert-WorkbenchWorkflowText([string]$workflowBody) {
+    try{$document=[Text.Json.JsonDocument]::Parse($workflowBody)}catch{throw 'WB_CI_WORKFLOW_JSON_REQUIRED'}
+    try{Assert-WorkbenchJsonPolicy $document.RootElement (Get-WorkbenchWorkflowPolicy)}finally{$document.Dispose()}
+}
+function Assert-WorkbenchWorkflowSet([string]$Checkout,[string]$workflowTree,[string]$Actionlint,[string]$TempDirectory,[switch]$RequireWorkflow) {
+    $files=@(Invoke-WorkbenchGit $Checkout @('ls-tree','-r','--name-only',$workflowTree)|Where-Object{$_-cmatch'^\.github/workflows/'})
+    if(!$files.Count){if($RequireWorkflow){throw 'WB_CI_WORKFLOW_REQUIRED'};return}
+    if($files.Count-ne1-or$files[0]-cne'.github/workflows/workbench-acceptance.yml'){throw 'WB_CI_WORKFLOW_SET_UNSUPPORTED'}
+    $workflowText=Get-WorkbenchText $Checkout $workflowTree $files[0]
+    Assert-WorkbenchWorkflowText $workflowText
+    $binary=Assert-WorkbenchCITool $Actionlint
+    [void][IO.Directory]::CreateDirectory($TempDirectory)
+    $fixture=Join-Path $TempDirectory ('workbench-grammar-'+[guid]::NewGuid().ToString('N')+'.yml')
+    try{
+        [IO.File]::WriteAllText($fixture,$workflowText,[Text.UTF8Encoding]::new($false))
+        & $binary '-shellcheck=' '-pyflakes=' $fixture
+        if($LASTEXITCODE-ne0){throw 'WB_CI_WORKFLOW_GRAMMAR'}
+    }finally{if(Test-Path -LiteralPath $fixture){[IO.File]::Delete($fixture)}}
+}
+function Get-WorkbenchCIRecipe([string]$Checkout,[string]$Candidate,[string]$RuntimeRoot) {
+    $null=Assert-WorkbenchRoot $Checkout
+    if($Candidate-cnotmatch'^[0-9a-f]{40}$'-or@(Invoke-WorkbenchGit $Checkout @('rev-parse','HEAD'))[0]-cne$Candidate){throw 'WB_CI_CANDIDATE_MISMATCH'}
+    if(@(Invoke-WorkbenchGit $Checkout @('status','--porcelain','--untracked-files=all')).Count){throw 'WB_CI_CLEAN_CANDIDATE_REQUIRED'}
+    $runtime=Assert-WorkbenchExternalPath $RuntimeRoot
+    if($runtime-ieq$Checkout-or(Test-WorkbenchUnder $runtime $Checkout)-or(Test-WorkbenchUnder $Checkout $runtime)){throw 'WB_CI_RUNTIME_OVERLAP'}
+    foreach($key in 'GIT_DIR','GIT_WORK_TREE','GIT_COMMON_DIR','GIT_INDEX_FILE','GIT_OBJECT_DIRECTORY','GIT_ALTERNATE_OBJECT_DIRECTORIES','GIT_CONFIG_COUNT','GIT_CONFIG_PARAMETERS'){
+        if([Environment]::GetEnvironmentVariable($key,'Process')){throw 'WB_CI_GIT_ENVIRONMENT_REFUSED'}
+    }
+    $context=[ordered]@{'Original Root'=$Checkout;'Sandbox Parent'=(Join-Path $runtime 'unused');'Tests Root'=(Join-Path $runtime 't');'Temp Root'=(Join-Path $runtime 'tmp');'Runtime Root'=(Join-Path $runtime 'logs');
+        'PowerShell Version'=$PSVersionTable.PSVersion.ToString();'Git Version'=@(Invoke-WorkbenchGit $Checkout @('--version'))[0];'Minimum Physical GB'='1.5';'Minimum Commit GB'='3'}
+    $record=[pscustomobject]@{Sections=@{'Execution Context'=(@($context.Keys|ForEach-Object{$_+': '+$context[$_]})-join[char]10)}}
+    $baseRecipe=Get-WorkbenchRecipe $Checkout $Candidate $record
+    $material=[ordered]@{schema=1;kind='CI_TEST_ONLY';candidate=$Candidate;root=$Checkout;runtime=$runtime;schedule=$baseRecipe.Material;grammar=(Get-WorkbenchCITool);policy=(Get-WorkbenchWorkflowPolicy)}
+    [pscustomobject]@{Digest=(Get-WorkbenchDigest ($material|ConvertTo-Json -Depth 20 -Compress));Material=$material;Context=$context}
+}
+function Assert-WorkbenchCIObserved([string]$Checkout,[string]$ciLogPath) {
+    $ciWatcherPath=Join-Path $Checkout 'lib/watch_run.ps1'
+    $observers=@(Get-CimInstance Win32_Process -Filter "Name='pwsh.exe'" -ErrorAction Stop|Where-Object{
+        ([string]$_.CommandLine).Contains($ciWatcherPath,[StringComparison]::OrdinalIgnoreCase)-and
+        ([string]$_.CommandLine).Contains($ciLogPath,[StringComparison]::OrdinalIgnoreCase)})
+    if($observers.Count-ne1){throw 'WB_CI_OBSERVER_REQUIRED'}
+}
+function Assert-WorkbenchCITimed([string]$Checkout,[string]$RuntimeRoot) {
+    $log=Join-Path $RuntimeRoot 'ci.log'
+    if(!$env:ORVION_TIMED_ROOT-or[IO.Path]::GetFullPath($env:ORVION_TIMED_ROOT)-ine$Checkout-or
+       $env:ORVION_TIMED_LOG-ine$log-or!(Test-Path -LiteralPath $log)){throw 'WB_CI_TIMED_CONTEXT_REQUIRED'}
+    $runnerId=0
+    if(![int]::TryParse($env:ORVION_TIMED_PID,[ref]$runnerId)){throw 'WB_CI_TIMED_PARENT_REQUIRED'}
+    $ancestorId=$PID;$found=$false
+    for($hop=0;$hop-lt8-and$ancestorId-gt0;$hop++){
+        $row=Get-CimInstance Win32_Process -Filter "ProcessId=$ancestorId" -ErrorAction Stop
+        if(!$row){throw 'WB_CI_TIMED_PARENT_REQUIRED'}
+        if($ancestorId-eq$runnerId){
+            if(!([string]$row.CommandLine).Contains((Join-Path $Checkout 'lib/run_timed.ps1'),[StringComparison]::OrdinalIgnoreCase)){throw 'WB_CI_TIMED_PARENT_REQUIRED'}
+            $found=$true;break
+        };$ancestorId=[int]$row.ParentProcessId
+    }
+    if(!$found){throw 'WB_CI_TIMED_PARENT_REQUIRED'}
+    $reader=[IO.StreamReader]::new([IO.File]::Open($log,'Open','Read','ReadWrite'))
+    try{$start=$reader.ReadLine()}finally{$reader.Dispose()}
+    if($start-notmatch('^\[[^]]+\] START pid='+$runnerId+' ')){throw 'WB_CI_TIMED_PARENT_REQUIRED'}
+    Assert-WorkbenchCIObserved $Checkout $log
+}
+function Assert-WorkbenchCISuiteParent([string]$Checkout,[string]$Candidate,[string]$RuntimeRoot,[string]$Digest,[int]$Parent) {
+    $processRow=Get-CimInstance Win32_Process -Filter "ProcessId=$PID" -ErrorAction Stop
+    $ownerRow=Get-CimInstance Win32_Process -Filter "ProcessId=$Parent" -ErrorAction Stop
+    if(!$processRow-or!$ownerRow-or$processRow.ParentProcessId-ne$Parent-or
+       !([string]$ownerRow.CommandLine).Contains((Join-Path $Checkout 'lib/Workbench.ps1'),[StringComparison]::OrdinalIgnoreCase)-or
+       ([string]$ownerRow.CommandLine)-notmatch'(?i)(?:^|\s)-CIWorker(?:\s|$)'){throw 'WB_CI_SUITE_PARENT_REQUIRED'}
+    $recipe=Get-WorkbenchCIRecipe $Checkout $Candidate $RuntimeRoot
+    if($Digest-cne$recipe.Digest){throw 'WB_CI_RECIPE_MISMATCH'}
+    Assert-WorkbenchCITimed $Checkout $RuntimeRoot
+    $recipe
+}
+
 function Enter-WorkbenchHeavyOperation($context) {
     [void][IO.Directory]::CreateDirectory($context['Temp Root'])
     $lock=Assert-WorkbenchExternalPath (Join-Path $context['Temp Root'] 'finish-heavy.lock')
@@ -411,7 +535,8 @@ function Test-WorkbenchTree([string]$Checkout,[string]$Before,[string]$After,[sw
         if($declared.Count-and$declared[0].Value-cne$pin.Value){throw 'WB_CONTRADICTORY_BLOB_PREDICATE'}
     }
     $profiles=@(Get-WorkbenchProfiles $scope)
-    if($record.Status-in@('Approved','In Progress')-and('CI'-in$profiles-or'WORKSTATION'-in$profiles)){throw 'WB_PROFILE_CAPABILITY_NOT_YET_IMPLEMENTED'}
+    if($record.Status-in@('Approved','In Progress')-and('WORKSTATION'-in$profiles)){throw 'WB_PROFILE_CAPABILITY_NOT_YET_IMPLEMENTED'}
+    if('CI'-in$profiles-and@($scope|Where-Object{$_-match'^\.github/'-and$_-cne'.github/workflows/workbench-acceptance.yml'}).Count){throw 'WB_CI_SCOPE_UNSUPPORTED'}
     $baseline=$record.Sections['Baseline'].Trim()
     if($baseline-cnotmatch'^[0-9a-f]{40}$'){throw 'WB_BASELINE_INVALID'}
     & git -C $Checkout merge-base --is-ancestor $baseline $Before 2>$null

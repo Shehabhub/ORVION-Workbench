@@ -11,11 +11,17 @@ if(!$suiteProcess-or!$suiteOwner-or$suiteProcess.ParentProcessId-ne$suiteParent-
    !([string]$suiteOwner.CommandLine).Contains((Join-Path $suiteRoot 'lib/Workbench.ps1'),[StringComparison]::OrdinalIgnoreCase)){
     throw 'WB_RAW_FULL_SUITE_REFUSED'
 }
-$suiteContract=Get-WorkbenchPointer ([IO.File]::ReadAllText((Join-Path $suiteRoot 'RESUME.md')))
-if($suiteContract-ceq'None'){throw 'WB_RAW_FULL_SUITE_REFUSED'}
-$suiteRecord=Get-WorkbenchFields ([IO.File]::ReadAllText((Join-Path $suiteRoot $suiteContract)))
-$suiteRecipe=Get-WorkbenchRecipe $suiteRoot 'HEAD' $suiteRecord
-if(!$suiteRecipe-or$suiteRecipe.Digest-cne$env:WORKBENCH_SUITE_RECIPE){throw 'WB_SUITE_RECIPE_MISMATCH'}
+
+if($env:WORKBENCH_SUITE_MODE-ceq'CI'){
+    $ciRecipe=Assert-WorkbenchCISuiteParent $suiteRoot $env:WORKBENCH_CI_CANDIDATE $env:WORKBENCH_CI_RUNTIME $env:WORKBENCH_SUITE_RECIPE $suiteParent
+    $suiteRecipe=[pscustomobject]@{Material=$ciRecipe.Material.schedule}
+}elseif(!$env:WORKBENCH_SUITE_MODE-or$env:WORKBENCH_SUITE_MODE-ceq'FINISH'){
+    $suiteContract=Get-WorkbenchPointer ([IO.File]::ReadAllText((Join-Path $suiteRoot 'RESUME.md')))
+    if($suiteContract-ceq'None'){throw 'WB_RAW_FULL_SUITE_REFUSED'}
+    $suiteRecord=Get-WorkbenchFields ([IO.File]::ReadAllText((Join-Path $suiteRoot $suiteContract)))
+    $suiteRecipe=Get-WorkbenchRecipe $suiteRoot 'HEAD' $suiteRecord
+    if(!$suiteRecipe-or$suiteRecipe.Digest-cne$env:WORKBENCH_SUITE_RECIPE){throw 'WB_SUITE_RECIPE_MISMATCH'}
+}else{throw 'WB_SUITE_MODE_REFUSED'}
 $lib=Join-Path $PSScriptRoot 'lib';$fail=0;$sw=[Diagnostics.Stopwatch]::StartNew()
 # test events never reach the real journal: every check writes to its own disposable root
 $journal=Join-Path $PSScriptRoot 'events\events.jsonl';$journalHash=if(Test-Path $journal){(Get-FileHash $journal).Hash}
