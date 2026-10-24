@@ -2,8 +2,8 @@
 
 ## Status
 
-[x] Draft
-[ ] Approved
+[ ] Draft
+[x] Approved
 [ ] In Progress
 [ ] Complete
 [ ] Cancelled
@@ -118,6 +118,13 @@ Recovery Attempt: 0
 ## Execution Log
 
 Isolated preparation only. No original allocation or approval. The disposable sandbox may use explicitly synthetic exact-root approval solely to rehearse this scope; it grants no original/remote authority. Use existing native admission, Execute, timed/watched Finish, Review, Complete and accepted-range tools.
+Approved Draft: C:\Users\My Lab\Documents\ORVION-Owner-Review\hosted-workflow-20261024\assurance\V3\DRAFT.md
+Approved SHA256: DC8B4ED0B617041E83B1D2F14A6A9252855BC10EF210A814BE34ABECD916EE38
+Owner Evidence: C:\Users\My Lab\Documents\ORVION-Owner-Review\hosted-workflow-20261024\runtime\original\owner-approval.md
+Owner Evidence SHA256: 1D9563BF75606AB943C4FFB62F3AAEB26F75606A2381658C7D13530AABFBCE02
+Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
+Sandbox Receipt: C:\Users\My Lab\Documents\ORVION-Owner-Review\hosted-workflow-20261024\runtime\sandbox\own-finish-receipt.json
+Sandbox Receipt SHA256: AD1BA2A6ACB2BD6A217CC9B67907DCD897447A87E238ADD816E1EC47A3C99679
 
 ## Verification Notes
 
