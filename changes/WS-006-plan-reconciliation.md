@@ -422,19 +422,19 @@ Minimum Commit GB: 3
 
 ## Acceptance Criteria
 
-- [ ] Installed README.md equals the reviewed reconciliation payload. check: blob:README.md=c03229ad47731034d98cbda12293518ea80f9db4
-- [ ] Installed docs/EXECUTION-PLAN.md equals the reviewed reconciliation payload. check: blob:docs/EXECUTION-PLAN.md=9a5b9d73f600926747118a39a98c7ed22b6e50d7
-- [ ] Installed docs/WORKSPACE-LAYOUT.md equals the reviewed reconciliation payload. check: blob:docs/WORKSPACE-LAYOUT.md=ab55a1e8b56d13a850955ec7b5f68f18e5d7fb4f
-- [ ] The own RESUME authority body is preserved; only its lawful active pointer changes. check: normalized-resume:RESUME.md=1F392B6A18CC44442BCABE3E23BF82571975C585E8C70496881136170FECE520
-- [ ] Existing stages 0-7, unchanged P3 G2c A-H/G3/G4 authority, all previous library names and source/data/retention/recovery boundaries remain; no duplicate live plan or repeated WS005 lifecycle is introduced.
-- [ ] Readiness completion and remaining native management/discovery/storage/recovery evidence classes are accurately separated; dated reference facts/history remain labelled. Stage 3 security acceptance covers hosted workflow, governed preflight/exact SHA, previously trusted evaluation/self-exemption refusal, effective GitHub enforcement, separate promotion and evidence, recovery/refusals, truthful private entitlement and noncircular bootstrap. Proposed trusted-main remains an independent external checkout, not an activated capability; publication/settings remain separately authorized.
-- [ ] Before Complete, the current execution role has its own successful fresh timed/watched Finish and truthful independent live Review of the actual implementation. Sandbox evidence makes no original completion claim; Original admission/Finish requires its valid independent sandbox proof and its own separate fresh receipt. Future Complete/range/publication outcomes are not pre-Complete acceptance claims.
+- [x] Installed README.md equals the reviewed reconciliation payload. check: blob:README.md=c03229ad47731034d98cbda12293518ea80f9db4
+- [x] Installed docs/EXECUTION-PLAN.md equals the reviewed reconciliation payload. check: blob:docs/EXECUTION-PLAN.md=9a5b9d73f600926747118a39a98c7ed22b6e50d7
+- [x] Installed docs/WORKSPACE-LAYOUT.md equals the reviewed reconciliation payload. check: blob:docs/WORKSPACE-LAYOUT.md=ab55a1e8b56d13a850955ec7b5f68f18e5d7fb4f
+- [x] The own RESUME authority body is preserved; only its lawful active pointer changes. check: normalized-resume:RESUME.md=1F392B6A18CC44442BCABE3E23BF82571975C585E8C70496881136170FECE520
+- [x] Existing stages 0-7, unchanged P3 G2c A-H/G3/G4 authority, all previous library names and source/data/retention/recovery boundaries remain; no duplicate live plan or repeated WS005 lifecycle is introduced.
+- [x] Readiness completion and remaining native management/discovery/storage/recovery evidence classes are accurately separated; dated reference facts/history remain labelled. Stage 3 security acceptance covers hosted workflow, governed preflight/exact SHA, previously trusted evaluation/self-exemption refusal, effective GitHub enforcement, separate promotion and evidence, recovery/refusals, truthful private entitlement and noncircular bootstrap. Proposed trusted-main remains an independent external checkout, not an activated capability; publication/settings remain separately authorized.
+- [x] Before Complete, the current execution role has its own successful fresh timed/watched Finish and truthful independent live Review of the actual implementation. Sandbox evidence makes no original completion claim; Original admission/Finish requires its valid independent sandbox proof and its own separate fresh receipt. Future Complete/range/publication outcomes are not pre-Complete acceptance claims.
 
 ## Review Gate
 
-- [ ] Independently inspect every actual output/blob and accepted diff, source/checkpoint routes and unchanged programme obligations against the V2 coverage map; historical R4 evidence remains unchanged.
-- [ ] Observe the current role's own fresh receipt, runner and concurrent watcher exits, implementation/evaluator/recipe identity and required profiles; verify all criteria truthfully before Complete. A sandbox Review never claims an original receipt or result.
-- [ ] Verify exact scope, normal admission hooks and clean committed implementation. Review the carrying transitions available at this boundary; final Complete-commit/range proof belongs to the explicit post-Complete obligation. Preserve prior unique external evidence; no publication or future capability is claimed.
+- [x] Independently inspect every actual output/blob and accepted diff, source/checkpoint routes and unchanged programme obligations against the V2 coverage map; historical R4 evidence remains unchanged.
+- [x] Observe the current role's own fresh receipt, runner and concurrent watcher exits, implementation/evaluator/recipe identity and required profiles; verify all criteria truthfully before Complete. A sandbox Review never claims an original receipt or result.
+- [x] Verify exact scope, normal admission hooks and clean committed implementation. Review the carrying transitions available at this boundary; final Complete-commit/range proof belongs to the explicit post-Complete obligation. Preserve prior unique external evidence; no publication or future capability is claimed.
 
 ## Runtime Checkpoint
 
@@ -457,7 +457,10 @@ Original exact three documentation outputs applied through accepted native Workb
 ## Verification Notes
 
 Preparation only. Actual bounded replay/caller/refusal observations belong in EVIDENCE.json. No sandbox Finish/Review/Complete, original approval or original implementation is claimed. The historical WS005 R4 Finish must not be replayed.
-
+Verdict: Confirmed Complete
+Reviewed Fingerprint: 0D36D2C083B294598DD38BE366966BB9FBA17462459B9D83BD5BEC5C319CC719
+Reviewed Receipt: 17F032843016BF569EAD2969773D78B7CFDF2587057EBB31A9C03747A8BE8455
+Evidence: C:\Users\My Lab\Documents\ORVION-Owner-Review\workbench-native-supervision-20261023\consolidated-plan-security-20261024\runtime\original\independent-finish-review.json and criterion-observations.json. Actual original root and exact three document outputs, normalized RESUME body, fresh original timed/watched Finish (21 owning suites PASS; Finish 00:16:10; runner/watcher/host exit 0), original role/Draft/recipe/fingerprint/sandbox-proof bindings and pinned accepted live observer checked before this Review. All original stage/tool/directory/P3/security/retention/recovery obligations and historical seals preserved. Supplemental read-only oracle/invocation errors are preserved and resolved without source/recipe change or Finish replay. Hunt's source index-missing gap remains visible, outside this scope. Native Complete and accepted-range verification are still post-Review obligations. No publication, hosted enforcement, trusted checkout creation, management implementation or canonical cutover replay.
 
 ## Selection reasons and sources
 
