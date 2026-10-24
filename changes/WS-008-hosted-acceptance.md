@@ -95,19 +95,19 @@ Minimum Commit GB: 3
 
 ## Acceptance Criteria
 
-- [ ] Exact single installed workflow output. check: blob:.github/workflows/workbench-acceptance.yml=f8ea66fee5642bb2613e530c053fdbe617623898
-- [ ] RESUME authority body preserved. check: normalized-resume:RESUME.md=1F392B6A18CC44442BCABE3E23BF82571975C585E8C70496881136170FECE520
-- [ ] Accepted checker semantic policy and real pinned actionlint accept the exact workflow. It uses only push/workbench-preflight, one named workbench-acceptance job, windows-2025, contents read, pinned checkout with full history/no persistent credentials, exact hash-checked grammar provisioning and the existing candidate-bound CI entry. No privileged event, secret/release step or conditional skip is introduced.
-- [ ] Actual bounded caller/policy tests causally refuse malformed/duplicate/unknown workflow keys, unsafe triggers or branch/check/runner changes, skipped jobs, permissions escalation, unpinned/altered actions/tools, changed Verify command, missing tests, stale SHA, nonzero exits and forged success. Existing owning causal engine proof is reused only when exact inputs are unchanged, and this unit's mandatory Finish executes its native owning suite.
-- [ ] Literal replay reproduces the exact output, is idempotent, and refuses changed existing output or wrong declared blob before writes. Only the one implementation path and legal lifecycle metadata are admitted. The exact pinned provisioning source matches the previously successful unchanged provision proof and binaries.
-- [ ] In the independent sandbox, the exact workflow Verify body invokes actual local CI once at the committed implementation SHA using bounded local runner variables; it completes the full schedule as CI_TEST_ONLY without changing native receipts. This is local operational proof, never actual GitHub runner/event/check execution. Original execution reuses this valid sandbox workflow-call proof and requires its own fresh native Finish, not a redundant second full CI unless changed evidence demonstrates a need.
-- [ ] This execution role has its own fresh timed/watched native Finish, including the derived CI profile, and independent live Review before native Complete. Every completion criterion is locally satisfiable; actual hosted run/check, publication, trusted evaluation, private protection and promotion are separately authorized future boundaries. No hosted check is required to Complete this initial local source contract.
+- [x] Exact single installed workflow output. check: blob:.github/workflows/workbench-acceptance.yml=f8ea66fee5642bb2613e530c053fdbe617623898
+- [x] RESUME authority body preserved. check: normalized-resume:RESUME.md=1F392B6A18CC44442BCABE3E23BF82571975C585E8C70496881136170FECE520
+- [x] Accepted checker semantic policy and real pinned actionlint accept the exact workflow. It uses only push/workbench-preflight, one named workbench-acceptance job, windows-2025, contents read, pinned checkout with full history/no persistent credentials, exact hash-checked grammar provisioning and the existing candidate-bound CI entry. No privileged event, secret/release step or conditional skip is introduced.
+- [x] Actual bounded caller/policy tests causally refuse malformed/duplicate/unknown workflow keys, unsafe triggers or branch/check/runner changes, skipped jobs, permissions escalation, unpinned/altered actions/tools, changed Verify command, missing tests, stale SHA, nonzero exits and forged success. Existing owning causal engine proof is reused only when exact inputs are unchanged, and this unit's mandatory Finish executes its native owning suite.
+- [x] Literal replay reproduces the exact output, is idempotent, and refuses changed existing output or wrong declared blob before writes. Only the one implementation path and legal lifecycle metadata are admitted. The exact pinned provisioning source matches the previously successful unchanged provision proof and binaries.
+- [x] In the independent sandbox, the exact workflow Verify body invokes actual local CI once at the committed implementation SHA using bounded local runner variables; it completes the full schedule as CI_TEST_ONLY without changing native receipts. This is local operational proof, never actual GitHub runner/event/check execution. Original execution reuses this valid sandbox workflow-call proof and requires its own fresh native Finish, not a redundant second full CI unless changed evidence demonstrates a need.
+- [x] This execution role has its own fresh timed/watched native Finish, including the derived CI profile, and independent live Review before native Complete. Every completion criterion is locally satisfiable; actual hosted run/check, publication, trusted evaluation, private protection and promotion are separately authorized future boundaries. No hosted check is required to Complete this initial local source contract.
 
 ## Review Gate
 
-- [ ] Independently observe exact installed workflow bytes, original baseline/protected evidence, approved role/root/Draft, causal tests, literal replay and normal accepted hooks. Check the implementation plus available carrying transitions against the pinned accepted checker.
-- [ ] Verify this role's own fresh receipt, exact implementation/evaluator/recipe/profiles, timed END and concurrent watcher/host exits. Inspect actual sandbox workflow-call CI result and unchanged native receipts; do not transplant a sandbox receipt as original certification.
-- [ ] Record truthful local-only acceptance with DONE/None. Native Review precedes Complete; the full baseline-to-Complete range and clean final pointer are verified after Complete. Preserve WS005/006/007, original/unrelated roots and canonical plan v1.6/layout v1.5. Hosted execution/enforcement remain UNPROVEN and CTRL-19 OPEN.
+- [x] Independently observe exact installed workflow bytes, original baseline/protected evidence, approved role/root/Draft, causal tests, literal replay and normal accepted hooks. Check the implementation plus available carrying transitions against the pinned accepted checker.
+- [x] Verify this role's own fresh receipt, exact implementation/evaluator/recipe/profiles, timed END and concurrent watcher/host exits. Inspect actual sandbox workflow-call CI result and unchanged native receipts; do not transplant a sandbox receipt as original certification.
+- [x] Record truthful local-only acceptance with DONE/None. Native Review precedes Complete; the full baseline-to-Complete range and clean final pointer are verified after Complete. Preserve WS005/006/007, original/unrelated roots and canonical plan v1.6/layout v1.5. Hosted execution/enforcement remain UNPROVEN and CTRL-19 OPEN.
 
 ## Runtime Checkpoint
 
@@ -130,7 +130,10 @@ Original literal workflow output applied through the accepted native Workbench e
 ## Verification Notes
 
 No future lifecycle verdict is asserted. Retain actual role-specific proof externally. Revalidate exact original baseline and selected bytes before any separately approved original operation.
-
+Verdict: Confirmed Complete
+Reviewed Fingerprint: 3364EB6CD8C4C514B4DD5AA2F9DD632FEC9250F05AC293921A8AB7DB0FC841CF
+Reviewed Receipt: 2E980EC0C2B1C8A366B719AC33C878E46DD3531C8E0953CAEAE53D1D7A57C09F
+Evidence: actual Original root, exact workflow output, full real owning suite, actual timed/watched exits, matching role/recipe/Draft and independent live review. Runtime: C:\Users\My Lab\Documents\ORVION-Owner-Review\hosted-workflow-20261024\runtime\original. Unchanged sealed sandbox workflow-call/policy/literal proof is reused only within its scope; this original root owns its distinct fresh Finish. No product/remote/recovery or equal-OS security claim.
 
 ## Selection reasons and sources
 
