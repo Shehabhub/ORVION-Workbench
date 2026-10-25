@@ -1025,23 +1025,23 @@ Minimum Commit GB: 3
 
 ## Acceptance Criteria
 
-- [ ] Exact scoped plan or immutable source archive. check: blob:docs/EXECUTION-PLAN.md=22e34beb1a7563f3db2b7308a5c803c340955861
-- [ ] Exact scoped plan or immutable source archive. check: blob:docs/history/programme/execution-plan-pre-git-v1.4.md=023489fa831efa47cd3e7b85aa90e2b48c40b946
-- [ ] Exact scoped plan or immutable source archive. check: blob:docs/history/programme/workbench-acceptance-v10.md=aa1ede7caa21de8c7cfd8048254a4c1f478042bf
-- [ ] Exact scoped plan or immutable source archive. check: blob:docs/history/programme/environment-recovery-original.md=f4cb16210f811001914ea8c5c59d281e36d57dd2
-- [ ] Exact scoped plan or immutable source archive. check: blob:docs/history/programme/programme-handoff-original.md=140ea80985eec101cc645d888d231efbdf1cd864
-- [ ] Exact scoped plan or immutable source archive. check: blob:docs/history/programme/provenance.json=a883f6828c6fb70ae43014328927135e997e9a67
-- [ ] Exact scoped plan or immutable source archive. check: blob:docs/history/programme/execution-plan-pre-git-v1.4-source.json=54e2b84b2c5e5365d229f2ebfad68cbc4e38a1ae
-- [ ] Exact scoped plan or immutable source archive. check: blob:docs/history/programme/execution-plan-pre-git-v1-v1.3.json=7acbb27ee56cc62421ee7fd6bc59b76121012f4a
-- [ ] RESUME authority text remains unchanged. check: normalized-resume:RESUME.md=1F392B6A18CC44442BCABE3E23BF82571975C585E8C70496881136170FECE520
-- [ ] Existing Stage0-7 paragraphs, P3/ADR/Contract C, architecture1.5 and holds remain. The dated view separates completed WS001-WS011/local/hosted/trusted proof from blocked enforcement/bootstrap and unproven offsite/clean-Windows recovery. New requirements map to original stages; no new master or implemented capability is asserted.
-- [ ] Exact literal replay and idempotence produce the declared blob; changed baseline anchor and wrong already-applied blob refuse without mutation. Preserve actual causal controls and the initial refused Draft; no guard is relaxed.
-- [ ] This isolated role completes one fresh timed/watched native Finish, accepted-code live receipt Review, native Review/Complete and all new carrying transitions READY. Sandbox success grants no original Gate1, hosted, settings or release authority.
+- [x] Exact scoped plan or immutable source archive. check: blob:docs/EXECUTION-PLAN.md=22e34beb1a7563f3db2b7308a5c803c340955861
+- [x] Exact scoped plan or immutable source archive. check: blob:docs/history/programme/execution-plan-pre-git-v1.4.md=023489fa831efa47cd3e7b85aa90e2b48c40b946
+- [x] Exact scoped plan or immutable source archive. check: blob:docs/history/programme/workbench-acceptance-v10.md=aa1ede7caa21de8c7cfd8048254a4c1f478042bf
+- [x] Exact scoped plan or immutable source archive. check: blob:docs/history/programme/environment-recovery-original.md=f4cb16210f811001914ea8c5c59d281e36d57dd2
+- [x] Exact scoped plan or immutable source archive. check: blob:docs/history/programme/programme-handoff-original.md=140ea80985eec101cc645d888d231efbdf1cd864
+- [x] Exact scoped plan or immutable source archive. check: blob:docs/history/programme/provenance.json=a883f6828c6fb70ae43014328927135e997e9a67
+- [x] Exact scoped plan or immutable source archive. check: blob:docs/history/programme/execution-plan-pre-git-v1.4-source.json=54e2b84b2c5e5365d229f2ebfad68cbc4e38a1ae
+- [x] Exact scoped plan or immutable source archive. check: blob:docs/history/programme/execution-plan-pre-git-v1-v1.3.json=7acbb27ee56cc62421ee7fd6bc59b76121012f4a
+- [x] RESUME authority text remains unchanged. check: normalized-resume:RESUME.md=1F392B6A18CC44442BCABE3E23BF82571975C585E8C70496881136170FECE520
+- [x] Existing Stage0-7 paragraphs, P3/ADR/Contract C, architecture1.5 and holds remain. The dated view separates completed WS001-WS011/local/hosted/trusted proof from blocked enforcement/bootstrap and unproven offsite/clean-Windows recovery. New requirements map to original stages; no new master or implemented capability is asserted.
+- [x] Exact literal replay and idempotence produce the declared blob; changed baseline anchor and wrong already-applied blob refuse without mutation. Preserve actual causal controls and the initial refused Draft; no guard is relaxed.
+- [x] This isolated role completes one fresh timed/watched native Finish, accepted-code live receipt Review, native Review/Complete and all new carrying transitions READY. Sandbox success grants no original Gate1, hosted, settings or release authority.
 
 ## Review Gate
 
-- [ ] Compare scoped plan to baseline and owner directives; inspect stage-preservation/causal literal controls, exact output, unchanged architecture/governance/workflow and original roots.
-- [ ] Independently evaluate actual root/Draft/recipe/evaluator/input-bound fresh receipt and timed/watcher exits using pinned accepted code; native Review/Complete and entire new carrying range must pass. No second-agent or provider-enforcement claim.
+- [x] Compare scoped plan to baseline and owner directives; inspect stage-preservation/causal literal controls, exact output, unchanged architecture/governance/workflow and original roots.
+- [x] Independently evaluate actual root/Draft/recipe/evaluator/input-bound fresh receipt and timed/watcher exits using pinned accepted code; native Review/Complete and entire new carrying range must pass. No second-agent or provider-enforcement claim.
 
 ## Runtime Checkpoint
 
@@ -1065,6 +1065,10 @@ Original exact literal implementation applied by accepted native Workbench Execu
 ## Verification Notes
 
 CRGL: compare Platinum20ea5e0 and Founderda91901 ENGINEERING_METHOD/AGENTS/CR_LIFECYCLE, historical SPEC278 cancellation (stale manifest authority), SPEC290/292 assurance and consumer feasibility, SPEC294/296 carrying-completion correction, native master/action/ADR sources and current Workbench WS006 plan amendment. Reuse one canonical plan, exact literal replay, mandatory V1/V2/V3, native full closure and independent accepted-range evaluator; do not copy product-only release interfaces or introduce governance predicates into documentation scope. plan-prechecks.json and precedent-identities.json preserve bounded source observations. Hosted/private security remains separate and BLOCKED; no provider proof is invented from this rehearsal.
+Verdict: Confirmed Complete
+Reviewed Fingerprint: D2C1669DE705151AC37FBC7A5AA5B8F49EF44950A9C663A3F2CBE69832EB20C1
+Reviewed Receipt: 409D1D9CACF6BB13F8858701733A0C3707E84E8958E89E403D0C8231795C1EE9
+Evidence: fresh ORIGINAL root-bound timed/watched Finish, actual21-suite schedule/exits, approved exact outputs and independently pinned accepted-code live review. Runtime: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\plan-successor-r2\runtime\original. No sandbox receipt transplant, remote parity, offsite recovery or equal-OS isolation claim.
 
 ## Selection reasons and sources
 
