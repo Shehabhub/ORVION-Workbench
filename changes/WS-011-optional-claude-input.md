@@ -2,8 +2,8 @@
 
 ## Status
 
-[x] Draft
-[ ] Approved
+[ ] Draft
+[x] Approved
 [ ] In Progress
 [ ] Complete
 [ ] Cancelled
@@ -241,6 +241,13 @@ Recovery Attempt: 0
 ## Execution Log
 
 Sandbox preparation only. Synthetic isolated root-bound rehearsal approval is allowed by the owner directive; it grants no original execution or remote authority. Original Gate 1 remains absent.
+Approved Draft: C:\Users\My Lab\Documents\ORVION-Owner-Review\hosted-ci-recovery-20261025\assurance\V3\DRAFT.md
+Approved SHA256: 6BEE78104FD6A2A944C4567E709854DBDFA4EE639D6AC4DEA40E8B78C55B3597
+Owner Evidence: C:\Users\My Lab\.codex\attachments\583da780-379a-45e7-986c-1e5e350ba511\Pasted text.txt
+Owner Evidence SHA256: BEECCC67CE138DD36C97E564104C530FDBF4CAB45366B27FCA9048FAF3FA1E0B
+Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
+Sandbox Receipt: C:\Users\My Lab\Documents\ORVION-Owner-Review\hosted-ci-recovery-20261025\runtime\sandbox\own-finish-receipt.json
+Sandbox Receipt SHA256: BFA0328CEFC3A8F007C08206CCB514515B3D175D7FD8B3F60F87D6E0119E1929
 
 ## Verification Notes
 
