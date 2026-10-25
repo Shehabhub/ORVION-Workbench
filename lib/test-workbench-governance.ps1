@@ -299,6 +299,47 @@ function Assert-CIRefusal([string]$Name,[scriptblock]$Operation,[string]$Code) {
     Assert-Fixture $Name ($caught-cmatch$Code) $caught
 }
 function Test-CICapability {
+    # WS009 privacy: exercise the literal failure block with synthetic logs independently of the watcher.
+    $diagnosticText=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Workbench.ps1'))
+    $parseTokens=$null;$parseErrors=$null
+    $diagnosticAst=[Management.Automation.Language.Parser]::ParseInput($diagnosticText,[ref]$parseTokens,[ref]$parseErrors)
+    $diagnosticBlocks=@($diagnosticAst.FindAll({param($node) $node-is[Management.Automation.Language.IfStatementAst]-and$node.Extent.Text.StartsWith('if(@($children|Where-Object{$_.Process.ExitCode-ne0}).Count)')},$true))
+    if($parseErrors.Count-or$diagnosticBlocks.Count-ne1){throw 'CI_DIAGNOSTIC_BLOCK_NOT_UNIQUE'}
+    $diagnosticBlock=[scriptblock]::Create("param(`$children,`$CIRuntimeRoot)`n"+$diagnosticBlocks[0].Extent.Text)
+    $fakeGh='gh'+'p_'+('Ab3'*12);$fakePat='github_'+'pat_'+('Cd4_'*9);$fakeApi='sk'+'-'+('Ef5_'*9)
+    $fakeJwt='eyJ'+('a'*12)+'.'+('b'*15)+'.'+('c'*15);$fakeBearer='SyntheticBearerValue';$fakeNamed='SyntheticNamedValue'
+    $privacyRoot=Join-Path $ownedRoot 'privacy';[void][IO.Directory]::CreateDirectory($privacyRoot)
+    $credentialLine="FAIL assertion expected=42 actual=41 trace=$fakeGh pat=$fakePat api=$fakeApi jwt=$fakeJwt Authorization: Bearer $fakeBearer password=$fakeNamed"
+    $privacyCases=[ordered]@{assertion=$credentialLine}
+    $privacyCases['boundary']=('x'*1994)+' '+$fakeGh+' tail'
+    $privacyCases['named-boundary']=('x'*1986)+' API_KEY='+$fakeNamed+' tail'
+    foreach($case in $privacyCases.Keys){
+        $dir=Join-Path $privacyRoot $case;[void][IO.Directory]::CreateDirectory($dir)
+        Write-FixtureFile (Join-Path $dir 'ci.log') ($privacyCases[$case]+[char]10)
+        Write-FixtureFile (Join-Path $dir 'watcher.log') $credentialLine
+        $children=@([pscustomobject]@{Role='runner';Process=[pscustomobject]@{ExitCode=1}},[pscustomobject]@{Role='watcher';Process=[pscustomobject]@{ExitCode=7}})
+        $captured=[Collections.Generic.List[string]]::new();$refusal=''
+        try{& $diagnosticBlock $children $dir|ForEach-Object{$captured.Add([string]$_)}}catch{$refusal=$_.Exception.Message}
+        $text=$captured-join[char]10
+        $leaked=@(@($fakeGh,$fakePat,$fakeApi,$fakeJwt,$fakeBearer,$fakeNamed)|Where-Object{$text.Contains($_)})
+        Assert-Fixture ('CI privacy '+$case+' masks both log sources before output and preserves refusal/exits') ($leaked.Count-eq0-and$text.Contains('<redacted>')-and$refusal-ceq'WB_CI_CHILD_OR_OBSERVER_FAILED'-and$captured[0]-ceq'CI_CHILD: runner exit=1'-and$captured[1]-ceq'CI_CHILD: watcher exit=7')
+        if($case-ceq'assertion'){Assert-Fixture 'CI privacy retains ordinary assertion context' ($text.Contains('FAIL assertion expected=42 actual=41'))}
+        if($case-ceq'boundary'){Assert-Fixture 'CI privacy never leaks a truncated token prefix' (!$text.Contains($fakeGh.Substring(0,5)))}
+        if($case-ceq'named-boundary'){Assert-Fixture 'CI privacy never leaks a truncated named value' (!$text.Contains($fakeNamed.Substring(0,4)))}
+    }
+    foreach($case in 'missing','empty','locked','malformed'){
+        $dir=Join-Path $privacyRoot $case;[void][IO.Directory]::CreateDirectory($dir)
+        $log=Join-Path $dir 'ci.log';$handle=$null
+        if($case-in@('empty','locked')){Write-FixtureFile $log ''}
+        if($case-ceq'locked'){$handle=[IO.File]::Open($log,'Open','ReadWrite','None')}
+        if($case-ceq'malformed'){[IO.File]::WriteAllBytes($log,[byte[]](0xC3,0x28,0xFF,0x07,0x0A,0x41))}
+        $captured=[Collections.Generic.List[string]]::new();$refusal=''
+        try{try{& $diagnosticBlock $children $dir|ForEach-Object{$captured.Add([string]$_)}}catch{$refusal=$_.Exception.Message}}finally{if($handle){$handle.Dispose()}}
+        $text=$captured-join[char]10
+        $expected=if($case-ceq'empty'){'CI_LOG: <empty>'}elseif($case-in@('missing','locked')){'CI_LOG: <unreadable>'}else{'CI_LOG: '}
+        Assert-Fixture ('CI privacy '+$case+' log retains fixed failure and safe fallback') ($refusal-ceq'WB_CI_CHILD_OR_OBSERVER_FAILED'-and$text.Contains($expected)-and$text-cnotmatch'[\x00-\x08\x0B-\x1F\x7F-\x9F\u2028\u2029]')
+    }
+
     $policy=Get-WorkbenchWorkflowPolicy
     $validJson=$policy|ConvertTo-Json -Depth 20
     Assert-WorkbenchWorkflowText $validJson
@@ -371,6 +412,7 @@ function Test-CICapability {
     $observations.Add([pscustomobject]@{Kind='ci-actual-positive';Root=$ciRoot;Runtime=$ciRuntime;Exit=$positive.Exit;Output=$positive.Output})
     $ciResult=if(Test-Path -LiteralPath (Join-Path $ciRuntime 'ci-result.json')){Get-Content -LiteralPath (Join-Path $ciRuntime 'ci-result.json') -Raw|ConvertFrom-Json}else{$null}
     Assert-Fixture 'CI actual terminal-None caller owns exactly one successful timed/watched schedule' ($positive.Exit-eq0-and$ciResult.Result-ceq'READY'-and$ciResult.Certification-eq$false-and$ciResult.Recipe-ceq$ciRecipe.Digest) $positive
+    Assert-Fixture 'CI actual success prints no failure diagnostics' ($positive.Output-cnotmatch'CI_CHILD:|CI_LOG:|CI_WATCHER:') $positive
     Assert-Fixture 'CI actual success creates neither native working nor archived certification' (!(Test-Path -LiteralPath (Join-Path $ciRoot '.workbench-local-certification.json'))-and!(Test-Path -LiteralPath (Join-Path $ciRoot '.workbench-certifications')))
     foreach($scenario in 'child-exit','omitted-schedule','omitted-hazards','stale-recipe','watcher-exit'){
         # Each mutant is independent synthetic initial trust data, never a bypassed production transition.
@@ -378,7 +420,7 @@ function Test-CICapability {
         foreach($relative in @((Invoke-FixtureGit $ciRoot @('ls-files')).Output)){
             Write-FixtureFile (Join-Path $mutantCI $relative) ([IO.File]::ReadAllText((Join-Path $ciRoot $relative)))
         }
-        if($scenario-ceq'child-exit'){Write-FixtureFile (Join-Path $mutantCI 'lib/test-synthetic.ps1') "'PASS forged green child'`nexit 7`n"}
+        if($scenario-ceq'child-exit'){Write-FixtureFile (Join-Path $mutantCI 'lib/test-synthetic.ps1') "'PASS forged green child'`n'::error::forged workflow command'`n`"``e[31mforged ansi``a bell`"`n'FAIL assertion expected=42 actual=41 trace=$fakeGh password=$fakeNamed'`nexit 7`n"}
         elseif($scenario-ceq'omitted-schedule'){
             $driver=Join-Path $mutantCI 'tests.ps1';$driverText=[IO.File]::ReadAllText($driver)
             $needle='foreach($relativeTest in $suiteRecipe.Material.tests)'
@@ -409,6 +451,9 @@ function Test-CICapability {
         $expectedFailure=if($scenario-in@('omitted-schedule','omitted-hazards')){'WB_CI_REQUIRED_TEST_NOT_OBSERVED'}else{'WB_CI_CHILD_OR_OBSERVER_FAILED'}
         $observations.Add([pscustomobject]@{Kind='ci-actual-mutant';Scenario=$scenario;Runtime=$mutantRuntime;Exit=$failure.Exit;Output=$failure.Output;Expected=$expectedFailure})
         Assert-Fixture ('CI actual '+$scenario+' cannot become success') ($failure.Exit-ne0-and$failure.Output-match$expectedFailure-and!(Test-Path -LiteralPath (Join-Path $mutantRuntime 'ci-result.json'))) $failure
+        if($scenario-ceq'child-exit'){Assert-Fixture 'CI child failure names both exits, the failing test and its detail without raw workflow commands or controls' ($failure.Output-cmatch'(?m)^CI_CHILD: runner exit=1\r?$'-and$failure.Output-cmatch'(?m)^CI_CHILD: watcher exit=1\r?$'-and$failure.Output-cmatch'(?m)^CI_LOG: .*FAIL test-synthetic\.ps1'-and$failure.Output-cmatch'(?m)^CI_LOG: .*::error::forged workflow command'-and$failure.Output-cmatch'(?m)^CI_LOG: .*forged ansi\? bell'-and$failure.Output-cmatch'(?m)^CI_WATCHER: '-and$failure.Output-cnotmatch'(?m)^::'-and$failure.Output-cnotmatch'\x1B') $failure}
+        if($scenario-ceq'child-exit'){Assert-Fixture 'CI actual child assertion redacts credentials and retains assertion context' ($failure.Output.Contains('FAIL assertion expected=42 actual=41')-and$failure.Output.Contains('<redacted>')-and!$failure.Output.Contains($fakeGh)-and!$failure.Output.Contains($fakeNamed)) $failure}
+        if($scenario-ceq'watcher-exit'){Assert-Fixture 'CI observer failure names its own exit beside the runner log' ($failure.Output-cmatch'(?m)^CI_CHILD: runner exit=0\r?$'-and$failure.Output-cmatch'(?m)^CI_CHILD: watcher exit=7\r?$'-and$failure.Output-cmatch'(?m)^CI_LOG: .*END exit=0 '-and$failure.Output-cmatch'(?m)^CI_WATCHER: ') $failure}
     }
 
 

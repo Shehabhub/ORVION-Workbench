@@ -97,7 +97,24 @@ try {
                     [IO.File]::WriteAllText((Join-Path $CIRuntimeRoot ($child.Role+'.log')),($child.Out.GetAwaiter().GetResult()+$child.Err.GetAwaiter().GetResult()),[Text.UTF8Encoding]::new($false))
                     [IO.File]::WriteAllText((Join-Path $CIRuntimeRoot ($child.Role+'.exit')),[string]$child.Process.ExitCode)
                 }
-                if(@($children|Where-Object{$_.Process.ExitCode-ne0}).Count){throw 'WB_CI_CHILD_OR_OBSERVER_FAILED'}
+                if(@($children|Where-Object{$_.Process.ExitCode-ne0}).Count){
+                    # Failure only: actual exits, the runner's own timed log and a failed watcher's output, bounded.
+                    # Controls are replaced and every line is prefixed, so replayed text cannot form a runner workflow command.
+                    # Same bounded vocabulary as watch_run.ps1 Hide-Secret; its top-level watcher cannot be imported here.
+                    # Mask each complete raw line before sanitizing, truncating or printing it; raw runtime logs stay local.
+                    function Hide-WorkbenchCIDiagnostic([string]$diagnosticLine) {
+                        $t = $diagnosticLine -replace '\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_\w{20,}|sk-[A-Za-z0-9_-]{20,}|eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]+)', '<redacted>'
+                        $t = $t -replace '(?i)\bbearer\s+(?!<redacted>)\S+', 'Bearer <redacted>'
+                        $t -replace '(?i)\b(token|secret|password|passwd|api[_-]?key|authorization)(\s*[:=]\s*)(?!Bearer <redacted>)(?!<redacted>)\S+', '$1$2<redacted>'
+                    }
+                    foreach($child in $children|Sort-Object Role){'CI_CHILD: '+$child.Role+' exit='+$child.Process.ExitCode}
+                    foreach($source in @(@('CI_LOG','ci.log',400),@('CI_WATCHER','watcher.log',40))){
+                        if($source[0]-ceq'CI_WATCHER'-and@($children|Where-Object{$_.Role-ceq'watcher'})[0].Process.ExitCode-eq0){continue}
+                        try{$lines=@([IO.File]::ReadAllLines((Join-Path $CIRuntimeRoot $source[1]))|Select-Object -Last $source[2]);if(!$lines.Count){$lines=@('<empty>')}}catch{$lines=@('<unreadable>')}
+                        foreach($line in $lines){$text=Hide-WorkbenchCIDiagnostic $line;$text=$text-replace'[\x00-\x08\x0A-\x1F\x7F-\x9F\u2028\u2029]','?';$source[0]+': '+$text.Substring(0,[Math]::Min(2000,$text.Length))}
+                    }
+                    throw 'WB_CI_CHILD_OR_OBSERVER_FAILED'
+                }
                 $actual=Get-WorkbenchCIRecipe $Root $Candidate $CIRuntimeRoot
                 if($actual.Digest-cne$ciRecipe.Digest){throw 'WB_CI_INPUT_CHANGED'}
                 $logText=[IO.File]::ReadAllText($ciLog)

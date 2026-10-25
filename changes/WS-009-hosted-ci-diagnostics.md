@@ -174,7 +174,7 @@ Minimum Commit GB: 3
 
 ## Runtime Checkpoint
 
-Resume Step: 1
+Resume Step: DONE
 Blocker: None
 Recovery Attempt: 0
 
@@ -188,6 +188,7 @@ Owner Evidence SHA256: 49D8BA47584EFD0A9FB86495854595B7CE36FBD1047FF7BEF141A8852
 Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
 Sandbox Receipt: C:\Users\My Lab\Documents\ORVION-Owner-Review\ws009-privacy-successor-20261025-r2\runtime\sandbox\own-finish-receipt.json
 Sandbox Receipt SHA256: A21E5AD86AC591505BB782E9EF550104BB5B5222DC5398DAC4E1F9DC2F635A6F
+Original literal CI diagnostics output applied through the accepted native Workbench entry, all declared blobs match. Fresh own timed/watched full Finish still required.
 
 ## Verification Notes
 
