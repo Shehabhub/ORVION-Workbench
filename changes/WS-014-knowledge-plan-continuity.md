@@ -2,8 +2,8 @@
 
 ## Status
 
-[x] Draft
-[ ] Approved
+[ ] Draft
+[x] Approved
 [ ] In Progress
 [ ] Complete
 [ ] Cancelled
@@ -1052,6 +1052,14 @@ Recovery Attempt: 0
 ## Execution Log
 
 Isolated preparation under current live owner plan/knowledge/master-lineage continuation. Original Gate1 remains exact and separate; future publication needs exact authorization. Synthetic root-bound sandbox approval is fixture authority only, not human original Gate1. STOP before original tracked-file implementation.
+Approved Draft: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\plan-successor-r2\assurance\V3\DRAFT.md
+Approved SHA256: 1A54C812D27071D4368381A57E933E9F90D478CCFCE4739434189C56531869F3
+Owner Evidence: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\protected-milestone-20261025\OWNER-APPROVAL-AB.txt
+Owner Evidence SHA256: 330F8E099FE6D2B4F638052CCE7AAE59D34281EAB86053623B1B4616925DBD59
+Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
+Sandbox Receipt: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\plan-successor-r2\runtime\sandbox\own-finish-receipt.json
+Sandbox Receipt SHA256: 3A7CFC2D6DD7274D6A2022E01BB34576CDCF98DA6349D3E372415C0A2ACEC9D5
+Original admission: owner-approved fixed42 release completed under explicit temporary protection exception; main/preflight exactd4d and protection restored ACTIVE/no-bypass/strict issuer15368 independently verified. Causal Stage3 security proof remains UNPROVEN. B was explicitly approved at this literal root and digest; no repeated approval or sandbox receipt transplant as original certification.
 
 ## Verification Notes
 
