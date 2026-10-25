@@ -219,18 +219,18 @@ Minimum Commit GB: 3
 
 ## Acceptance Criteria
 
-- [ ] Exact minimal optional-input guard or owning fixture change. check: blob:lib/Spider.ps1=27669741f44cd3ab846a85a6202f993447fcca82
-- [ ] Exact minimal optional-input guard or owning fixture change. check: blob:lib/Backup-Workspace.ps1=c470d08d83220b09ba26442bfd3a064674e9c1f5
-- [ ] Exact minimal optional-input guard or owning fixture change. check: blob:lib/test-spider.ps1=6306c4e221384f9196b73e7caee5f671b94ad257
-- [ ] Exact minimal optional-input guard or owning fixture change. check: blob:lib/test-backup-restore.ps1=2b00fe3d883272da8b8804dcdc5a44edae3b83fa
-- [ ] RESUME authority remains unchanged. check: normalized-resume:RESUME.md=1F392B6A18CC44442BCABE3E23BF82571975C585E8C70496881136170FECE520
-- [ ] Focused evidence proves unchanged source fails both suites without Claude and passes both with an empty valid projects directory; selected source passes isolated absent, valid memory, empty or missing optional memory, present unreadable data and required unreadable receipt cases. Invalid root, corrupt/incomplete backup, missing manifest and existing restore target remain fatal; valid restore preserves exact HEAD/refs, disabled push, upstream and receipt/memory bytes.
-- [ ] This role completes one fresh timed/watched native Finish across all 21 suites, independent accepted-evaluator live Review, native Review/Complete and full carrying-range verification. Sandbox success is neither original certification nor hosted acceptance.
+- [x] Exact minimal optional-input guard or owning fixture change. check: blob:lib/Spider.ps1=27669741f44cd3ab846a85a6202f993447fcca82
+- [x] Exact minimal optional-input guard or owning fixture change. check: blob:lib/Backup-Workspace.ps1=c470d08d83220b09ba26442bfd3a064674e9c1f5
+- [x] Exact minimal optional-input guard or owning fixture change. check: blob:lib/test-spider.ps1=6306c4e221384f9196b73e7caee5f671b94ad257
+- [x] Exact minimal optional-input guard or owning fixture change. check: blob:lib/test-backup-restore.ps1=2b00fe3d883272da8b8804dcdc5a44edae3b83fa
+- [x] RESUME authority remains unchanged. check: normalized-resume:RESUME.md=1F392B6A18CC44442BCABE3E23BF82571975C585E8C70496881136170FECE520
+- [x] Focused evidence proves unchanged source fails both suites without Claude and passes both with an empty valid projects directory; selected source passes isolated absent, valid memory, empty or missing optional memory, present unreadable data and required unreadable receipt cases. Invalid root, corrupt/incomplete backup, missing manifest and existing restore target remain fatal; valid restore preserves exact HEAD/refs, disabled push, upstream and receipt/memory bytes.
+- [x] This role completes one fresh timed/watched native Finish across all 21 suites, independent accepted-evaluator live Review, native Review/Complete and full carrying-range verification. Sandbox success is neither original certification nor hosted acceptance.
 
 ## Review Gate
 
-- [ ] Inspect actual four-file output, focused causal controls, unchanged workflow, schedule, Restore and source identity; preserve original and primary roots.
-- [ ] Inspect this role's fresh root/Draft/evaluator/recipe/input-bound receipt, timed END, watcher/host exits and live criteria with an independent accepted evaluator before native Review/Complete; then judge every carrying transition, clean tree and None pointer.
+- [x] Inspect actual four-file output, focused causal controls, unchanged workflow, schedule, Restore and source identity; preserve original and primary roots.
+- [x] Inspect this role's fresh root/Draft/evaluator/recipe/input-bound receipt, timed END, watcher/host exits and live criteria with an independent accepted evaluator before native Review/Complete; then judge every carrying transition, clean tree and None pointer.
 
 ## Runtime Checkpoint
 
@@ -253,6 +253,10 @@ Original literal optional Claude input output applied through the accepted nativ
 ## Verification Notes
 
 CRGL applied before design: Platinum 20ea5e0d8f63742308efd4dc5e13ef178f0f82db and Founder da919011ee8b0b03cee620e910ff828b8e179f61. Their current consistency guard conditionally enumerates optional areas; Read-ReceiptJson refuses missing/unreadable required receipts; owning Git read fixtures prove faults were reached and never conflate unreadable with empty. Completed carrying contracts Platinum SPEC-294 and Founder SPEC-296 preserve Contract B source after cancelled predecessors exposed an impossible pre-Complete binding criterion. Reuse the principles and isolated native lifecycle; do not copy product identities, credentials, full policy or adapters. Publish, Watch, Certify and Promote stay separate. No primary changes or polling infrastructure. Evidence is frozen in this packet; root cause is experimental, not inferred solely from the old hosted wrapper. The original run remains terminal failure; the sandbox cannot claim a new hosted success.
+Verdict: Confirmed Complete
+Reviewed Fingerprint: 77F8AE8CB1E7212E6DEEC3C1FEB62DB14F405BB6AD9F2F500B39A4C759EF0828
+Reviewed Receipt: 2DACE9318E1E10ECE8CA42EB2BEAA35A30F99B51D760D2D495DB67B5319FA79A
+Evidence: actual Original root, exact optional Claude input output, full real owning suite, actual timed/watched exits, matching role/recipe/Draft and independent live review. Runtime: C:\Users\My Lab\Documents\ORVION-Owner-Review\hosted-ci-recovery-20261025\runtime\original. Synthetic fixture results are dispatch proof only; this root owns its distinct full Finish. No product/remote/recovery or equal-OS security claim.
 
 ## Selection reasons and sources
 
