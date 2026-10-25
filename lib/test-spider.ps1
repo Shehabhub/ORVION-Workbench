@@ -2,6 +2,7 @@
 # message and a note; it masks a credential value in the snippet; and a repository git cannot read refuses loudly.
 $ErrorActionPreference='Stop'
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-spidercheck-$([guid]::NewGuid().ToString('N').Substring(0,6))"
+$previousProfile=$env:USERPROFILE;$env:USERPROFILE=Join-Path $t 'profile'
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 function Invoke-Quiet{param([string]$Dir)& git -C $Dir @args 2>&1|Out-Null;if($LASTEXITCODE){throw "git $args failed"}}
 try{
@@ -21,8 +22,25 @@ try{
     Assert-That 'event found' ($text-match'zebra-case')
     Assert-That 'repository file and commit found' ($text-match'files: 1 \(a\.md 2\)'-and$text-match'Fix ZEBRA-42')
     Assert-That 'note found' ($text-match'== notes: \d+ files.*README\.md')
+    Assert-That 'missing optional Claude root is not created' (!(Test-Path (Join-Path $env:USERPROFILE '.claude')))
+    $projects=Join-Path $env:USERPROFILE '.claude/projects'
+    [void][IO.Directory]::CreateDirectory($projects)
+    $empty=@(& (Join-Path $PSScriptRoot 'Spider.ps1') 'ZEBRA-42' -Root (Join-Path $t 'ws') -Repos $repo -ReviewRoot (Join-Path $t 'none'))
+    Assert-That 'empty optional projects retains workspace notes' (($empty-join' ')-match'README\.md')
+    [void][IO.Directory]::CreateDirectory((Join-Path $projects 'no-memory'))
+    $memory=Join-Path $projects 'project/memory';[void][IO.Directory]::CreateDirectory($memory)
+    $note=Join-Path $memory 'fixture.md';[IO.File]::WriteAllText($note,'ZEBRA-42 memory')
+    $present=@(& (Join-Path $PSScriptRoot 'Spider.ps1') 'ZEBRA-42' -Root (Join-Path $t 'ws') -Repos $repo -ReviewRoot (Join-Path $t 'none'))
+    Assert-That 'valid Claude memory is searched and missing project memory is optional' (($present-join' ')-match'fixture\.md')
+    $handle=[IO.File]::Open($note,'Open','ReadWrite','None')
+    try{$refused=try{& (Join-Path $PSScriptRoot 'Spider.ps1') 'ZEBRA-42' -Root (Join-Path $t 'ws') -Repos $repo -ReviewRoot (Join-Path $t 'none')|Out-Null;$false}catch{$true}}finally{$handle.Dispose()}
+    Assert-That 'present unreadable memory fails instead of becoming no match' $refused
     $broken=Join-Path $t 'broken';New-Item -ItemType Directory $broken|Out-Null;Set-Content (Join-Path $broken '.git') 'gitdir: C:/does/not/exist'
     $refused=try{& (Join-Path $PSScriptRoot 'Spider.ps1') 'ZEBRA-42' -Root (Join-Path $t 'ws') -Repos $broken -ReviewRoot (Join-Path $t 'none')|Out-Null;$false}catch{"$_"-match'SPIDER_GIT_FAILED'}
     Assert-That 'an unreadable repository refuses, never reads as no match' $refused
-}finally{if(Test-Path $t){Get-ChildItem $t -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}}
+    $env:USERPROFILE=Join-Path $t 'malformed-profile';[void][IO.Directory]::CreateDirectory((Join-Path $env:USERPROFILE '.claude'))
+    [IO.File]::WriteAllText((Join-Path $env:USERPROFILE '.claude/projects'),'not a directory')
+    $refused=try{& (Join-Path $PSScriptRoot 'Spider.ps1') 'ZEBRA-42' -Root (Join-Path $t 'ws') -Repos $repo -ReviewRoot (Join-Path $t 'none')|Out-Null;$false}catch{"$_"-match'SPIDER_CLAUDE_PROJECTS_NOT_DIRECTORY'}
+    Assert-That 'malformed present projects root is fatal' $refused
+}finally{$env:USERPROFILE=$previousProfile;if(Test-Path $t){Get-ChildItem $t -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}}
 if($fail){throw "SPIDER_SELFCHECK_FAILED $fail"};'SPIDER_SELFCHECK PASS'

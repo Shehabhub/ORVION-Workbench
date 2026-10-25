@@ -58,7 +58,12 @@ foreach($r in $Repos|Where-Object{Test-Path (Join-Path $_ '.git')}){
 }
 # Notes: memory, workspace docs, owner-review packets (markdown only).
 $md=@(
-    Get-ChildItem (Join-Path $env:USERPROFILE '.claude\projects') -Directory|ForEach-Object{$m=Join-Path $_.FullName 'memory';if(Test-Path $m){Get-ChildItem $m -File -Filter *.md}}
+    $projects=Join-Path $env:USERPROFILE '.claude\projects'
+    # Claude is optional; enumeration/read errors for a present source must still refuse.
+    if(Test-Path -LiteralPath $projects){
+        if(!(Test-Path -LiteralPath $projects -PathType Container)){throw 'SPIDER_CLAUDE_PROJECTS_NOT_DIRECTORY'}
+        Get-ChildItem -LiteralPath $projects -Directory|ForEach-Object{$m=Join-Path $_.FullName 'memory';if(Test-Path $m){Get-ChildItem $m -File -Filter *.md}}
+    }
     foreach($p in 'README.md','lib\README.md','sessions\INDEX.md'){$x=Join-Path $Root $p;if(Test-Path $x){Get-Item $x}}
     if(Test-Path $ReviewRoot){Get-ChildItem $ReviewRoot -File -Filter *.md;foreach($d in Get-ChildItem $ReviewRoot -Directory){
         Get-ChildItem $d.FullName -File -Filter *.md

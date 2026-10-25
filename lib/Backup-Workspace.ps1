@@ -52,8 +52,13 @@ foreach($name in 'CRM','ORVION','CRM-trusted-main','ORVION-trusted-main'){
 Copy-Tree $tools (Join-Path $out 'owner-tools') {param($rel)$rel-like'work\sandboxes\*'}
 Copy-Tree "$env:USERPROFILE\.claude\settings.json" (Join-Path $out 'claude')
 Copy-Tree "$env:USERPROFILE\.claude\statusline.ps1" (Join-Path $out 'claude')
-foreach($p in Get-ChildItem "$env:USERPROFILE\.claude\projects" -Directory|Where-Object{Test-Path (Join-Path $_.FullName 'memory')}){
+$projects=Join-Path $env:USERPROFILE '.claude\projects'
+# Claude is optional; errors reading a present source still terminate the backup before its manifest.
+if(Test-Path -LiteralPath $projects){
+if(!(Test-Path -LiteralPath $projects -PathType Container)){throw 'BACKUP_CLAUDE_PROJECTS_NOT_DIRECTORY'}
+foreach($p in Get-ChildItem -LiteralPath $projects -Directory|Where-Object{Test-Path (Join-Path $_.FullName 'memory')}){
     if($p.Name-match'Documents-GitHub|ORVION'){Copy-Tree (Join-Path $p.FullName 'memory') (Join-Path $out "claude\projects\$($p.Name)\memory")}
+}
 }
 if(!$SkipLegacy){foreach($n in 'ORVION-Owner-Review','ORVION-Owner-Tools','ORVION-Sandbox','ORVION-drafts-backup','Windows-Memory-Config'){
     $src=Join-Path $docs $n;if(!(Test-Path $src)){continue}
