@@ -1,0 +1,59 @@
+{
+  "classification": "Non-sensitive engineering history; source bytes preserved; all operational authority remains native",
+  "sources": [
+    {
+      "path": "execution-plan-pre-git-v1.4.md",
+      "sourceCheckpoint": "workbench-native-supervision-20261023",
+      "sourceName": "EXECUTION-PLAN.md",
+      "sourceSHA256": "4EA3523621428868DAFAAE5FFF4BEB19DB12C057640B615CF7285E389684FF71",
+      "bytes": 28445,
+      "status": "Immutable historical source, not live authority; historical outgoing external links are not portable authority",
+      "readableProjection": "Backtick fences rendered as equivalent tilde fences; exact source bytes retained separately in execution-plan-pre-git-v1.4-source.json. Originals remain unchanged."
+    },
+    {
+      "path": "workbench-acceptance-v10.md",
+      "sourceCheckpoint": "owner-workbench-handoff-20261021",
+      "sourceName": "03-WORKBENCH.md",
+      "sourceSHA256": "C9717505C4F538D5E694CD58A3ABBBE0FBCB73C3E5B4B1AD273F1F54260EDFEE",
+      "bytes": 34121,
+      "status": "Immutable historical source, not live authority; historical outgoing external links are not portable authority"
+    },
+    {
+      "path": "environment-recovery-original.md",
+      "sourceCheckpoint": "owner-workbench-handoff-20261021",
+      "sourceName": "04-MERGE-ENVIRONMENT.md",
+      "sourceSHA256": "15ACEE771B069ACF145CC547DF21ED1CB2DF1CECED49E2C1304F4D45863E954D",
+      "bytes": 8388,
+      "status": "Immutable historical source, not live authority; historical outgoing external links are not portable authority"
+    },
+    {
+      "path": "programme-handoff-original.md",
+      "sourceCheckpoint": "owner-workbench-handoff-20261021",
+      "sourceName": "HANDOFF.md",
+      "sourceSHA256": "A5E1EF92B92FBA231BD20F1E7F229F92ABB284B4A0734A043286A58B9F78742A",
+      "bytes": 10892,
+      "status": "Immutable historical source, not live authority; historical outgoing external links are not portable authority"
+    }
+  ],
+  "approvedGitPlanImplementations": [
+    "25add23057b17b06c324353e4c8ee4a0e3056956",
+    "2c70d7065013d626b6c45d6edeeca0d2f70112e2"
+  ],
+  "limitations": "Earlier v1/v1.1/v1.2/v1.3 document contents were recovered from six literal historical patch applications. Source timestamps, content hashes, mapped-copy comparison mismatch and limits are retained in execution-plan-pre-git-v1-v1.3.json. No raw transcript, historical code execution or invented approval. Exact frozen v1.4 source bytes and every accepted Git plan revision retain their original evidence classes.",
+  "recoveredPreGitHistory": {
+    "path": "execution-plan-pre-git-v1-v1.3.json",
+    "versions": [
+      "1",
+      "1.1",
+      "1.2",
+      "1.3"
+    ],
+    "sourceContentHashes": {
+      "1": "08F97A78B4A1187A4602E9BD4B03E09B8C6FDE4346A08E0A8329D33C6FDFF6FF",
+      "1.1": "9BDC0725117BE7FD59EDCEBBF634A3C4B5B5B9EE7197873B834CA958D0E0698E",
+      "1.2": "65BA26F46DB2A0B5BD2A53646B3F1DCA579795ADD656C8B49DD1C7DA69D65AD0",
+      "1.3": "D2FAEBA5641BF1F1EB697146E9D66CA2F8586FFD7338E7002C144D213DEE11AA"
+    },
+    "role": "Historical evolution data, never a competing plan or new authority"
+  }
+}
