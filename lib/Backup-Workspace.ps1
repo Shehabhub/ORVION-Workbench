@@ -8,7 +8,7 @@
 #                         (nested git clones skipped: reproducible sandboxes)
 # Session transcripts are sensitive, so the destination must be BitLocker-protected unless -AllowUnencrypted is passed.
 # Never stores GitHub/OAuth tokens: after restore run `gh auth login` for both accounts (see README, Recovery).
-param([Parameter(Mandatory)][string]$Destination,[switch]$AllowUnencrypted,[switch]$SkipLegacy)
+param([Parameter(Mandatory)][string]$Destination,[switch]$AllowUnencrypted,[switch]$SkipLegacy,[string]$RecoveryInputs)
 $ErrorActionPreference='Stop'
 $tools=Split-Path $PSScriptRoot -Parent;$gh=Split-Path $tools -Parent;$docs=Split-Path $gh -Parent
 function Invoke-Git{param([string]$Repo)$o=& git -C $Repo @args 2>&1;if($LASTEXITCODE){throw "GIT_FAILED $Repo git $args`n$o"};$o}
@@ -30,8 +30,36 @@ function Copy-Tree([string]$From,[string]$To,[scriptblock]$Skip={$false}){
     }
 }
 
+# Workbench recovery coverage v1: explicit required evidence files; no cloud transport or key custody.
+$workbenchPresent=(Test-Path -LiteralPath (Join-Path $gh 'ORVION-Workbench'))-or(Test-Path -LiteralPath (Join-Path $gh 'ORVION-Workbench-trusted-main'))
+$recovery=@()
+if($workbenchPresent){
+    foreach($name in 'ORVION-Workbench','ORVION-Workbench-trusted-main'){
+        if(!(Test-Path -LiteralPath (Join-Path $gh "$name/.git") -PathType Container)){throw 'BACKUP_WORKBENCH_ROOT_REQUIRED'}
+    }
+    if(!$RecoveryInputs){throw 'BACKUP_RECOVERY_INPUTS_REQUIRED'}
+    $inputPlan=Get-Content -LiteralPath $RecoveryInputs -Raw|ConvertFrom-Json
+    # JSON arrays must be present, nonempty arrays: @($null).Count is 1 in PowerShell.
+    if($inputPlan-isnot[pscustomobject]-or$inputPlan.schema-isnot[long]-and$inputPlan.schema-isnot[int]-or
+       $inputPlan.schema-ne1-or$inputPlan.inputs-isnot[array]-or$inputPlan.inputs.Count-eq0){throw 'BACKUP_RECOVERY_INPUTS_INVALID'}
+    $names=@{}
+    foreach($item in $inputPlan.inputs){
+        if($item-isnot[pscustomobject]-or$item.name-isnot[string]-or$item.path-isnot[string]-or$item.sha256-isnot[string]-or$item.name-cnotmatch'^[a-z][a-z0-9-]{0,47}$'-or$names.ContainsKey($item.name)-or![IO.Path]::IsPathFullyQualified($item.path)-or$item.sha256-cnotmatch'^[A-F0-9]{64}$'){throw 'BACKUP_RECOVERY_INPUTS_INVALID'}
+        $names[$item.name]=$true
+        if(!(Test-Path -LiteralPath $item.path -PathType Leaf)-or(Get-FileHash -LiteralPath $item.path).Hash-cne$item.sha256){throw 'BACKUP_RECOVERY_INPUT_REQUIRED_OR_CHANGED'}
+        $recovery+=@{name=$item.name;source=$item.path;sha256=$item.sha256}
+    }
+    $receiptRoot=Join-Path $gh 'ORVION-Workbench'
+    if(!(Test-Path -LiteralPath (Join-Path $receiptRoot '.workbench-local-certification.json') -PathType Leaf)-or
+       !(Test-Path -LiteralPath (Join-Path $receiptRoot '.workbench-certifications') -PathType Container)-or
+       @(Get-ChildItem -LiteralPath (Join-Path $receiptRoot '.workbench-certifications') -File).Count-eq0){throw 'BACKUP_WORKBENCH_RECEIPTS_REQUIRED'}
+    foreach($f in @((Get-Item -LiteralPath (Join-Path $receiptRoot '.workbench-local-certification.json')))+@(Get-ChildItem -LiteralPath (Join-Path $receiptRoot '.workbench-certifications') -File)){
+        $receipt=Get-Content -LiteralPath $f.FullName -Raw|ConvertFrom-Json
+        if($receipt.digest-cnotmatch'^[A-F0-9]{64}$'-or$receipt.root-cne$receiptRoot-or$receipt.result-cne'READY'){throw 'BACKUP_WORKBENCH_RECEIPT_INVALID'}
+    }
+}
 $plan=[ordered]@{created=[DateTime]::UtcNow.ToString('o');machine=$env:COMPUTERNAME;repos=@()}
-foreach($name in 'CRM','ORVION','CRM-trusted-main','ORVION-trusted-main'){
+foreach($name in 'CRM','ORVION','CRM-trusted-main','ORVION-trusted-main','ORVION-Workbench','ORVION-Workbench-trusted-main'){
     $r=Join-Path $gh $name;if(!(Test-Path (Join-Path $r '.git'))){continue}
     $dir=Join-Path $out "repos\$name";New-Item -ItemType Directory $dir -Force|Out-Null
     $head=(Invoke-Git $r rev-parse HEAD).Trim();$branch=(Invoke-Git $r rev-parse --abbrev-ref HEAD).Trim()
@@ -40,14 +68,34 @@ foreach($name in 'CRM','ORVION','CRM-trusted-main','ORVION-trusted-main'){
     $stash=@(Invoke-Git $r stash list).Count;$worktrees=@(Invoke-Git $r worktree list --porcelain|Where-Object{$_-like'worktree *'}).Count-1
     Invoke-Git $r bundle create (Join-Path $out "repos\$name.bundle") --all|Out-Null
     Invoke-Git $r bundle verify (Join-Path $out "repos\$name.bundle")|Out-Null
-    [IO.File]::WriteAllLines((Join-Path $dir 'git-config-local.txt'),[string[]](Invoke-Git $r config --local --list))
+    $localConfig=@(Invoke-Git $r config --local --list)
+    if($name-like'ORVION-Workbench*'){
+        # Only approved non-secret identity/routing settings. Never retain auth headers or arbitrary helper commands.
+        if(@($localConfig|Where-Object{$_-match'^(http\..*(extraheader|cookiefile)|credential\..*|core\.(sshcommand|gitproxy)|include\.)='}).Count){throw 'BACKUP_WORKBENCH_UNSAFE_CONFIG'}
+        $localConfig=@($localConfig|Where-Object{$_-match'^(user\.(name|email)|core\.(hookspath|autocrlf)|branch\.[^=]+\.(remote|merge)|remote\.origin\.(url|pushurl)|push\.default|protocol\.[a-z.]+|gc\.auto|maintenance\.auto)='})
+        foreach($line in $localConfig){
+            $key,$value=$line-split'=',2
+            if($value-match'[\x00-\x1f]' -or ($key-like'remote.origin.*'-and$value-ne'DISABLED'-and$value-notmatch'^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\.git)?$') -or ($key-eq'core.hookspath'-and$value-ne'.githooks')){throw 'BACKUP_WORKBENCH_UNSAFE_CONFIG'}
+        }
+    }
+    [IO.File]::WriteAllLines((Join-Path $dir 'git-config-local.txt'),[string[]]$localConfig)
     [IO.File]::WriteAllLines((Join-Path $dir 'refs.txt'),[string[]](Invoke-Git $r for-each-ref --format='%(objectname) %(refname)'))
-    foreach($p in '.orvion-local-certification.json','.orvion-certifications','.claude\settings.json','.claude\settings.local.json'){
+    $receiptPaths=if($name-like'ORVION-Workbench*'){@('.workbench-local-certification.json','.workbench-certifications')}else{@('.orvion-local-certification.json','.orvion-certifications','.claude\settings.json','.claude\settings.local.json')}
+    foreach($p in $receiptPaths){
         $toDir=if(Test-Path -LiteralPath (Join-Path $r $p) -PathType Container){Join-Path $dir $p}else{[IO.Path]::Combine($dir,(Split-Path $p -Parent))}
         Copy-Tree (Join-Path $r $p) $toDir
     }
     $plan.repos+=[ordered]@{name=$name;head=$head;branch=$branch;dirty=$dirty;stash=$stash;worktrees=$worktrees;origin=(Invoke-Git $r config --local remote.origin.url).Trim()
         originHead="$(& git -C $r symbolic-ref -q refs/remotes/origin/HEAD)".Trim()}  # empty when the clone has none
+}
+if($workbenchPresent){
+    foreach($item in $recovery){
+        $file=Join-Path $out ("recovery-inputs/"+$item.name)
+        [void][IO.Directory]::CreateDirectory((Split-Path $file -Parent))
+        [IO.File]::Copy($item.source,$file,$false)
+        if((Get-FileHash -LiteralPath $file).Hash-cne$item.sha256){throw 'BACKUP_RECOVERY_INPUT_CHANGED_DURING_COPY'}
+    }
+    $plan.workbenchRecovery=[ordered]@{schema=1;inputs=$recovery;receiptFiles=@(Get-ChildItem -LiteralPath (Join-Path $out 'repos/ORVION-Workbench/.workbench-certifications') -File|ForEach-Object{$_.Name})}
 }
 Copy-Tree $tools (Join-Path $out 'owner-tools') {param($rel)$rel-like'work\sandboxes\*'}
 Copy-Tree "$env:USERPROFILE\.claude\settings.json" (Join-Path $out 'claude')

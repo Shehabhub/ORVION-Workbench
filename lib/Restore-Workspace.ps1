@@ -16,6 +16,35 @@ $bad=@(foreach($l in [IO.File]::ReadAllLines((Join-Path $From 'SHA256SUMS.txt'))
 })
 if($bad.Count){throw "BACKUP_CORRUPT: $($bad.Count) file(s) fail SHA256SUMS, first: $($bad[0])"}
 $plan=Get-Content (Join-Path $From 'backup.json') -Raw|ConvertFrom-Json
+# Workbench recovery coverage v1: required consumers must exist even if omitted from a partial manifest.
+if(@($plan.repos|Where-Object{$_.name-like'ORVION-Workbench*'}).Count){
+    $coverage=$plan.workbenchRecovery
+    if($coverage-isnot[pscustomobject]-or$coverage.schema-isnot[long]-and$coverage.schema-isnot[int]-or
+       $coverage.schema-ne1-or$coverage.inputs-isnot[array]-or$coverage.inputs.Count-eq0-or
+       $coverage.receiptFiles-isnot[array]-or$coverage.receiptFiles.Count-eq0){throw 'RESTORE_WORKBENCH_COVERAGE_REQUIRED'}
+    foreach($name in 'ORVION-Workbench','ORVION-Workbench-trusted-main'){
+        if(@($plan.repos|Where-Object{$_.name-ceq$name}).Count-ne1){throw 'RESTORE_WORKBENCH_COVERAGE_REQUIRED'}
+        foreach($file in @("repos/$name.bundle","repos/$name/refs.txt","repos/$name/git-config-local.txt")){
+            if(!(Test-Path -LiteralPath (Join-Path $From $file) -PathType Leaf)){throw 'RESTORE_WORKBENCH_INPUT_REQUIRED'}
+        }
+    }
+    $required=@('repos/ORVION-Workbench/.workbench-local-certification.json')
+    foreach($name in $plan.workbenchRecovery.receiptFiles){
+        if($name-isnot[string]-or$name-cnotmatch'^[A-F0-9]{64}\.json$'){throw 'RESTORE_WORKBENCH_INPUT_INVALID'}
+        $required+="repos/ORVION-Workbench/.workbench-certifications/$name"
+    }
+    $names=@{}
+    foreach($item in $plan.workbenchRecovery.inputs){
+        if($item-isnot[pscustomobject]-or$item.name-isnot[string]-or$item.sha256-isnot[string]-or$item.name-cnotmatch'^[a-z][a-z0-9-]{0,47}$'-or$names.ContainsKey($item.name)-or$item.sha256-cnotmatch'^[A-F0-9]{64}$'){throw 'RESTORE_WORKBENCH_INPUT_INVALID'}
+        $names[$item.name]=$true;$required+=("recovery-inputs/"+$item.name)
+        $f=Join-Path $From ("recovery-inputs/"+$item.name)
+        if(!(Test-Path -LiteralPath $f -PathType Leaf)-or(Get-FileHash -LiteralPath $f).Hash-cne$item.sha256){throw 'RESTORE_WORKBENCH_INPUT_REQUIRED_OR_CORRUPT'}
+    }
+    $listed=@([IO.File]::ReadAllLines((Join-Path $From 'SHA256SUMS.txt'))|ForEach-Object{($_-split'  ',2)[1]-replace'\\','/'})
+    foreach($file in $required){if(!(Test-Path -LiteralPath (Join-Path $From $file) -PathType Leaf)-or$file-cnotin$listed){throw 'RESTORE_WORKBENCH_INPUT_REQUIRED'}}
+    Assert-Absent (Join-Path $Target 'ORVION-Recovery-Inputs')
+}
+
 foreach($r in $plan.repos){Assert-Absent (Join-Path $Target $r.name)}
 Assert-Absent (Join-Path $Target 'ORVION-Owner-Tools')
 
@@ -34,7 +63,7 @@ try{foreach($r in $plan.repos){
     $cfg=[ordered]@{}
     foreach($l in [IO.File]::ReadAllLines((Join-Path $src 'git-config-local.txt'))){
         $k,$v=$l-split'=',2
-        if($k-match'^(user\.|credential\.|core\.hookspath$|core\.autocrlf$|lfs\.|submodule\.|branch\.|remote\.origin\.pushurl$)'){$cfg[$k]=@($cfg[$k])+$v|Where-Object{$null-ne$_}}
+        if($k-match'^(user\.|credential\.|core\.hookspath$|core\.autocrlf$|lfs\.|submodule\.|branch\.|remote\.origin\.pushurl$|push\.default$|protocol\.[a-z.]+$|gc\.auto$|maintenance\.auto$)'){$cfg[$k]=@($cfg[$k])+$v|Where-Object{$null-ne$_}}
     }
     foreach($k in $cfg.Keys){& git -C $dest config --local --unset-all $k 2>$null;foreach($v in @($cfg[$k])){Invoke-Git $dest config --local --add $k $v|Out-Null}}
     if($r.stash){"WARN $($r.name): $($r.stash) stash(es) existed; a bundle keeps only refs/stash, not the older entries"}
@@ -63,4 +92,9 @@ foreach($f in 'settings.json','statusline.ps1'){
 if(!$SkipLegacy){foreach($l in Get-ChildItem (Join-Path $From 'legacy') -Directory -ErrorAction SilentlyContinue){
     $d=Join-Path $LegacyTarget $l.Name;if(Test-Path $d){"SKIPPED legacy $($l.Name) (exists)"}else{Copy-Item $l.FullName $d -Recurse;"RESTORED legacy $($l.Name)"}
 }}
+if($plan.workbenchRecovery){
+    Copy-Item -LiteralPath (Join-Path $From 'recovery-inputs') -Destination (Join-Path $Target 'ORVION-Recovery-Inputs') -Recurse
+    Copy-Item -LiteralPath (Join-Path $From 'backup.json') -Destination (Join-Path $Target 'ORVION-Recovery-Inputs/source-map.json')
+    'RESTORED Workbench proof inputs; source-map.json retains original paths. Historical receipts retain their original physical roots; no new-machine certification or trust advancement is implied.'
+}
 "NEXT: gh auth login (PlatPlusHub and Shehabhub), then Boot in each repository."
