@@ -334,18 +334,18 @@ Minimum Commit GB: 3
 
 ## Acceptance Criteria
 
-- [ ] Exact approved scoped recovery output. check: blob:lib/Backup-Workspace.ps1=d054d745021035ed0d2dcc148cb413a3b10b6fb7
-- [ ] Exact approved scoped recovery output. check: blob:lib/Restore-Workspace.ps1=98fd3b9b09ea8945abb4b32e318563e5ca5f9ad2
-- [ ] Exact approved scoped recovery output. check: blob:lib/test-backup-restore.ps1=023019fb3c5a3a8a2deb18679e551ccb44bf74a3
-- [ ] Original RESUME authority remains intact. check: normalized-resume:RESUME.md=1F392B6A18CC44442BCABE3E23BF82571975C585E8C70496881136170FECE520
-- [ ] Existing owning test permanently rejects missing/null/empty/scalar/object input collections and invalid entries, plus malformed receiptFiles on restore, with valid nonempty array backup/restore positive controls. Existing owning test proves exact source and independent detached trusted HEAD/refs, preserved push-disabled/protocol-deny settings, byte-identical historical working/archive receipts without root rewriting and declared external proof/source-map round trip. Missing map/receipt, unreadable inputs, corrupt receipt/proof, changed proof hash, unsafe auth-header config, omitted required proof and existing target refuse without a false success or restore target writes as applicable. Existing optional-Claude and product fixtures retain their actual semantics.
-- [ ] Mandatory V1/V2/V3, actual focused controls, accepted literal replay/idempotence and negative refusal evidence are preserved. One selected isolated native timed/watched Finish owns the full schedule, fresh SANDBOX receipt, live accepted-code Review, native Review/Complete and independent new carrying-range READY. No original approval or receipt transplant is inferred.
-- [ ] Restore returns declared proof files under a non-overwriting recovery-inputs target plus original path map; it does not rewrite root-bound certification or claim new-machine trust. Explicit proof list must be owner reviewed for complete actual evidence/archives; a synthetic map is not a production inventory or offsite restore. Real encryption/cloud/clean-Windows proof remain separately gated.
+- [x] Exact approved scoped recovery output. check: blob:lib/Backup-Workspace.ps1=d054d745021035ed0d2dcc148cb413a3b10b6fb7
+- [x] Exact approved scoped recovery output. check: blob:lib/Restore-Workspace.ps1=98fd3b9b09ea8945abb4b32e318563e5ca5f9ad2
+- [x] Exact approved scoped recovery output. check: blob:lib/test-backup-restore.ps1=023019fb3c5a3a8a2deb18679e551ccb44bf74a3
+- [x] Original RESUME authority remains intact. check: normalized-resume:RESUME.md=1F392B6A18CC44442BCABE3E23BF82571975C585E8C70496881136170FECE520
+- [x] Existing owning test permanently rejects missing/null/empty/scalar/object input collections and invalid entries, plus malformed receiptFiles on restore, with valid nonempty array backup/restore positive controls. Existing owning test proves exact source and independent detached trusted HEAD/refs, preserved push-disabled/protocol-deny settings, byte-identical historical working/archive receipts without root rewriting and declared external proof/source-map round trip. Missing map/receipt, unreadable inputs, corrupt receipt/proof, changed proof hash, unsafe auth-header config, omitted required proof and existing target refuse without a false success or restore target writes as applicable. Existing optional-Claude and product fixtures retain their actual semantics.
+- [x] Mandatory V1/V2/V3, actual focused controls, accepted literal replay/idempotence and negative refusal evidence are preserved. One selected isolated native timed/watched Finish owns the full schedule, fresh SANDBOX receipt, live accepted-code Review, native Review/Complete and independent new carrying-range READY. No original approval or receipt transplant is inferred.
+- [x] Restore returns declared proof files under a non-overwriting recovery-inputs target plus original path map; it does not rewrite root-bound certification or claim new-machine trust. Explicit proof list must be owner reviewed for complete actual evidence/archives; a synthetic map is not a production inventory or offsite restore. Real encryption/cloud/clean-Windows proof remain separately gated.
 
 ## Review Gate
 
-- [ ] Inspect actual three scoped engineering files, positive/negative owning fixture output and literal controls; preserve original/WS012/prior seals.
-- [ ] Independently check actual native receipt root/Draft/recipe/evaluator/input fingerprint, ordered tests and timed/watcher/host terminal exits; normal native Review/Complete and every new carrying transition must pass. Do not claim second-agent or provider certification.
+- [x] Inspect actual three scoped engineering files, positive/negative owning fixture output and literal controls; preserve original/WS012/prior seals.
+- [x] Independently check actual native receipt root/Draft/recipe/evaluator/input fingerprint, ordered tests and timed/watcher/host terminal exits; normal native Review/Complete and every new carrying transition must pass. Do not claim second-agent or provider certification.
 
 ## Runtime Checkpoint
 
@@ -369,6 +369,10 @@ Original exact literal implementation applied by accepted native Workbench Execu
 ## Verification Notes
 
 CRGL: Platinum20ea5e0 and Founderda91901 ADR0033 recovery sequence, ENGINEERING_METHOD harness participant-output/counterexample lessons, cold-start mutation controls/restoration, native exact-scope/assurance/receipt contracts SPEC290/292 and carrying completion294/296 were inspected read-only. Neither product owns this workspace backup engine; do not copy database backup claims or alter their receipts. Reuse existing Workbench Backup/Restore/test-backup-restore, file hashes, bundle --all (already proven detached), no-overwrite behavior, mandatory native lifecycle and accepted evaluator. The first focused prototype introduced Workbench fixtures before a preexisting malformed-Claude test; it then failed at a required-map precondition rather than its intended cause. Preserve focused-initial.log; selected prototype restores the original fixture order before adding Workbench cases. No guard weakened. No Finish occurred before selection.
+Verdict: Confirmed Complete
+Reviewed Fingerprint: D7CE04D75B32E663E545361684DEEEE3A08E97F3450049131EFA43BF705BF207
+Reviewed Receipt: F58B7AD22CD059AA6BE056BF20EF29119EB2349EF9964C78B746083B2234C2F3
+Evidence: fresh ORIGINAL root-bound timed/watched Finish, actual21-suite schedule/exits, approved exact outputs and independently pinned accepted-code live review. Runtime: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\recovery-r2\runtime\original. No sandbox receipt transplant, remote parity, offsite recovery or equal-OS isolation claim.
 
 ## Selection reasons and sources
 
