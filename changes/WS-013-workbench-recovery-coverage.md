@@ -2,8 +2,8 @@
 
 ## Status
 
-[x] Draft
-[ ] Approved
+[ ] Draft
+[x] Approved
 [ ] In Progress
 [ ] Complete
 [ ] Cancelled
@@ -356,6 +356,14 @@ Recovery Attempt: 0
 ## Execution Log
 
 Owner authorized corrected RECOVERY Draft and one fresh isolated closure in the current continuation. Rejected Draft8494F2AB and its Finish remain rejected and immutable. Synthetic sandbox root-bound approval does not grant human original Gate1. WS013 is an isolated proposed identity; no original allocation or second programme is created. Fresh original admission and owner release-boundary decision are required; changed frozen baseline/scope requires a new exact proposal, never silent substitution.
+Approved Draft: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\recovery-r2\assurance\V3\DRAFT.md
+Approved SHA256: 552C6EE22C0752DDC16FC3C5708DA6663EE401C124ED75654E987FF3A4824B63
+Owner Evidence: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\protected-milestone-20261025\OWNER-APPROVAL-AB.txt
+Owner Evidence SHA256: 330F8E099FE6D2B4F638052CCE7AAE59D34281EAB86053623B1B4616925DBD59
+Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
+Sandbox Receipt: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\recovery-r2\runtime\sandbox-after-plan\own-finish-receipt.json
+Sandbox Receipt SHA256: 0B7F5C2E504746B9DE07C40A8A350913A497B96F50186981A735359162471252
+Original admission: owner-approved fixed42 release completed under explicit temporary protection exception; main/preflight exactd4d and protection restored ACTIVE/no-bypass/strict issuer15368 independently verified. Causal Stage3 security proof remains UNPROVEN. B was explicitly approved at this literal root and digest; no repeated approval or sandbox receipt transplant as original certification.
 
 ## Verification Notes
 
