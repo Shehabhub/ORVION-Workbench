@@ -161,16 +161,16 @@ Minimum Commit GB: 3
 
 ## Acceptance Criteria
 
-- [ ] Failure-only bounded diagnostics with supported credential masking in the existing CI entry. check: blob:lib/Workbench.ps1=5c37d45e55cf7dfed50796cc73aa782588850bfa
-- [ ] Existing owning CI tests prove both exits, assertion context, supported synthetic credential masking in both sources before truncation, missing/empty/locked/malformed logs, control replacement, no raw workflow command and silent success. check: blob:lib/test-workbench-governance.ps1=2c42183e6eedd933d29b5ed6e09e678d3d46781e
-- [ ] RESUME authority body unchanged. check: normalized-resume:RESUME.md=1F392B6A18CC44442BCABE3E23BF82571975C585E8C70496881136170FECE520
-- [ ] The refusal code, exit 1, success output, ordered test/hazard schedule, CI_TEST_ONLY result, workflow policy and receipt rules are unchanged. No new file, dependency, artifact upload or workflow step is added.
-- [ ] This role owns one fresh timed/watched Finish, live independent Review, native Review/Complete and whole carrying-range judgment. Sandbox proof is not original approval or certification. The hosted root cause remains UNPROVEN until a separately approved hosted run.
+- [x] Failure-only bounded diagnostics with supported credential masking in the existing CI entry. check: blob:lib/Workbench.ps1=5c37d45e55cf7dfed50796cc73aa782588850bfa
+- [x] Existing owning CI tests prove both exits, assertion context, supported synthetic credential masking in both sources before truncation, missing/empty/locked/malformed logs, control replacement, no raw workflow command and silent success. check: blob:lib/test-workbench-governance.ps1=2c42183e6eedd933d29b5ed6e09e678d3d46781e
+- [x] RESUME authority body unchanged. check: normalized-resume:RESUME.md=1F392B6A18CC44442BCABE3E23BF82571975C585E8C70496881136170FECE520
+- [x] The refusal code, exit 1, success output, ordered test/hazard schedule, CI_TEST_ONLY result, workflow policy and receipt rules are unchanged. No new file, dependency, artifact upload or workflow step is added.
+- [x] This role owns one fresh timed/watched Finish, live independent Review, native Review/Complete and whole carrying-range judgment. Sandbox proof is not original approval or certification. The hosted root cause remains UNPROVEN until a separately approved hosted run.
 
 ## Review Gate
 
-- [ ] Observe scoped bytes, unchanged ordered tests and hazards, red/green owning evidence and preserved original state; no OMC change.
-- [ ] Observe this role's own receipt, correct root/Draft/evaluator/recipe, actual timed END and concurrent watcher/host exits before Review/Complete. Check accepted implementation range before Review and complete carrying range afterward; clean final tree and active None.
+- [x] Observe scoped bytes, unchanged ordered tests and hazards, red/green owning evidence and preserved original state; no OMC change.
+- [x] Observe this role's own receipt, correct root/Draft/evaluator/recipe, actual timed END and concurrent watcher/host exits before Review/Complete. Check accepted implementation range before Review and complete carrying range afterward; clean final tree and active None.
 
 ## Runtime Checkpoint
 
@@ -195,6 +195,10 @@ Original literal CI diagnostics output applied through the accepted native Workb
 No future certification is asserted. The first privacy frozen Draft 100B6A33F6E12674754FD79A75B36EC89D8745F25BE2B1C3C776F741468ED0CB was refused at native sandbox approval because its Cairo date was ahead of UTC. That immutable Draft and failed sandbox remain preserved separately. This successor corrects assurance chronology and uses a new independent context; implementation bytes and causal proof are unchanged. This independently identified successor supersedes historical V3 78CEE7218D931663C558DEEF68DC89FECE0BDA7066586C175AA860D7B2422783 for selection only, never rewrites its evidence or treats it as approval. Native CAG/SACI/PICF and the frozen workflow policy remain unchanged. The role owns a fresh sandbox Finish for these changed recipe inputs. Plan v1.6 and architecture v1.5 remain unchanged.
 
 Known masking coverage is exactly the accepted watch_run Hide-Secret vocabulary: GitHub prefixed tokens, github_pat, sk-prefixed API keys and JWT shapes; Bearer values; non-whitespace values following token, secret, password, passwd, api_key/api-key or authorization with colon/equal. Full raw lines are masked before sanitization, the 2000-character cut and output. Both CI_LOG and failed CI_WATCHER are covered. This is not universal secret detection: unlabelled credentials outside these shapes, whitespace-containing or split/encoded values and new token formats can remain. False positives are possible. Raw runtime files remain unredacted local evidence; no artifact upload is introduced. Output remains last 400 ci.log lines and 40 failed-watcher lines, at most 2000 characters per payload line; ReadAllLines still reads the full raw log before tail selection (not a memory bound).
+Verdict: Confirmed Complete
+Reviewed Fingerprint: 6A15D63451C4534807BBA12F1BE92305CCE0A6CF11B27F0DD90BF6C6E5CC28CF
+Reviewed Receipt: 3F25AB7B807634393499FB58C10E885490E476FA6D0F95A124AC4C2D7644A0A6
+Evidence: actual Original root, exact CI diagnostics output, full real owning suite, actual timed/watched exits, matching role/recipe/Draft and independent live review. Runtime: C:\Users\My Lab\Documents\ORVION-Owner-Review\ws009-privacy-successor-20261025-r2\runtime\original. Synthetic fixture results are dispatch proof only; this root owns its distinct full Finish. No product/remote/recovery or equal-OS security claim.
 
 ## Selection reasons and sources
 
