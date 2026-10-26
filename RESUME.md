@@ -28,4 +28,4 @@ each product's own Boot remains its authority. This is not a second programme st
 
 Source/data transition: this checkout is the selected source, with the existing local accepted hook. The old ORVION-Owner-Tools root remains the ONE event/session data store until separately tested migration. Explicit Root arguments above select it; no journal/working receipt is transplanted here. HANDOFF.md is dated history. This routing does not authorize a native operation or certify restored state.
 
-Active Workbench Contract: changes/WS-019-one-data-root.md
+Active Workbench Contract: None
