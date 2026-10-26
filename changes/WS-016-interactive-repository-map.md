@@ -2,8 +2,8 @@
 
 ## Status
 
-[x] Draft
-[ ] Approved
+[ ] Draft
+[x] Approved
 [ ] In Progress
 [ ] Complete
 [ ] Cancelled
@@ -401,6 +401,14 @@ Recovery Attempt: 0
 ## Execution Log
 
 Owner directive of 2026-10-26 (C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\exceptional-delegation-20261026\OWNER-DIRECTIVE-INTERACTIVE-MAP.md, decision D17) under the owner's exceptional delegation authorizes this one Workbench contract. Gate 1 for this Draft is DELEGATED: the owner did not type its digest. Sandbox approval is synthetic and grants no original authority.
+Approved Draft: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\ws016-package\assurance\V3\DRAFT.md
+Approved SHA256: BD6439F9BBB3C88E264C2782D93E5F910D5A958D10ABA4002889A726D7A5E84F
+Owner Evidence: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\exceptional-delegation-20261026\GATE1-WS016-DELEGATED.md
+Owner Evidence SHA256: A883C9614FC2F63BEB0A1F73905510DE8CADEEF723C7AEBEC4FAAA88A50D5F24
+Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
+Sandbox Receipt: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\ws016-package\runtime\sandbox\own-finish-receipt.json
+Sandbox Receipt SHA256: 4BC63AFC7A5DD29F71C88FCF322CF4CDA4E37B1242FA0742E32ABBB01AF9CAB3
+Original admission: DELEGATED exact Gate 1 under the owner's exceptional delegation of 2026-10-26 (OWNER-DELEGATION.md SHA-256 94631C14708B783C584D0867AD4AD11221D5394F5FDEDAA48F64FA0BF9788217; decisions D1-D17; D17 is the owner directive for this map). The owner did not type this digest. Bound to this literal root, the exact V3 digest and the fresh sandbox receipt; no sandbox receipt transplant as original certification.
 
 ## Verification Notes
 
