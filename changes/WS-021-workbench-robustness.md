@@ -601,22 +601,22 @@ Minimum Commit GB: 3
 
 ## Acceptance Criteria
 
-- [ ] Exact approved scoped output. check: blob:lib/Test-ScriptHazards.ps1=3fabb69ff73b1c886b20000442351c90e2cc0a45
-- [ ] Exact approved scoped output. check: blob:lib/Hunt.ps1=37266499d16b0ee196f70391c5232fcc0dc21cc5
-- [ ] Exact approved scoped output. check: blob:lib/Pulse.ps1=74eea48b9f0b7909e912816eb955c404fc9863d5
-- [ ] Exact approved scoped output. check: blob:lib/hooks/Watch-Reminder.ps1=1df0de9a1618ce8fc2a99430bbf38bab38204ced
-- [ ] Exact approved scoped output. check: blob:lib/test-events.ps1=fa02526552adf51ee7684d97ec85d44e6f1e00e5
-- [ ] Exact approved scoped output. check: blob:lib/test-hunt.ps1=c082165e6aa42ad5e86ce4f0c9c52ab12b05f97c
-- [ ] Exact approved scoped output. check: blob:lib/test-pulse.ps1=667eb6d835e4a53e9b681ae20b46724dba45b9e5
-- [ ] Exact approved scoped output. check: blob:lib/test-watch-reminder.ps1=f44450e022f1128f812951750d8635fc1f1a0959
-- [ ] Exact approved scoped output. check: blob:lib/README.md=e187e6881c7be2ccc3be0a3e325ce76b707c95b0
-- [ ] The owning tests prove: separate, nested and root-versus-function variable spellings give 0 hazards while same-function, block, dot-sourced and automatic-variable spellings give 1; a malformed or unreadable index row gives BUG index-unreadable with its count, Hunt continues and does not resolve index-dependent findings; failed process/host discovery prints running UNREADABLE and exits 2; Pulse output stays within 4096 characters in urgency order with an exact more count and a same-root Coordinator command; the hook answers within the 6 s deadline with the UNREADABLE line, exits 0, removes the owned process tree and its temporary files, passes -Root explicitly, keeps silent branches silent and the healthy context unchanged, and caps context at 8192.
-- [ ] Mandatory V1/V2/V3, focused proof, planted-regression mutants, accepted literal replay controls and the real read-only measurement are preserved. One isolated native timed/watched Finish owns the unchanged full schedule with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
+- [x] Exact approved scoped output. check: blob:lib/Test-ScriptHazards.ps1=3fabb69ff73b1c886b20000442351c90e2cc0a45
+- [x] Exact approved scoped output. check: blob:lib/Hunt.ps1=37266499d16b0ee196f70391c5232fcc0dc21cc5
+- [x] Exact approved scoped output. check: blob:lib/Pulse.ps1=74eea48b9f0b7909e912816eb955c404fc9863d5
+- [x] Exact approved scoped output. check: blob:lib/hooks/Watch-Reminder.ps1=1df0de9a1618ce8fc2a99430bbf38bab38204ced
+- [x] Exact approved scoped output. check: blob:lib/test-events.ps1=fa02526552adf51ee7684d97ec85d44e6f1e00e5
+- [x] Exact approved scoped output. check: blob:lib/test-hunt.ps1=c082165e6aa42ad5e86ce4f0c9c52ab12b05f97c
+- [x] Exact approved scoped output. check: blob:lib/test-pulse.ps1=667eb6d835e4a53e9b681ae20b46724dba45b9e5
+- [x] Exact approved scoped output. check: blob:lib/test-watch-reminder.ps1=f44450e022f1128f812951750d8635fc1f1a0959
+- [x] Exact approved scoped output. check: blob:lib/README.md=e187e6881c7be2ccc3be0a3e325ce76b707c95b0
+- [x] The owning tests prove: separate, nested and root-versus-function variable spellings give 0 hazards while same-function, block, dot-sourced and automatic-variable spellings give 1; a malformed or unreadable index row gives BUG index-unreadable with its count, Hunt continues and does not resolve index-dependent findings; failed process/host discovery prints running UNREADABLE and exits 2; Pulse output stays within 4096 characters in urgency order with an exact more count and a same-root Coordinator command; the hook answers within the 6 s deadline with the UNREADABLE line, exits 0, removes the owned process tree and its temporary files, passes -Root explicitly, keeps silent branches silent and the healthy context unchanged, and caps context at 8192.
+- [x] Mandatory V1/V2/V3, focused proof, planted-regression mutants, accepted literal replay controls and the real read-only measurement are preserved. One isolated native timed/watched Finish owns the unchanged full schedule with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
 
 ## Review Gate
 
-- [ ] Inspect the nine scoped files, the focused/mutant/literal evidence and the real read-only measurement; preserve all frozen prior evidence.
-- [ ] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
+- [x] Inspect the nine scoped files, the focused/mutant/literal evidence and the real read-only measurement; preserve all frozen prior evidence.
+- [x] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
 
 ## Runtime Checkpoint
 
@@ -640,6 +640,10 @@ Original exact literal implementation applied by accepted native Workbench Execu
 ## Verification Notes
 
 Found by Codex's WS-019 after-pass and WS-021 before-pass: Hunt crashed on one malformed index row; Pulse printed every owner wait (22,467 characters with 100 waits) and had unguarded discovery; the hook waited on Pulse with no deadline; the scanner reported false cross-function collisions. Codex's direct runner kills 17 mutants (codex-mutants.log, run from a copy of the prototype lib; kept out of the repository so it does not grow every Finish); the orchestrator's independent planted regressions are detected (mutants.log); hazard scan 0; thirteen owning self-checks PASS with an isolated ORVION_DATA_ROOT. Real read-only measurement (real-measurement.json, sizes, counts, timings and exit codes only): the bounded Pulse on the real store with both repositories, its time against the 6 s deadline (the measured ~2.0 s made 3 s too tight), and a real-store Hunt.
+Verdict: Confirmed Complete
+Reviewed Fingerprint: A0C290BE1452E11DC01EF1DD61BDA42D5FCD0390DC8839B39AD85647F707F852
+Reviewed Receipt: 2CF8EDE85AA5E05403D7E663ED50AD3B7EF6804166F83C1493808F7022C28802
+Evidence: fresh ORIGINAL root-bound timed/watched Finish, actual ordered-suite schedule/exits, approved exact outputs and independently pinned accepted-code live review. Runtime: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\ws021-package\runtime\original. No sandbox receipt transplant, remote parity, offsite recovery or equal-OS isolation claim.
 
 ## Selection reasons and sources
 
