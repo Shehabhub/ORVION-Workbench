@@ -2,8 +2,8 @@
 
 ## Status
 
-[x] Draft
-[ ] Approved
+[ ] Draft
+[x] Approved
 [ ] In Progress
 [ ] Complete
 [ ] Cancelled
@@ -1176,6 +1176,14 @@ Recovery Attempt: 0
 ## Execution Log
 
 Decision D21 in C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\exceptional-delegation-20261026\DECISIONS.md (under the owner's D19 request, D20 rules and D12 approval). Codex implemented in a disposable clone under orchestrator supervision (proto1, fix2, fix3) and reviewed the candidate at xhigh effort before freeze (codex\review1-report.txt). Under the owner's exceptional delegation this one Workbench contract is authorized. Gate 1 for this Draft is DELEGATED: the owner did not type its digest. Sandbox approval is synthetic and grants no original authority.
+Approved Draft: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\ws019-package\assurance\V3\DRAFT.md
+Approved SHA256: 6AB4A612E704F84785799F7D28C5ABD52027B1C8A2305BCAC2DFB3307979807B
+Owner Evidence: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\exceptional-delegation-20261026\GATE1-WS019-DELEGATED.md
+Owner Evidence SHA256: 3B7D53BBEE5A2C960B1ECCDA28C4BCC81C31390191CFC58CCFD774E70A6E9D72
+Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
+Sandbox Receipt: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\ws019-package\runtime\sandbox\own-finish-receipt.json
+Sandbox Receipt SHA256: B2FD6690E06E19526818CF7AF5F6A9E94AC37D70646FEC52BC5FE38EBA6FA27A
+Original admission: DELEGATED exact Gate 1 under the owner's exceptional delegation of 2026-10-26 (OWNER-DELEGATION.md SHA-256 94631C14708B783C584D0867AD4AD11221D5394F5FDEDAA48F64FA0BF9788217; decisions D1-D21; D21 is the delegated decision for this contract). The owner did not type this digest. Bound to this literal root, the exact V3 digest and the fresh sandbox receipt; no sandbox receipt transplant as original certification.
 
 ## Verification Notes
 
