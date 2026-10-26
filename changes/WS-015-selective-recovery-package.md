@@ -888,23 +888,23 @@ Minimum Commit GB: 3
 
 ## Acceptance Criteria
 
-- [ ] Exact approved scoped output. check: blob:lib/Backup-Workspace.ps1=168d936f208dd2e4fc13f1b7ccf300642206a847
-- [ ] Exact approved scoped output. check: blob:lib/Restore-Workspace.ps1=3806c46d24eff5b3b5cb5f728de098ecac6c4db4
-- [ ] Exact approved scoped output. check: blob:lib/test-backup-restore.ps1=94fb9892c329026fd6dcd4add3ed271c70a6f2c1
-- [ ] Exact approved scoped output. check: blob:docs/RECOVERY.md=a24c085c9456ec73ac261c14facd87fe15ccfb8f
-- [ ] Exact approved scoped output. check: blob:HANDOFF.md=4957b2bb1f1b84f12c7ca596ec40e884853f6835
-- [ ] Exact approved scoped output. check: blob:docs/EXECUTION-PLAN.md=08c9311db673cfe07b4876d22d68379ba073240e
-- [ ] Exact approved scoped output. check: blob:README.md=94aa429d03308e739ccee2aad3f14a850fa62bc4
-- [ ] Exact approved scoped output. check: blob:lib/README.md=4240cf5c6e41365c6b0a22542836b58731150504
-- [ ] RESUME routing carries the amended Batch 6 boundary and recovery pointer. check: normalized-resume:RESUME.md=A3753B0B89D4926D8E2C1929296C9C3F06C471F60A10DF2921F9C29094313419
-- [ ] The owning test proves: a package without a product repository refuses before any archive; the destination holds one archive plus its always-written scan report, every archive entry is unencrypted (7z -slt), and staging is removed after backup and restore; the secret scan names a planted token by rule and path and its value appears in neither the report nor the output (or the report says SKIPPED without gitleaks); git stderr (CRLF) warnings are not counted as unmerged or dirty entries; a damaged archive refuses before any restore target; exactly one restore source is required; journal and sessions come from GitHub\ORVION-Owner-Tools when run from a production-shaped checkout and their absence refuses; a ref-less detached trusted clone round trips; a nested clone keeps its ignored files (receipt and other evidence) in place, staged and worktree changes in separate diffs, its untracked file and a unique.bundle that restores its unique branch commit on top of a main repository and its unique detached-HEAD commit, while node_modules (also inside a nested clone) is excluded; a broken .git folder is copied as data; a package refuses uncommitted main-repository work. All earlier owning cases keep their semantics.
-- [ ] Mandatory V1/V2/V3, focused proof, planted-regression mutants, accepted literal replay controls and the real-workspace measurement are preserved. One isolated native timed/watched Finish owns the full schedule with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
-- [ ] HANDOFF §12, EXECUTION-PLAN and RESUME state the amended gate truthfully: C1 is not a clean-machine proof, C2 is UNPROVEN until the post-reinstall restore, the package is unencrypted by recorded owner decision (never claimed to meet the earlier encrypted condition), Shared Evidence is waived not earned, CTRL-19 stays OPEN, and the hold lifts only by a recorded decision citing that evidence. docs/RECOVERY.md names what is not packaged and what is not yet proven.
+- [x] Exact approved scoped output. check: blob:lib/Backup-Workspace.ps1=168d936f208dd2e4fc13f1b7ccf300642206a847
+- [x] Exact approved scoped output. check: blob:lib/Restore-Workspace.ps1=3806c46d24eff5b3b5cb5f728de098ecac6c4db4
+- [x] Exact approved scoped output. check: blob:lib/test-backup-restore.ps1=94fb9892c329026fd6dcd4add3ed271c70a6f2c1
+- [x] Exact approved scoped output. check: blob:docs/RECOVERY.md=a24c085c9456ec73ac261c14facd87fe15ccfb8f
+- [x] Exact approved scoped output. check: blob:HANDOFF.md=4957b2bb1f1b84f12c7ca596ec40e884853f6835
+- [x] Exact approved scoped output. check: blob:docs/EXECUTION-PLAN.md=08c9311db673cfe07b4876d22d68379ba073240e
+- [x] Exact approved scoped output. check: blob:README.md=94aa429d03308e739ccee2aad3f14a850fa62bc4
+- [x] Exact approved scoped output. check: blob:lib/README.md=4240cf5c6e41365c6b0a22542836b58731150504
+- [x] RESUME routing carries the amended Batch 6 boundary and recovery pointer. check: normalized-resume:RESUME.md=A3753B0B89D4926D8E2C1929296C9C3F06C471F60A10DF2921F9C29094313419
+- [x] The owning test proves: a package without a product repository refuses before any archive; the destination holds one archive plus its always-written scan report, every archive entry is unencrypted (7z -slt), and staging is removed after backup and restore; the secret scan names a planted token by rule and path and its value appears in neither the report nor the output (or the report says SKIPPED without gitleaks); git stderr (CRLF) warnings are not counted as unmerged or dirty entries; a damaged archive refuses before any restore target; exactly one restore source is required; journal and sessions come from GitHub\ORVION-Owner-Tools when run from a production-shaped checkout and their absence refuses; a ref-less detached trusted clone round trips; a nested clone keeps its ignored files (receipt and other evidence) in place, staged and worktree changes in separate diffs, its untracked file and a unique.bundle that restores its unique branch commit on top of a main repository and its unique detached-HEAD commit, while node_modules (also inside a nested clone) is excluded; a broken .git folder is copied as data; a package refuses uncommitted main-repository work. All earlier owning cases keep their semantics.
+- [x] Mandatory V1/V2/V3, focused proof, planted-regression mutants, accepted literal replay controls and the real-workspace measurement are preserved. One isolated native timed/watched Finish owns the full schedule with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
+- [x] HANDOFF §12, EXECUTION-PLAN and RESUME state the amended gate truthfully: C1 is not a clean-machine proof, C2 is UNPROVEN until the post-reinstall restore, the package is unencrypted by recorded owner decision (never claimed to meet the earlier encrypted condition), Shared Evidence is waived not earned, CTRL-19 stays OPEN, and the hold lifts only by a recorded decision citing that evidence. docs/RECOVERY.md names what is not packaged and what is not yet proven.
 
 ## Review Gate
 
-- [ ] Inspect the nine scoped files, the focused/mutant/literal evidence and the real measurement; preserve all frozen prior evidence.
-- [ ] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
+- [x] Inspect the nine scoped files, the focused/mutant/literal evidence and the real measurement; preserve all frozen prior evidence.
+- [x] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
 
 ## Runtime Checkpoint
 
@@ -928,6 +928,10 @@ Original exact literal implementation applied by accepted native Workbench Execu
 ## Verification Notes
 
 Measured before freeze: nested clones 900 (unique commits in 732, all bundled in 16 MB; diffs 3.3 MB; untracked 2.3 MB); the current WS-013 backup cannot run on this workstation (ref-less detached trusted clone gives a null refs list) and copies the running checkout instead of GitHub\ORVION-Owner-Tools; git cannot write bundle/diff files beyond MAX_PATH in deep staging, so they are written short and moved by .NET. The first, encrypted prototype was measured on real data (193.7 MB, 26.8 min) and its key handling found a $key shadowing defect; the owner then chose no encryption (D10/D11), so the key code was removed and gitleaks 8.30.1 (--redact) reports findings as rule and relative path only (it prints forward-slash paths, handled). Planted regressions for the data root, staging removal, unique bundles and ref-less refs are each detected. Independent advisory review by Codex (gpt-6.1-sol, effort high; codex-review\review1-*) raised 10 concerns plus one HANDOFF wording point; all were accepted and fixed with cases (review1-disposition.md); a second Codex pass checked the fixes. Codex agreement is advisory, never certification.
+Verdict: Confirmed Complete
+Reviewed Fingerprint: 84FE3C6DC49DEAEABF31D326FBC4298E3BF758FDCB229A5A06B9A2ACE4026884
+Reviewed Receipt: DDDF0BC061F3067E2313057E8D272B5C6DF42C9C4A94CEAFF8AC387EA5D4C45F
+Evidence: fresh ORIGINAL root-bound timed/watched Finish, actual21-suite schedule/exits, approved exact outputs and independently pinned accepted-code live review. Runtime: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\ws015-package\runtime\original. No sandbox receipt transplant, remote parity, offsite recovery or equal-OS isolation claim.
 
 ## Selection reasons and sources
 
