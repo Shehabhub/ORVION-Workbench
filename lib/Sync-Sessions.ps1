@@ -13,7 +13,7 @@
 # Index (sessions\index.jsonl + INDEX.md): one line per session, metadata + relative raw path only; never transcript text.
 # secretHits / secretNames: credential-shaped strings by kind (values never printed or stored); keep the archive out of
 # Git and back it up only to an encrypted drive (Backup-Workspace.ps1 refuses otherwise).
-param([string]$Root=(Split-Path $PSScriptRoot -Parent),[switch]$Quiet,[switch]$Follow,[int]$IntervalSeconds=60,[int]$IndexMinutes=15,[switch]$Library,
+param([string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent))[0]}),[switch]$Quiet,[switch]$Follow,[int]$IntervalSeconds=60,[int]$IndexMinutes=15,[switch]$Library,
       [string]$ClaudeProjects=(Join-Path $env:USERPROFILE '.claude\projects'),[string]$CodexSessions=(Join-Path $env:USERPROFILE '.codex\sessions'))  # -Library: dot-source for tests, defines the functions only
 $ErrorActionPreference='Stop'
 $Root=[IO.Path]::GetFullPath($Root).TrimEnd('\')  # a trailing \ would cut the first character of every relative path
@@ -179,6 +179,9 @@ function Invoke-Pass{
     if(Test-Path $CodexSessions){foreach($f in Get-ChildItem $CodexSessions -Recurse -File -Filter *.jsonl){
         try{
             $sr=New-Object IO.StreamReader (Open-Shared $f.FullName);try{$first=$sr.ReadLine()}finally{$sr.Close()}
+            # Case-insensitive compact first-line cwd substrings: Documents\\GitHub\\CRM,
+            # Documents\\GitHub\\ORVION, or ORVION anywhere. Thus C:\cx\ORVION-<task> is archived;
+            # C:\cx\CRM-<task> and C:\cx\repo are not. Keep this selector unchanged when naming clones.
             if($first-notmatch'"cwd":"[^"]*(Documents\\\\GitHub\\\\(CRM|ORVION)|ORVION)'){continue}
             if(Copy-Grown $f.FullName (Join-Path $raw "codex$($f.FullName.Substring($CodexSessions.Length))")){$script:copied++}
         }catch{Write-SyncError $f.FullName $_}

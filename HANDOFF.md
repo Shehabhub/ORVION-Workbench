@@ -10,8 +10,8 @@ snapshot and names the record that is authoritative for each fact.
   Phase 8 / **Batch 6**, ON HOLD by owner decision (2026-10-18) until the infrastructure programme closes.
 - The **infrastructure programme** (now) makes the repositories self-governing and safe for any agent: a Gate that
   judges every Change Request (CR) transition, exact-SHA certification, trusted publication/promotion, recovery.
-- **ORVION-Owner-Tools** (this folder, local Git, no remote) is the owner's external execution and coordination layer:
-  agent tools, the session archive, the event journal, combined (two-repository) work. It is never repository
+- **ORVION-Workbench** (this folder, source remote `Shehabhub/ORVION-Workbench`, `workbench-preflight` then `main`) is the owner's external execution and coordination layer:
+  agent tools and combined (two-repository) work; the session archive and event journal use one data root: `ORVION_DATA_ROOT`, else sibling `ORVION-Owner-Tools` when it has `events\`, else this checkout. It is never repository
   authority and never a dependency of either repository.
 
 ## 2. Repository identities and boundaries (owner rule, 2026-10-20: strict independence)
@@ -150,9 +150,9 @@ PREPARED, NOT APPROVED: contract A (§4). Workspace tools: implemented and teste
 - **Dogs** = `Hunt.ps1`: invariants, liveness, untested tools, planted-bug mutants; every BUG/GAP becomes an event.
 - **Birds** = the watchers: `watch_run` (in each repository; one timed run), `Watch-Host` (memory), `Watch-Subagents`
   (background agents STALLED/FINISHED).
-- **Journal**: `events\events.jsonl` via `Events.ps1 -Add/-Find/-Brief`; **delegation**: `Delegate.ps1` (brief ->
-  report -> verdict event). **Sessions**: `sessions\raw\` verbatim (Claude + Codex; sensitive: one live local token
-  noted in README), `sessions\INDEX.md`, kept by `Sync-Sessions.ps1`. **Backup**: `Backup-Workspace.ps1 -Package`
+- **Journal**: `events\events.jsonl` under the one data root above via `Events.ps1 -Add/-Find/-Brief`; **delegation**: `Delegate.ps1` (brief ->
+  report -> verdict event). **Sessions**: `sessions\raw\` verbatim (Claude + Codex; sensitive: token shapes
+  noted in `docs/RECOVERY.md`), `sessions\INDEX.md` under that same data root, kept by `Sync-Sessions.ps1`, started by Claude Code running this checkout's `lib\hooks\Watch-Reminder.ps1`. **Backup**: `Backup-Workspace.ps1 -Package`
   (one selective archive in OneDrive, unencrypted by owner decision; reinstall and restore steps: `docs\RECOVERY.md`).
   Recover the latest verified state: Pulse -> its `in flight` line -> that task's RESUME.md.
 - Codex does not read Claude hooks or memory: it starts from §3 and this file. Claude memory

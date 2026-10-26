@@ -32,7 +32,7 @@ param([Parameter(ParameterSetName='queue')][switch]$Check,
       [Parameter(ParameterSetName='dispatch')][ValidateSet('readonly','sandbox')][string]$Mode='readonly',
       [Parameter(ParameterSetName='dispatch')][int]$Minutes=30,
       [datetime]$Now=[DateTime]::UtcNow,  # the self-check moves the clock
-      [string]$Root=$(if($env:ORVION_DATA_ROOT){$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path $PSScriptRoot -Parent))[0]}))
+      [string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent))[0]}))
 $ErrorActionPreference='Stop'
 $ev=Join-Path $PSScriptRoot 'Events.ps1';$log=Join-Path $Root 'events\events.jsonl'
 # The journal is the only state: every view is computed from it at read time, so there is no index to drift or rebuild.

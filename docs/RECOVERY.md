@@ -18,13 +18,13 @@ not into this folder. Never put the package or its scan in a Git repository.
 | Holds (verified by SHA256SUMS.txt inside the archive) | Leaves out (regenerable or owner-held) |
 | --- | --- |
 | Every ref of CRM, ORVION, both trusted clones, ORVION-Workbench and its trusted clone (bundles), their ignored receipts and safe local git config | Credential stores and logins (re-login, below) |
-| GitHub\ORVION-Owner-Tools: sessions archive, events journal, work | Clean nested clones (each keeps `.clone-state\state.json`: origin, HEAD, refs) |
+| One data root: `ORVION_DATA_ROOT`, else sibling `ORVION-Owner-Tools` when it has `events\`, else this checkout: sessions archive, events journal, work | Clean nested clones (each keeps `.clone-state\state.json`: origin, HEAD, refs) |
 | Documents\ORVION-Owner-Review, -Owner-Tools, -Owner-Recovery, -Sandbox, -drafts-backup, Windows-Memory-Config | node_modules (reinstalled from lockfiles) |
 | Per nested clone: its ignored files in place, `.clone-state\unique.bundle` (HEAD and every tip the main bundles lack), `staged.diff`, `worktree.diff`, `untracked\` | Claude/Codex program files, plugins, other projects' transcripts |
 | Claude settings, statusline and ORVION project memory; declared recovery inputs (owner approvals, sealed proofs) | Everything outside the folders listed on the left |
 
 The package refuses (no archive) rather than lose state a bundle cannot carry: uncommitted work, more than one stash or
-a linked worktree in a main repository, or files under ORVION-Owner-Tools\work\sandboxes. Commit or remove them first.
+a linked worktree in a main repository, or files under the one data root's `work\sandboxes`. Commit or remove them first.
 
 Not in this package and NOT regenerable by it: `C:\Users\My Lab\Marketing-MCP` (the copy Codex's marketing MCP
 servers use) and the older `Documents\GitHub\Marketing-MCP` (neither is a Git repository; both hold Google credentials
@@ -58,8 +58,7 @@ their original roots either way.
    download it from onedrive.live.com). Check its SHA256 against the recorded `PACKAGE:` line (`Get-FileHash`).
 2. Install the toolchain: PowerShell 7.6.x, Git for Windows 2.54.x, 7-Zip, GitHub CLI
    (`winget install Microsoft.PowerShell Git.Git 7zip.7zip GitHub.cli`), then `git config --global core.longpaths true`
-   (evidence paths exceed 260 characters). Optional scoop tools used by product checks: actionlint (pinned by the
-   repositories), gitleaks, supabase, trivy.
+   (evidence paths exceed 260 characters). Workbench requires the external actionlint 1.7.12 Windows/amd64 executable pinned by `Get-WorkbenchCITool` (archive and executable SHA256), supplied via `-Actionlint` or `WORKBENCH_ACTIONLINT` for targeted tests, as required by `WORKFLOW.md`; never fetch latest implicitly. Optional scoop tools used by product checks: gitleaks, supabase, trivy.
 3. Get the restore tool from GitHub (the repository is public; `gh auth login` as Shehabhub is still needed later), into a temporary folder:
    `git clone https://github.com/Shehabhub/ORVION-Workbench C:\ORVION-Temp\workbench`
    Without GitHub access: `7z x <archive> -oC:\ORVION-Temp\open`, then
@@ -77,7 +76,10 @@ their original roots either way.
    per-account credential pin); `supabase login`; sign in to Claude Code and Codex.
 6. Verify, in order: `pwsh -NoProfile -File scripts\check_agent_continuity.ps1 -Boot` in CRM and in ORVION must print
    `ORVION: READY`; `pwsh -NoProfile -File lib\Workbench.ps1 -Boot` in ORVION-Workbench must print `WORKBENCH: READY`;
-   then Pulse with `-Root` ORVION-Owner-Tools. Restart the session archiver (`lib\Sync-Sessions.ps1`) as before.
+   Restore places the data store at `<GitHub>\ORVION-Owner-Tools` (`<GitHub>` is Restore's `-Target`, or
+   `%USERPROFILE%\Documents\GitHub` by default). If `ORVION_DATA_ROOT` was set before recovery, unset it or point it
+   to that restored directory before starting hooks or readers. Then run Pulse with `-Root` set to that store.
+   Claude Code runs this checkout's `lib\hooks\Watch-Reminder.ps1`; it starts the session archiver (`lib\Sync-Sessions.ps1`) with that data root.
 7. Record the result as the clean-machine recovery proof (HANDOFF §12, C2) with the Boot outputs. Only then may the
    Batch 6 hold be lifted.
 8. A nested clone is rebuilt only when needed. Clone its `state.json` origin, or the restored main repository it

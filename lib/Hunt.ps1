@@ -12,15 +12,18 @@
 #   capability  NEED (history shows a missing MCP server, hook or skill) and PRUNE (configured, never used) proposals
 #   lint        PSScriptAnalyzer bug-relevant rules, when installed (known false positives listed below)
 # -Quick skips mutants and lint (about 5 s instead of about 60 s).
-param([string]$Root=(Split-Path $PSScriptRoot -Parent),[switch]$Quick,[switch]$NoRecord,[object[]]$MutantSet)  # -MutantSet: test-hunt.ps1 only
+param([string]$Root=(Split-Path $PSScriptRoot -Parent),[switch]$Quick,[switch]$NoRecord,[object[]]$MutantSet,[string]$DataRoot=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent))[0]}))  # -MutantSet: test-hunt.ps1 only
 $ErrorActionPreference='Stop'
-. (Join-Path $PSScriptRoot 'Sync-Sessions.ps1') -Library -Root $Root
+# Sync's library binds $Root in this scope; restore the independent source root afterwards.
+$sourceRoot=$Root
+. (Join-Path $PSScriptRoot 'Sync-Sessions.ps1') -Library -Root $DataRoot
+$Root=$sourceRoot
 $findings=[Collections.Generic.List[object]]::new()
 function Add-Finding([string]$Kind,[string]$Hound,[string]$Text,[string]$Tags=''){$findings.Add([pscustomobject]@{kind=$Kind;hound=$Hound;text=$Text;tags=$Tags})}
 $sw=[Diagnostics.Stopwatch]::StartNew()
 
 # invariants: the archive never diverges from a source it copies (the prefix rule Copy-Grown relies on).
-$raw=Join-Path $Root 'sessions\raw';$cp=Join-Path $env:USERPROFILE '.claude\projects';$diverged=0;$checked=0
+$raw=Join-Path $DataRoot 'sessions\raw';$cp=Join-Path $env:USERPROFILE '.claude\projects';$diverged=0;$checked=0
 if(Test-Path "$raw\claude"){foreach($a in Get-ChildItem "$raw\claude" -Recurse -File){
     if($a.BaseName-match'\.(replaced-)?\d{14}$'){continue}
     $src=Join-Path $cp $a.FullName.Substring("$raw\claude\".Length)
@@ -28,22 +31,22 @@ if(Test-Path "$raw\claude"){foreach($a in Get-ChildItem "$raw\claude" -Recurse -
     $checked++;$in=[IO.File]::Open($src,'Open','Read','ReadWrite,Delete');try{if(!(Test-Prefix $in $a.FullName $a.Length)){$diverged++}}finally{$in.Close()}
 }}
 if($diverged){Add-Finding BUG archive-prefix "$diverged of $checked archived files are no longer a prefix of their source (the next pass sets them aside; find out what rewrote them)" 'archive prefix source rewritten'}
-$ix=Join-Path $Root 'sessions\index.jsonl';$bad=@()
+$ix=Join-Path $DataRoot 'sessions\index.jsonl';$bad=@()
 if(Test-Path $ix){foreach($l in [IO.File]::ReadAllLines($ix)|Where-Object{$_}){
-    $r=$l|ConvertFrom-Json;$p=Join-Path $Root $r.raw
+    $r=$l|ConvertFrom-Json;$p=Join-Path $DataRoot $r.raw
     if(!(Test-Path -LiteralPath $p)){$bad+="$($r.id): raw file missing";continue}
     $f=Get-Item -LiteralPath $p;$idle=([DateTime]::UtcNow-$f.LastWriteTimeUtc).TotalMinutes-ge20
     if($idle-and($r.bytes-ne$f.Length-or$r.metaBytes-ne$f.Length)){$bad+="$($r.id): index says $($r.bytes)/$($r.metaBytes) bytes, file has $($f.Length)"}
 }}else{Add-Finding GAP index-missing 'sessions\index.jsonl does not exist (run Sync-Sessions.ps1)'}
 if($bad){Add-Finding BUG index-consistency "$($bad.Count) idle index rows disagree with their files, first: $($bad[0])" 'index session bytes stale'}
-$evLog=Join-Path $Root 'events\events.jsonl'
+$evLog=Join-Path $DataRoot 'events\events.jsonl'
 $events=@(if(Test-Path $evLog){[IO.File]::ReadAllLines($evLog)|Where-Object{$_}|ForEach-Object{try{$_|ConvertFrom-Json}catch{$null=$_}}|Where-Object{$_}})
 $torn=@(if(Test-Path $evLog){[IO.File]::ReadAllLines($evLog)|Where-Object{$_}|Where-Object{try{$o=$_|ConvertFrom-Json;!($o.pattern-and$o.at)}catch{$true}}}).Count
 if($torn){Add-Finding BUG events-corrupt "$torn line(s) of events\events.jsonl are not valid events (skipped by every reader; repair or remove them)" 'events log corrupt torn line'}
-foreach($lg in 'sync-errors.log'){$p=Join-Path $Root "work\$lg";if((Test-Path $p)-and(Get-Item $p).Length){Add-Finding BUG $lg.Replace('.log','') "the session archiver logged $(@(Get-Content $p).Count) failure(s); last: $(@(Get-Content $p -Tail 1)[0])" 'archive sync error file failed'}}
+foreach($lg in 'sync-errors.log'){$p=Join-Path $DataRoot "work\$lg";if((Test-Path $p)-and(Get-Item $p).Length){Add-Finding BUG $lg.Replace('.log','') "the session archiver logged $(@(Get-Content $p).Count) failure(s); last: $(@(Get-Content $p -Tail 1)[0])" 'archive sync error file failed'}}
 $ids=@{};if(Test-Path $ix){foreach($l in [IO.File]::ReadAllLines($ix)|Where-Object{$_}){$ids[($l|ConvertFrom-Json).id]=1}}
 $missingEv=@($events|Where-Object{$_.evidence-match'^(?:[A-Za-z]:\\|work\\|sessions\\|lib\\)'}|Where-Object{
-    $e=$_.evidence-replace'\s*\(.*$','';!(Test-Path -LiteralPath $e)-and!(Test-Path -LiteralPath (Join-Path $Root $e))-and!(Test-Path -LiteralPath (Join-Path (Join-Path $env:USERPROFILE 'Documents') $e))}|ForEach-Object pattern|Select-Object -Unique)
+    $e=$_.evidence-replace'\s*\(.*$','';!(Test-Path -LiteralPath $e)-and!(Test-Path -LiteralPath (Join-Path $(if($e-match'^(work|sessions)\\'){$DataRoot}else{$Root}) $e))-and!(Test-Path -LiteralPath (Join-Path (Join-Path $env:USERPROFILE 'Documents') $e))}|ForEach-Object pattern|Select-Object -Unique)
 if($missingEv){Add-Finding GAP event-evidence "evidence path missing for: $($missingEv-join', ')" 'event evidence path missing'}
 # a session already recorded as lost to the 30-day cleanup is a known, accepted loss, not a new gap
 $lost=@($events|Where-Object{"$($_.evidence) $($_.summary)"-match'deleted by (the )?30-day cleanup'}|ForEach-Object session)
@@ -58,7 +61,7 @@ $us=Join-Path $env:USERPROFILE '.claude\settings.json'
 if(Test-Path $us){foreach($m in [regex]::Matches([IO.File]::ReadAllText($us),'-File \\"([^\\"]+\.ps1)\\"')){if(!(Test-Path -LiteralPath $m.Groups[1].Value)){Add-Finding BUG hook-path "a Claude hook runs a script that does not exist: $($m.Groups[1].Value)" 'hook settings path missing'}}}
 $cx=Join-Path $env:USERPROFILE '.codex\AGENTS.md'
 if((Test-Path $cx)-and([IO.File]::ReadAllText($cx)-notmatch'Pulse\.ps1')){Add-Finding GAP codex-pointer 'Codex global AGENTS.md no longer points to Pulse/Events: Codex agents will not see the lessons' 'codex agents pointer instructions'}
-$he=Join-Path $Root 'work\hook-errors.log'
+$he=Join-Path $DataRoot 'work\hook-errors.log'
 if((Test-Path $he)-and(Get-Item $he).Length){Add-Finding BUG hook-errors "the session hook logged $(@(Get-Content $he).Count) error(s); last: $(@(Get-Content $he -Tail 1)[0])" 'hook error session start'}
 
 # versioned
@@ -150,10 +153,10 @@ if(!$Quick){
 $bugs=@($findings|Where-Object kind -eq BUG).Count;$gaps=@($findings|Where-Object kind -eq GAP).Count;$props=@($findings|Where-Object kind -in NEED,PRUNE).Count
 $summary="HUNT $([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm')) UTC$(if($Quick){' (quick)'}): $bugs bug(s), $gaps gap(s), $props capability proposal(s) in $([int]$sw.Elapsed.TotalSeconds) s"
 $summary;$findings|ForEach-Object{"  $($_.kind) $($_.hound): $($_.text)"}
-New-Item -ItemType Directory (Join-Path $Root 'work') -Force|Out-Null
-[IO.File]::WriteAllLines((Join-Path $Root 'work\hunt-last.txt'),[string[]](@($summary)+@($findings|ForEach-Object{"  $($_.kind) $($_.hound): $($_.text)"})))
+New-Item -ItemType Directory (Join-Path $DataRoot 'work') -Force|Out-Null
+[IO.File]::WriteAllLines((Join-Path $DataRoot 'work\hunt-last.txt'),[string[]](@($summary)+@($findings|ForEach-Object{"  $($_.kind) $($_.hound): $($_.text)"})))
 if(!$NoRecord){foreach($x in $findings){
-    $null=& (Join-Path $PSScriptRoot 'Events.ps1') -Root $Root -Add -Pattern "hunt-$($x.hound)" -Source hunter -Session "hunter-$([DateTime]::UtcNow.ToString('yyyy-MM-dd'))" -Category $(if($x.kind-eq'BUG'){'failure'}elseif($x.kind-in'NEED','PRUNE'){'proposal'}else{'observation'}) -Severity $(if($x.kind-eq'BUG'){'high'}else{'warn'}) -Cause confirmed -Summary "$($x.kind): $($x.text)" -Tool 'Hunt.ps1' -Tags "hunt $($x.kind.ToLower()) $($x.tags)"
+    $null=& (Join-Path $PSScriptRoot 'Events.ps1') -Root $DataRoot -Add -Pattern "hunt-$($x.hound)" -Source hunter -Session "hunter-$([DateTime]::UtcNow.ToString('yyyy-MM-dd'))" -Category $(if($x.kind-eq'BUG'){'failure'}elseif($x.kind-in'NEED','PRUNE'){'proposal'}else{'observation'}) -Severity $(if($x.kind-eq'BUG'){'high'}else{'warn'}) -Cause confirmed -Summary "$($x.kind): $($x.text)" -Tool 'Hunt.ps1' -Tags "hunt $($x.kind.ToLower()) $($x.tags)"
 }
     # A hound that no longer finds what it reported closes its own finding; hounds -Quick skipped cannot judge.
     $skipped=if($Quick){'^hunt-(mutant-|lint-|mcp-|docs-|hook-candidates)'}else{'^$'}
@@ -161,7 +164,7 @@ if(!$NoRecord){foreach($x in $findings){
     foreach($g in @($events|Where-Object{$_.pattern-like'hunt-*'}|Group-Object pattern)){
         $z=@($g.Group|Sort-Object at)[-1]
         if($z.status-eq'open'-and$g.Name-notin$now-and$g.Name-notmatch$skipped){
-            $null=& (Join-Path $PSScriptRoot 'Events.ps1') -Root $Root -Add -Pattern $g.Name -Source hunter -Session "hunter-$([DateTime]::UtcNow.ToString('yyyy-MM-dd'))" -Category $z.category -Cause confirmed -Status resolved -Summary "no longer found by Hunt.ps1 ($([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm')) UTC)" -Tool 'Hunt.ps1' -Tags $z.tags
+            $null=& (Join-Path $PSScriptRoot 'Events.ps1') -Root $DataRoot -Add -Pattern $g.Name -Source hunter -Session "hunter-$([DateTime]::UtcNow.ToString('yyyy-MM-dd'))" -Category $z.category -Cause confirmed -Status resolved -Summary "no longer found by Hunt.ps1 ($([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm')) UTC)" -Tool 'Hunt.ps1' -Tags $z.tags
         }
     }
 }

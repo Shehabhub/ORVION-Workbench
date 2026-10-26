@@ -1,10 +1,66 @@
 # Self-check for Events.ps1 in a temp root: add, duplicate refusal, recurrence across sessions, ranking by rare words,
 # the brief's open-first order, and the link from an event to its session's raw record through sessions\index.jsonl.
+param([switch]$RootProbeOnly,[string]$RelativeTool)
 $ErrorActionPreference='Stop'
 $ev=Join-Path $PSScriptRoot 'Events.ps1'
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-evcheck-$([guid]::NewGuid().ToString('N').Substring(0,6))";New-Item -ItemType Directory "$t\sessions" -Force|Out-Null
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 try{
+    $expression='$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw ''ORVION_DATA_ROOT_NOT_ABSOLUTE''};$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace''[\\/]hooks$'','''') -Parent) -Parent) ''ORVION-Owner-Tools'')|Where-Object{Test-Path -LiteralPath (Join-Path $_ ''events'')})+@(Split-Path ($PSScriptRoot-replace''[\\/]hooks$'','''') -Parent))[0]})'
+    $drift=@(foreach($tool in 'Events','Spider','Pulse','Coordinator','Delegate','Sync-Sessions'){if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot "$tool.ps1")).Contains('[string]$Root='+$expression)){$tool}})+@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Watch-Subagents.ps1')).Contains('[string]$EventRoot='+$expression)){'Watch-Subagents'})+@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Hunt.ps1')).Contains('[string]$DataRoot='+$expression)){'Hunt'})
+    $drift+=@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Backup-Workspace.ps1')).Contains('$ownerTools='+$expression)){'Backup-Workspace'})
+    $drift+=@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'hooks\Watch-Reminder.ps1')).Contains('$dataRoot='+$expression)){'Watch-Reminder'})
+    Assert-That "every data tool carries the one identical data-root default$(if($drift.Count){' (drifted: '+($drift-join', ')+')'})" (!$drift.Count)
+    # Default evaluation must refuse before either PowerShell or .NET can resolve a relative store.
+    # A copied library and explicit fixture profile keep a reverted guard safe to exercise.
+    $layout=Join-Path $t 'relative-roots';$checkout=Join-Path $layout 'ORVION-Workbench';$copy=Join-Path $checkout 'lib'
+    [void][IO.Directory]::CreateDirectory($copy)
+    Copy-Item (Join-Path $PSScriptRoot '*') $copy -Recurse
+    [void][IO.Directory]::CreateDirectory((Join-Path $layout 'ORVION-Owner-Tools\events'))
+    $relativeCases=@(
+        @{tool='Events';arguments=@('-Brief')},
+        @{tool='Spider';arguments=@('fixture')},
+        @{tool='Pulse';arguments=@()},
+        @{tool='Coordinator';arguments=@('-Brief')},
+        @{tool='Delegate';arguments=@('-List')},
+        @{tool='Watch-Subagents';arguments=@('-Session','fixture','-Once')},
+        @{tool='Sync-Sessions';arguments=@('-Quiet','-ClaudeProjects',(Join-Path $t 'no-claude'),'-CodexSessions',(Join-Path $t 'no-codex'))},
+        @{tool='Backup-Workspace';arguments=@('-Destination',(Join-Path $t 'relative-backup'),'-AllowUnencrypted','-SkipLegacy')},
+        @{tool='Hunt';arguments=@('-Quick','-NoRecord')},
+        @{tool='hooks\Watch-Reminder';arguments=@()}
+    )
+    foreach($case in $relativeCases|Where-Object{!$RelativeTool-or$_.tool-eq$RelativeTool}){foreach($launch in 'a','b'){
+        $launchRoot=Join-Path $t ("launch-$($case.tool.Replace('\','-'))-$launch")
+        [void][IO.Directory]::CreateDirectory($launchRoot)
+        # A reverted Pulse/Hunt guard must not discover live runs or read their logs.
+        $launcher=Join-Path $launchRoot 'invoke-tool.ps1'
+        $arguments=@(foreach($argument in $case.arguments){if($argument-match'^-[A-Za-z]+$'){$argument}else{"'"+$argument.Replace("'","''")+"'"}})
+        $toolPath=(Join-Path $copy ($case.tool+'.ps1')).Replace("'","''")
+        $launchText=@'
+$ErrorActionPreference='Stop'
+function Get-CimInstance{param([string]$ClassName,[string]$Filter) if($ClassName-eq'Win32_OperatingSystem'){[pscustomobject]@{FreePhysicalMemory=1000000;FreeVirtualMemory=2000000}}}
+'@
+        [IO.File]::WriteAllText($launcher,$launchText+"`n& '$toolPath' "+($arguments-join' ')+"`nexit `$LASTEXITCODE`n")
+        $info=[Diagnostics.ProcessStartInfo]::new((Get-Command pwsh -CommandType Application|Select-Object -First 1).Source)
+        $info.UseShellExecute=$false;$info.CreateNoWindow=$true;$info.WorkingDirectory=$launchRoot
+        $info.RedirectStandardOutput=$true;$info.RedirectStandardError=$true;$info.RedirectStandardInput=$true
+        $info.Environment['USERPROFILE']=Join-Path $t 'profile'
+        $info.Environment['ORVION_DATA_ROOT']='relative-store'
+        foreach($argument in @('-NoProfile','-File',$launcher)){$info.ArgumentList.Add($argument)}
+        $child=[Diagnostics.Process]::new();$child.StartInfo=$info
+        try{
+            [void]$child.Start();$stdout=$child.StandardOutput.ReadToEndAsync();$stderr=$child.StandardError.ReadToEndAsync()
+            # Invalid input also bounds the hook if its try-path guard is deliberately reverted.
+            $child.StandardInput.Write('{fixture-invalid');$child.StandardInput.Close()
+            if(!$child.WaitForExit(15000)){throw 'RELATIVE_ROOT_FIXTURE_TIMEOUT'}
+            $out=$stdout.GetAwaiter().GetResult();$err=$stderr.GetAwaiter().GetResult();$code=$child.ExitCode
+        }finally{$child.Dispose()}
+        $refused=if($case.tool-eq'hooks\Watch-Reminder'){
+            $code-eq0-and$out-eq''-and@($err.TrimEnd()-split'\r?\n').Count-eq1-and$err-match'^WATCH_REMINDER_UNREADABLE: ORVION_DATA_ROOT_NOT_ABSOLUTE;'
+        }else{$code-ne0-and($out+$err)-match'ORVION_DATA_ROOT_NOT_ABSOLUTE'}
+        Assert-That "$($case.tool) rejects relative environment root from launch $launch without a relative store" ($refused-and!(Test-Path -LiteralPath (Join-Path $launchRoot 'relative-store'))-and!(Test-Path -LiteralPath (Join-Path $checkout 'relative-store')))
+    }}
+    if($RootProbeOnly){if($fail){throw 'EVENTS_ROOT_PROBE_FAILED'};'EVENTS_ROOT_PROBE PASS';return}
     '{"id":"s1-aaaaaaaa","start":"2026-10-01T10:00:00Z","title":"first session","raw":"sessions\\raw\\s1.jsonl"}'|Set-Content "$t\sessions\index.jsonl"
     $a=& $ev -Root $t -Add -Pattern ps-reserved-name -Session s1-aaaaaaaa -Category failure -Status resolved -Summary 'param named $Pid broke' -Tool Test-ScriptHazards.ps1 -Tags 'pid process param'
     $b=& $ev -Root $t -Add -Pattern ps-reserved-name -Session s1-aaaaaaaa -Category failure -Status resolved -Summary 'param named $Pid broke'
@@ -44,14 +100,11 @@ try{
     # The default data root: the sibling ORVION-Owner-Tools store when it has events\, ORVION_DATA_ROOT above all.
     $gh=Join-Path $t 'gh';$copy=Join-Path $gh 'ORVION-Workbench\lib';[void][IO.Directory]::CreateDirectory($copy);Copy-Item $ev $copy
     $null=& $ev -Root (Join-Path $gh 'ORVION-Owner-Tools') -Add -Pattern sibling-store-marker -Session s9 -Summary 'found in the sibling data store' -Tags 'siblingmarker'
-    $null=& $ev -Root (Join-Path $t 'env-store') -Add -Pattern env-store-marker -Session s9 -Summary 'found through ORVION_DATA_ROOT' -Tags 'siblingmarker'
+    $null=& $ev -Root (Join-Path $t 'env store') -Add -Pattern env-store-marker -Session s9 -Summary 'found through ORVION_DATA_ROOT' -Tags 'siblingmarker'
     $savedRoot=$env:ORVION_DATA_ROOT
     try{$env:ORVION_DATA_ROOT=$null;$sib=@(& pwsh -NoProfile -File (Join-Path $copy 'Events.ps1') -Find 'siblingmarker')
-        $env:ORVION_DATA_ROOT=Join-Path $t 'env-store';$viaEnv=@(& pwsh -NoProfile -File (Join-Path $copy 'Events.ps1') -Find 'siblingmarker')}finally{$env:ORVION_DATA_ROOT=$savedRoot}
+        $env:ORVION_DATA_ROOT=(Join-Path $t 'env store')+'\';$viaEnv=@(& pwsh -NoProfile -File (Join-Path $copy 'Events.ps1') -Find 'siblingmarker')}finally{$env:ORVION_DATA_ROOT=$savedRoot}
     Assert-That 'default root finds the sibling data store; ORVION_DATA_ROOT overrides it' (($sib-join' ')-match'sibling-store-marker'-and($viaEnv-join' ')-match'env-store-marker'-and($viaEnv-join' ')-notmatch'sibling-store-marker')
-    $expression='$(if($env:ORVION_DATA_ROOT){$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) ''ORVION-Owner-Tools'')|Where-Object{Test-Path -LiteralPath (Join-Path $_ ''events'')})+@(Split-Path $PSScriptRoot -Parent))[0]})'
-    $drift=@(foreach($tool in 'Events','Spider','Pulse','Coordinator','Delegate'){if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot "$tool.ps1")).Contains('[string]$Root='+$expression)){$tool}})+@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Watch-Subagents.ps1')).Contains('[string]$EventRoot='+$expression)){'Watch-Subagents'})
-    Assert-That "every data tool carries the one identical data-root default$(if($drift.Count){' (drifted: '+($drift-join', ')+')'})" (!$drift.Count)
     # A Hijri-calendar culture (ar-SA) must not leak into stored timestamps: readers parse them as Gregorian UTC.
     $hijri=Join-Path $t 'hijri';& pwsh -NoProfile -Command "[Globalization.CultureInfo]::CurrentCulture='ar-SA';& '$($ev.Replace("'","''"))' -Root '$($hijri.Replace("'","''"))' -Add -Pattern locale-check -Summary 'calendar'"|Out-Null
     $stamp=([IO.File]::ReadAllLines((Join-Path $hijri 'events\events.jsonl'))[0]|ConvertFrom-Json -DateKind String).at

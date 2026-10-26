@@ -6,7 +6,7 @@
 #   last       the newest other session: task, when it ended, where it stopped
 #   queue      the coordinator's queue (Coordinator.ps1 -Brief): counts by state, the three most urgent items
 # Read-only; a failing git read prints UNREADABLE for that repository instead of guessing.
-param([string]$Root=$(if($env:ORVION_DATA_ROOT){$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path $PSScriptRoot -Parent))[0]}),[string]$Session=$env:CLAUDE_CODE_SESSION_ID,
+param([string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent))[0]}),[string]$Session=$env:CLAUDE_CODE_SESSION_ID,
       [string[]]$Repos=@('CRM','ORVION'|ForEach-Object{Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) $_}))
 $ErrorActionPreference='Stop'
 $pulseUnreadable=$false
@@ -59,7 +59,13 @@ $ixPath=Join-Path $Root 'sessions\index.jsonl'
 $prev=@(if(Test-Path $ixPath){[IO.File]::ReadAllLines($ixPath)|Where-Object{$_}|ForEach-Object{try{$_|ConvertFrom-Json}catch{$script:indexBadRows++}}|Where-Object{$_}|Where-Object{$_.id-ne$Session-and$_.prompts}|Sort-Object end})|Select-Object -Last 1
 # The session index is continuity evidence: missing is said plainly, damaged rows make the pulse unreadable.
 if(!(Test-Path $ixPath)){"last     none: no session index at $ixPath (Sync-Sessions.ps1 builds it)"}elseif($script:indexBadRows){$pulseUnreadable=$true;"last     UNREADABLE: $($script:indexBadRows) damaged session-index row(s) in $ixPath"}
-if($prev){"last     session $($prev.id.Substring(0,[Math]::Min(8,$prev.id.Length))) [$($prev.repo) $($prev.client)] `"$(@($prev.title,$prev.firstPrompt)|Where-Object{$_}|Select-Object -First 1)`" ended $(([datetime]$prev.end).ToUniversalTime().ToString('yyyy-MM-dd HH:mm')); last ask: `"$($prev.lastPrompt)`""}
+function Format-PulsePrompt([string]$Text){if($Text.Length-gt300){return $Text.Substring(0,297)+'...'};$Text}
+if($prev){
+    $title=Format-PulsePrompt (@($prev.title,$prev.firstPrompt)|Where-Object{$_}|Select-Object -First 1)
+    $lastPrompt=Format-PulsePrompt $prev.lastPrompt
+    $archive=Join-Path $Root $(if($prev.raw){$prev.raw}else{'sessions\INDEX.md'})
+    "last     session $($prev.id.Substring(0,[Math]::Min(8,$prev.id.Length))) [$($prev.repo) $($prev.client)] `"$title`" ended $(([datetime]$prev.end).ToUniversalTime().ToString('yyyy-MM-dd HH:mm')); last ask: `"$lastPrompt`"; archive: $archive"
+}
 # every open observation, held to an owner, a next action and a due time; the most urgent first
 if($pulseSnapshot){
     if(!$pulseSnapshot.Readable){'queue    UNREADABLE (valid partial diagnostics only)'}

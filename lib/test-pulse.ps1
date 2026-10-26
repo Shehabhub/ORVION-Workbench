@@ -1,6 +1,6 @@
 # Real Pulse caller on owned Git/journal fixtures. No product, real journal or credential writes.
 # An explicit library permits causal mutants; it never changes production tool selection.
-param([string]$Library=$PSScriptRoot)
+param([string]$Library=$PSScriptRoot,[switch]$OutputProbeOnly)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'remove-owned.ps1')
 $pulseFailures=0
@@ -16,6 +16,14 @@ $pulseRepository=Join-Path $pulseFixture 'native'
 [void][IO.Directory]::CreateDirectory($pulseRepository)
 [void][IO.Directory]::CreateDirectory((Join-Path $pulseFixture 'events'))
 $pulseJournal=Join-Path $pulseFixture 'events/events.jsonl'
+# Keep process/log discovery synthetic as well as the journal and repositories.
+$pulseLauncher=Join-Path $pulseFixture 'invoke-pulse.ps1'
+$pulseLaunchText=@'
+param([string]$Pulse,[string]$Data,[string]$Repository)
+function Get-CimInstance{param([string]$ClassName,[string]$Filter) if($ClassName-eq'Win32_OperatingSystem'){[pscustomobject]@{FreePhysicalMemory=1000000;FreeVirtualMemory=2000000}}}
+if($Repository){& $Pulse -Root $Data -Repos $Repository}else{& $Pulse -Root $Data -Repos @()};exit $LASTEXITCODE
+'@
+[IO.File]::WriteAllText($pulseLauncher,$pulseLaunchText)
 function Assert-PulseCheck([string]$label,[bool]$condition,[string]$detail=''){
     if($condition){"PASS $label"}else{$script:pulseFailures++;"FAIL $label";if($detail){$detail}}
 }
@@ -25,7 +33,7 @@ function Read-PulseFixtureGit([string[]]$gitArguments){
     $gitLines
 }
 function Invoke-PulseCheck([string]$selectedRepository=$pulseRepository){
-    $pulseLines=@(& pwsh -NoProfile -File $pulsePath -Root $pulseFixture -Repos $selectedRepository 2>&1)
+    $pulseLines=@(& pwsh -NoProfile -File $pulseLauncher -Pulse $pulsePath -Data $pulseFixture -Repository $selectedRepository 2>&1)
     [pscustomobject]@{Exit=$LASTEXITCODE;Text=$pulseLines-join"`n"}
 }
 function Set-PulseFixtureEvents([object[]]$eventRows){
@@ -33,6 +41,17 @@ function Set-PulseFixtureEvents([object[]]$eventRows){
     [IO.File]::WriteAllText($pulseJournal,$eventText,[Text.UTF8Encoding]::new($false))
 }
 try{
+    Set-PulseFixtureEvents @()
+    [void][IO.Directory]::CreateDirectory((Join-Path $pulseFixture 'sessions'))
+    $largeRow=@{id='large-index-fixture';prompts=1;title=('T'*10000);lastPrompt=('L'*10000);end='2026-10-20T00:00:00Z';repo='fixture';client='fixture';raw='sessions\raw\fixture.jsonl'}
+    [IO.File]::WriteAllText((Join-Path $pulseFixture 'sessions/index.jsonl'),($largeRow|ConvertTo-Json -Compress)+"`n")
+    $largeObserved=Invoke-PulseCheck ''
+    $largeLine=[regex]::Match($largeObserved.Text,'(?m)^last     session .*?"(?<title>[^"]*)" ended .*?last ask: "(?<prompt>[^"]*)"')
+    Assert-PulseCheck 'large session title is bounded to 300 characters with ellipsis' ($largeObserved.Exit-eq0-and$largeLine.Success-and$largeLine.Groups['title'].Value-ceq(('T'*297)+'...'))
+    Assert-PulseCheck 'large last prompt is bounded to 300 characters with ellipsis' ($largeObserved.Exit-eq0-and$largeLine.Success-and$largeLine.Groups['prompt'].Value-ceq(('L'*297)+'...'))
+    Assert-PulseCheck 'bounded session display retains its absolute archive pointer' ($largeObserved.Exit-eq0-and$largeObserved.Text.Contains('; archive: '+(Join-Path $pulseFixture $largeRow.raw)))
+    [IO.File]::Delete((Join-Path $pulseFixture 'sessions/index.jsonl'))
+    if($OutputProbeOnly){if($pulseFailures){throw 'PULSE_OUTPUT_PROBE_FAILED'};$pulseCompleted=$true;'PULSE_OUTPUT_PROBE PASS';return}
     $null=Read-PulseFixtureGit @('init','--quiet','-b','main')
     $null=Read-PulseFixtureGit @('config','user.name','Pulse Fixture')
     $null=Read-PulseFixtureGit @('config','user.email','fixture@invalid.local')

@@ -28,7 +28,7 @@ param(
     [Parameter(ParameterSetName='find',Mandatory)][string]$Find,
     [Parameter(ParameterSetName='brief')][switch]$Brief,
     [int]$Top=5,
-    [string]$Root=$(if($env:ORVION_DATA_ROOT){$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path $PSScriptRoot -Parent))[0]})  # the data root: ORVION_DATA_ROOT, else sibling ORVION-Owner-Tools, else this checkout
+    [string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent))[0]})  # the data root: ORVION_DATA_ROOT, else sibling ORVION-Owner-Tools, else this checkout
 )
 $ErrorActionPreference='Stop'
 $log=Join-Path $Root 'events\events.jsonl'

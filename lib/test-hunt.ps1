@@ -1,23 +1,60 @@
 # Self-check for Hunt.ps1: a planted bug its self-check catches is NOT reported, a harmless change the check cannot
 # see IS reported as a surviving mutant, a stale mutant is reported, and nothing is recorded with -NoRecord.
+param([switch]$RootProbeOnly)
 $ErrorActionPreference='Stop'
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-huntcheck-$([guid]::NewGuid().ToString('N').Substring(0,6))";New-Item -ItemType Directory $t|Out-Null
 $savedProfile=$env:USERPROFILE;$env:USERPROFILE=Join-Path $t 'profile'
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 try{
+
+    # Independently controlled source and data with opposing evidence; Quick avoids slow mutants/lint.
+    $layout=Join-Path $t 'roots';$checkout=Join-Path $layout 'ORVION-Workbench';$copy=Join-Path $checkout 'lib'
+    $sibling=Join-Path $layout 'ORVION-Owner-Tools';$override=Join-Path $layout 'override store';$explicit=Join-Path $t 'explicit store'
+    [void][IO.Directory]::CreateDirectory($copy)
+    Copy-Item (Join-Path $PSScriptRoot '*') $copy -Recurse
+    $savedDataRoot=$env:ORVION_DATA_ROOT
+    try{
+        foreach($case in 'sibling','override','explicit','fallback'){
+            $env:ORVION_DATA_ROOT=$null
+            if($case-eq'fallback'){[IO.Directory]::Delete($sibling,$true)}else{[void][IO.Directory]::CreateDirectory((Join-Path $sibling 'events'))}
+            $expected=if($case-eq'explicit'){$env:ORVION_DATA_ROOT=$override;$explicit}elseif($case-eq'override'){$env:ORVION_DATA_ROOT=$override+'\';$override}elseif($case-eq'sibling'){$sibling}else{$checkout}
+            [void][IO.Directory]::CreateDirectory((Join-Path $expected 'work'));[void][IO.Directory]::CreateDirectory((Join-Path $expected 'sessions'));[void][IO.Directory]::CreateDirectory((Join-Path $expected 'events'))
+            Set-Content (Join-Path $expected 'work\sync-errors.log') "fixture-$case"
+            Set-Content (Join-Path $expected 'work\hook-errors.log') "fixture-hook-$case"
+            Set-Content (Join-Path $expected 'sessions\marker.jsonl') '{}'
+            (Get-Item (Join-Path $expected 'sessions\marker.jsonl')).LastWriteTimeUtc=[DateTime]::UtcNow.AddHours(-1)
+            Set-Content (Join-Path $expected 'sessions\index.jsonl') '{"id":"fixture","raw":"sessions\\marker.jsonl","bytes":0,"metaBytes":0}'
+            Set-Content (Join-Path $expected 'events\events.jsonl') '{torn','{"at":"2026-10-20T01:00:00Z","pattern":"fixture-evidence","evidence":"sessions\\marker.jsonl"}','{"at":"2000-01-01T00:00:00Z","pattern":"hunt-old-root-problem","status":"open","category":"observation"}'
+            $archived=Join-Path $expected 'sessions\raw\claude\C--Fixture-ORVION';$source=Join-Path $env:USERPROFILE '.claude\projects\C--Fixture-ORVION'
+            [void][IO.Directory]::CreateDirectory($archived);[void][IO.Directory]::CreateDirectory($source)
+            Set-Content (Join-Path $archived 'prefix.jsonl') 'old';Set-Content (Join-Path $source 'prefix.jsonl') 'rewritten'
+            $extra=if($case-eq'explicit'){@('-DataRoot',$explicit)}else{@()}
+            $result=@(& pwsh -NoProfile -File (Join-Path $copy 'Hunt.ps1') -Quick @extra)-join"`n";$huntCode=$LASTEXITCODE
+            Assert-That "hunt $case reads sessions, events and sync errors from data root with BUG exit 1" ($huntCode-eq1-and$result-match"BUG sync-errors:.*fixture-$case"-and$result-match'BUG index-consistency:.*index says'-and$result-match'BUG events-corrupt:'-and$result-match'BUG archive-prefix:'-and$result-match"BUG hook-errors:.*fixture-hook-$case"-and$result-notmatch'GAP event-evidence:')
+            $rootEvents=@(Get-Content (Join-Path $expected 'events\events.jsonl')|ForEach-Object{try{$_|ConvertFrom-Json}catch{$null=$_}})
+            $closed=@($rootEvents|Where-Object pattern -eq 'hunt-old-root-problem')[-1]
+            Assert-That "hunt $case records findings and last result only in data root" ((Test-Path (Join-Path $expected 'work\hunt-last.txt'))-and@($rootEvents|Where-Object pattern -eq 'hunt-sync-errors').Count-gt0-and$closed.status-eq'resolved'-and($case-eq'fallback'-or!(Test-Path (Join-Path $checkout 'work'))))
+            # Data has no .git. Source has an invalid .git; only the source may decide tools-git.
+            Set-Content (Join-Path $checkout '.git') 'gitdir: missing-fixture-git'
+            $sourceCheck=@(& pwsh -NoProfile -File (Join-Path $copy 'Hunt.ps1') -Quick -NoRecord @extra)-join"`n"
+            Assert-That "hunt $case keeps git checks on source after library import" ($sourceCheck-match'BUG tools-git:')
+            Remove-Item -LiteralPath (Join-Path $checkout '.git')
+        }
+    }finally{$env:ORVION_DATA_ROOT=$savedDataRoot}
+    if($RootProbeOnly){if($fail){throw 'HUNT_ROOT_PROBE_FAILED'};'HUNT_ROOT_PROBE PASS';return}
     $set=@(
         ,@('Events.ps1','if($last.Count){"EVENT DUPLICATE','if($false){"EVENT DUPLICATE','test-events.ps1','duplicate refusal')        # caught
         ,@('Events.ps1','# One view per pattern','# One view, per pattern','test-events.ps1','a comment only')                          # survives
         ,@('Events.ps1','THIS TEXT IS NOT IN THE FILE','x','test-events.ps1','a mutant whose code moved')                           # stale
     )
-    $out=@(& (Join-Path $PSScriptRoot 'Hunt.ps1') -Root $t -NoRecord -MutantSet $set)-join"`n"
+    $out=@(& (Join-Path $PSScriptRoot 'Hunt.ps1') -Root $t -DataRoot $t -NoRecord -MutantSet $set)-join"`n"
     Assert-That 'a caught mutant is not reported' ($out-notmatch'duplicate refusal broken')
     Assert-That 'a surviving mutant is reported as a gap' ($out-match'GAP mutant-survived: test-events\.ps1 still passes with a comment only broken')
     Assert-That 'a stale mutant is reported' ($out-match'GAP mutant-stale: mutant for a mutant whose code moved')
     Assert-That 'the last result is kept for Pulse' (Test-Path (Join-Path $t 'work\hunt-last.txt'))
     Assert-That '-NoRecord writes no events' (!(Test-Path (Join-Path $t 'events\events.jsonl')))
     & (Join-Path $PSScriptRoot 'Events.ps1') -Root $t -Add -Pattern hunt-old-problem -Session hunter-2026-01-01 -Category observation -Summary 'GAP: something once found'|Out-Null
-    $null=& (Join-Path $PSScriptRoot 'Hunt.ps1') -Root $t -Quick
+    $null=& (Join-Path $PSScriptRoot 'Hunt.ps1') -Root $t -DataRoot $t -Quick
     $ev=@([IO.File]::ReadAllLines((Join-Path $t 'events\events.jsonl'))|ForEach-Object{$_|ConvertFrom-Json})
     $last=@($ev|Where-Object pattern -eq 'hunt-old-problem'|Sort-Object at)[-1]
     Assert-That 'a finding no longer found is closed by the hunter' ($last.status-eq'resolved'-and$last.summary-like'no longer found*')

@@ -23,8 +23,8 @@ the event journal and the session archive; do not ask the owner to re-explain th
    repository = its own changes only (`lib/Workbench.ps1 -Boot`, `WORKFLOW.md`). Gate 1, publish and promote are the
    owner's unless a recorded owner delegation says otherwise; a delegated decision is labelled delegated.
 3. Learn before acting (enforced: own Finish runs `Events -Find` and `Hunt -Quick` itself; do the same by hand first).
-   The ONE journal and session archive live in `C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools`: pass it as
-   `-Root` (below: `<data>`), or the tools read and write an empty store inside this checkout.
+   The ONE journal and session archive use the data root: `ORVION_DATA_ROOT`, else the sibling `ORVION-Owner-Tools`
+   when it has `events\`, else this checkout; pass that root as `-Root` (below: `<data>`).
    - `lib\Events.ps1 -Root <data> -Find '<task>'` returns what earlier agents learned, with the session that holds it.
    - `lib\Spider.ps1 -Root <data> '<SPEC, error, script or phrase>'` finds the original evidence across sessions, both products'
      files and commits, memory and owner packets.
@@ -54,15 +54,15 @@ through their own Boot, contracts and certification; everything here only drives
 
 | Folder | What | Git | Backup | Sensitive |
 |---|---|---|---|---|
-| `lib\`, `tests.ps1` | agent tools (index: `lib\README.md`) and their checks | local Git repo (no remote yet) | yes | no |
+| `lib\`, `tests.ps1` | agent tools (index: `lib\README.md`) and their checks | `Shehabhub/ORVION-Workbench`: `workbench-preflight`, then `main` | yes | no |
 | `sessions\raw\` | every ORVION agent session, verbatim (Claude Code + Codex) | never | yes (package, unencrypted by owner decision) | **yes** |
 | `sessions\index.jsonl` | one line per session: id, title, repo cwd, branch, start/end, size, SPECs, raw path, sha256 | never | yes | low |
 | `events\events.jsonl` | improvement memory: what happened, how often, current disposition, evidence pointer | never | yes | low |
 | `work\` | evidence, runs, drafts scratch; `work\sandboxes\` = disposable clones | never | yes (not sandboxes) | low |
 
 ## Sessions (nothing summarized away)
-- `lib\Sync-Sessions.ps1 -Follow` (started by the session-start hook, one instance) copies every session of the workspace
-  into `sessions\raw\` once a minute while any Claude Code or Codex process runs, then a last pass when all are gone;
+- `lib\Sync-Sessions.ps1 -Follow` (started by Claude Code running this checkout's `lib\hooks\Watch-Reminder.ps1`, one instance) copies every session of the workspace
+  into `sessions\raw\` under the one data root above once a minute while any Claude Code or Codex process runs, then a last pass when all are gone;
   no session depends on its shutdown hook. Only complete lines are appended, after the archived bytes are proven to be
   a prefix of the source; a killed pass is completed by the next one; a rewritten source keeps the old copy beside it.
   Measured 2026-10-20: about 1 s and 1 s CPU per pass including PowerShell start, 0 bytes lost in the self-check cases.
@@ -76,9 +76,7 @@ through their own Boot, contracts and certification; everything here only drives
   never writes to disk, Codex sessions started outside the workspace, sessions deleted before 2026-10-20.
   Codex has no session hooks: its sessions are picked up at the next Claude session start or a manual sync.
 - `secretHits` / `secretNames` in the index flag credential-shaped strings by name (values never printed or stored).
-  Measured 2026-10-20 across 49 sessions: one real secret, `CLAUDE_CODE_MESSAGING_TOKEN` in session 84ee17dc (a
-  per-session local pipe token, live only while that session runs); every other hit is the local Supabase stack's
-  published defaults or code. The raw history stays verbatim (integrity); protection is: never in Git, and the
+  The 2026-10-26 secret scan recorded in `docs/RECOVERY.md` found 10 GitHub token shapes in Codex sessions; token shapes do not prove live credentials. Follow its revoke/re-login steps. The raw history stays verbatim (integrity); protection is: never in Git, and the
   recovery package reports secret findings by name (`docs/RECOVERY.md`); BitLocker on C: stays an owner action.
 
 ## Improvement memory

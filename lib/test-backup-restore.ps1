@@ -1,19 +1,46 @@
 # Round trip for Backup-Workspace.ps1 / Restore-Workspace.ps1 on a synthetic workspace (temp GitHub root, bare remote):
 # exact HEAD and refs, a DISABLED push URL kept, branch upstream single-valued, an ignored receipt byte-identical, stash
 # loss warned, a legacy folder that is itself a repository backed up; a tampered backup and an existing target refused.
+param([switch]$RootProbeOnly)
 $ErrorActionPreference='Stop'
 $zip=(Get-Command 7z -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1).Source;if(!$zip){$zip=Join-Path $env:ProgramFiles '7-Zip\7z.exe'}
 if(!(Test-Path -LiteralPath $zip)){throw 'BACKUP_RESTORE_SELFCHECK_7ZIP_REQUIRED: package self-checks require 7z'}
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-brcheck-$([guid]::NewGuid().ToString('N').Substring(0,6))"
 $savedGitGlobal=$env:GIT_CONFIG_GLOBAL;$savedGitNoSystem=$env:GIT_CONFIG_NOSYSTEM
+$savedGitInjection=@{}
+foreach($key in [Environment]::GetEnvironmentVariables('Process').Keys|Where-Object{$_-match'^GIT_CONFIG_(COUNT|PARAMETERS|KEY_\d+|VALUE_\d+)$'}){
+    $savedGitInjection[$key]=[Environment]::GetEnvironmentVariable($key,'Process')
+    Remove-Item -LiteralPath ('Env:\'+$key)
+}
 $env:GIT_CONFIG_GLOBAL=Join-Path $t 'fixture.gitconfig';$env:GIT_CONFIG_NOSYSTEM='1'
 $gh=Join-Path $t 'GitHub';$lib=Join-Path $gh 'ORVION-Owner-Tools\lib';New-Item -ItemType Directory $lib -Force|Out-Null
 Copy-Item (Join-Path $PSScriptRoot 'Backup-Workspace.ps1'),(Join-Path $PSScriptRoot 'Restore-Workspace.ps1') $lib
 $previousProfile=$env:USERPROFILE;$env:USERPROFILE=Join-Path $t 'profile'
+$savedDataRoot=$env:ORVION_DATA_ROOT;$env:ORVION_DATA_ROOT=$null
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 function Invoke-Quiet{param([string]$Dir)$o=& git -C $Dir -c user.name=t -c user.email=t@t @args 2>&1;if($LASTEXITCODE){throw "git $args : $o"};$o}
 function Read-BackupTree([string]$Path){(@(Get-ChildItem -LiteralPath $Path -Recurse -File -Force|ForEach-Object{[Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($_.FullName))})-join"`n")}
 try{
+    $gitProbe=@(& git -c ws019.fixture=isolated config --get ws019.fixture 2>&1);$gitProbeCode=$LASTEXITCODE
+    $remainingInjection=@([Environment]::GetEnvironmentVariables('Process').Keys|Where-Object{$_-match'^GIT_CONFIG_(COUNT|PARAMETERS|KEY_\d+|VALUE_\d+)$'})
+    Assert-That 'backup self-check clears inherited Git configuration injection' ($gitProbeCode-eq0-and($gitProbe-join' ')-ceq'isolated'-and!$remainingInjection.Count)
+    $probeLib=Join-Path $gh 'probe-checkout\lib';[void][IO.Directory]::CreateDirectory($probeLib)
+    Copy-Item (Join-Path $PSScriptRoot 'Backup-Workspace.ps1') $probeLib
+    $override=Join-Path $t 'override store';[void][IO.Directory]::CreateDirectory((Join-Path $override 'events'))
+    [void][IO.Directory]::CreateDirectory((Join-Path $gh 'ORVION-Owner-Tools\events'))
+    [IO.File]::WriteAllText((Join-Path $override 'events\marker.txt'),'override fixture')
+    [IO.File]::WriteAllText((Join-Path $gh 'ORVION-Owner-Tools\events\marker.txt'),'sibling fixture')
+    # Only the script layout is needed here; remove it before later Workbench-presence checks.
+    $env:ORVION_DATA_ROOT=$override+'\'
+    try{$probe=@(& pwsh -NoProfile -File "$probeLib\Backup-Workspace.ps1" -Destination (Join-Path $t 'override-backup') -AllowUnencrypted -SkipLegacy 2>&1);$probeCode=$LASTEXITCODE}
+    finally{$env:ORVION_DATA_ROOT=$null}
+    $folder=@(Get-ChildItem (Join-Path $t 'override-backup') -Directory)[0].FullName
+    $marker=Join-Path $folder 'owner-tools\events\marker.txt'
+    Assert-That 'Backup ORVION_DATA_ROOT selects override bytes and their manifest hash instead of sibling store' ($probeCode-eq0-and(Test-Path $marker)-and[IO.File]::ReadAllText($marker)-ceq'override fixture'-and[IO.File]::ReadAllText((Join-Path $folder 'SHA256SUMS.txt')).Contains((Get-FileHash $marker).Hash+'  owner-tools\events\marker.txt'))
+    . (Join-Path $PSScriptRoot 'remove-owned.ps1')
+    $null=Remove-OrvionOwnedTree (Split-Path $probeLib -Parent) @($t)
+    [IO.File]::Delete((Join-Path $gh 'ORVION-Owner-Tools\events\marker.txt'))
+    if($RootProbeOnly){if($fail){throw 'BACKUP_ROOT_PROBE_FAILED'};'BACKUP_ROOT_PROBE PASS';return}
     $remote=Join-Path $t 'remote.git';& git init -q --bare -b main $remote
     $crm=Join-Path $gh 'CRM';& git clone -q $remote $crm 2>&1|Out-Null
     Set-Content "$crm\.gitignore" '.orvion-local-certification.json';Set-Content "$crm\a.txt" 'one';Invoke-Quiet $crm add -A|Out-Null;Invoke-Quiet $crm commit -q -m one|Out-Null
@@ -349,5 +376,9 @@ try{
         Assert-That 'a linked worktree inside the evidence tree keeps its own uncommitted change' ([IO.File]::ReadAllText((Join-Path $pkgDocs 'ORVION-Sandbox\evidence\wt\.clone-state\worktree.diff'))-match'\+worktree change')
         Assert-That 'a unique commit on a detached HEAD is bundled and recoverable' ((Invoke-Quiet $rebuilt rev-parse FETCH_HEAD).Trim()-ceq$detachedHead)
     }finally{$env:TEMP=$savedTemp;$env:TMP=$savedTmp}
-}finally{$env:GIT_CONFIG_GLOBAL=$savedGitGlobal;$env:GIT_CONFIG_NOSYSTEM=$savedGitNoSystem;$env:USERPROFILE=$previousProfile;Get-ChildItem $t -Recurse -Force -File -ErrorAction SilentlyContinue|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}
+}finally{
+    foreach($key in [Environment]::GetEnvironmentVariables('Process').Keys|Where-Object{$_-match'^GIT_CONFIG_(COUNT|PARAMETERS|KEY_\d+|VALUE_\d+)$'}){Remove-Item -LiteralPath ('Env:\'+$key)}
+    foreach($key in $savedGitInjection.Keys){[Environment]::SetEnvironmentVariable($key,$savedGitInjection[$key],'Process')}
+    $env:ORVION_DATA_ROOT=$savedDataRoot;$env:GIT_CONFIG_GLOBAL=$savedGitGlobal;$env:GIT_CONFIG_NOSYSTEM=$savedGitNoSystem;$env:USERPROFILE=$previousProfile;Get-ChildItem $t -Recurse -Force -File -ErrorAction SilentlyContinue|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)
+}
 if($fail){throw "BACKUP_RESTORE_SELFCHECK_FAILED $fail"};'BACKUP_RESTORE_SELFCHECK PASS'

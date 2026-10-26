@@ -1,5 +1,6 @@
 # Survival check for Sync-Sessions.ps1 on temp sources: a session stays indexed after Claude Code deletes its source
 # (the 30-day cleanup), a Codex session outside the workspace is never archived, and a set-aside copy is not a session.
+param([switch]$RootProbeOnly)
 $ErrorActionPreference='Stop'
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-survival-$([guid]::NewGuid().ToString('N').Substring(0,6))"
 $cp=Join-Path $t 'claude-projects';$cx=Join-Path $t 'codex-sessions';$ws=Join-Path $t 'ws'
@@ -7,6 +8,27 @@ New-Item -ItemType Directory "$cp\C--Users-x-Documents-GitHub-CRM","$cx\2026\10\
 . (Join-Path $PSScriptRoot 'Sync-Sessions.ps1') -Library -Root $ws -ClaudeProjects $cp -CodexSessions $cx
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 try{
+
+    # Real no-Root caller with fixture sources; the three destinations must be exclusive.
+    $layout=Join-Path $t 'roots';$checkout=Join-Path $layout 'ORVION-Workbench';$copy=Join-Path $checkout 'lib'
+    $sibling=Join-Path $layout 'ORVION-Owner-Tools';$override=Join-Path $t 'override store'
+    [void][IO.Directory]::CreateDirectory($copy)
+    $probeSync=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Sync-Sessions.ps1')).Replace('Local\orvion-sync-sessions',('Local\ws019-'+[guid]::NewGuid().ToString('N')))
+    [IO.File]::WriteAllText((Join-Path $copy 'Sync-Sessions.ps1'),$probeSync)
+    $probeProjects=Join-Path $t 'root-projects';$probeProject=Join-Path $probeProjects 'C--Fixture-ORVION'
+    [void][IO.Directory]::CreateDirectory($probeProject)
+    Set-Content (Join-Path $probeProject 'fixture.jsonl') '{"timestamp":"2026-10-20T01:00:00Z","message":{"role":"user","content":"fixture"}}'
+    $savedDataRoot=$env:ORVION_DATA_ROOT
+    try{
+        foreach($case in 'sibling','override','fallback'){
+            $env:ORVION_DATA_ROOT=$null
+            if($case-eq'fallback'){[IO.Directory]::Delete($sibling,$true)}else{[void][IO.Directory]::CreateDirectory((Join-Path $sibling 'events'))}
+            $expected=if($case-eq'override'){$env:ORVION_DATA_ROOT=$override+'\';$override}elseif($case-eq'sibling'){$sibling}else{$checkout}
+            $output=@(& pwsh -NoProfile -File (Join-Path $copy 'Sync-Sessions.ps1') -ClaudeProjects $probeProjects -CodexSessions (Join-Path $t 'empty-codex') -Quiet 2>&1);$syncCode=$LASTEXITCODE
+            Assert-That "sync default $case selects only the data root, silent exit 0" ($syncCode-eq0-and!$output.Count-and(Test-Path (Join-Path $expected 'sessions\INDEX.md'))-and($case-eq'fallback'-or!(Test-Path (Join-Path $checkout 'sessions'))))
+        }
+    }finally{$env:ORVION_DATA_ROOT=$savedDataRoot}
+    if($RootProbeOnly){if($fail){throw 'SYNC_ROOT_PROBE_FAILED'};'SYNC_ROOT_PROBE PASS';return}
     $src="$cp\C--Users-x-Documents-GitHub-CRM\sess-1.jsonl"
     Set-Content $src '{"timestamp":"2026-10-20T01:00:00Z","cwd":"C:\\Users\\x\\Documents\\GitHub\\CRM","message":{"role":"user","content":"keep me"}}'
     Set-Content "$cx\2026\10\20\rollout-2026-10-20T01-00-00-01a00000-0000-0000-0000-000000000001.jsonl" '{"payload":{"cwd":"C:\\Users\\x\\Elsewhere"}}'

@@ -6,10 +6,20 @@ Contract B supplied each product's own independent native adapters. This directo
 not a dependency injected into direct-native product operation. Its historical move from Documents\ORVION-Sandbox\lib
 does not make that old copy an execution entry.
 
-Data root (trustworthy answers v1): Events, Spider, Pulse, Coordinator, Delegate and Watch-Subagents default `-Root` to
-`ORVION_DATA_ROOT`, else the sibling `..\ORVION-Owner-Tools` store when it has `events\`, else this checkout. A missing or
-damaged store is said, never answered as "nothing found": `EVENTS_UNAVAILABLE` (exit 3), `EVENTS_INCOMPLETE` (exit 2),
-`SPIDER_COVERAGE: incomplete` (exit 3), Pulse `last UNREADABLE` (exit 2). Hunt's `-Root` is still this checkout.
+Data root (one data root everywhere): Events, Spider, Pulse, Coordinator, Delegate, Watch-Subagents, Sync-Sessions,
+Backup-Workspace, Hunt `-DataRoot` and the session hook (`hooks\Watch-Reminder.ps1`) default to
+`ORVION_DATA_ROOT`, else the sibling `..\ORVION-Owner-Tools` store when it has `events\`, else this checkout.
+An environment override must be fully qualified; otherwise `ORVION_DATA_ROOT_NOT_ABSOLUTE` refuses it. The hook
+reports that code on stderr, exits 0, and logs to the next fully qualified fallback root.
+Readers report `EVENTS_UNAVAILABLE` (exit 3), `EVENTS_INCOMPLETE` (exit 2), or `SPIDER_COVERAGE: incomplete` (exit 3).
+Pulse reports a damaged session index as `last UNREADABLE` with exit 2. A missing index prints `last none: no session
+index`; it does not itself make Pulse fail when the journal and selected repositories are readable.
+Hunt's `-Root` stays this checkout (its source and lint scope).
+
+Codex archival reads the compact first session-metadata line. Its cwd selector accepts a `Documents\GitHub\CRM`
+or `Documents\GitHub\ORVION` prefix, or `ORVION` anywhere in cwd (PowerShell's case-insensitive match).
+Use `C:\cx\ORVION-<task>` for disposable Codex clones, including CRM work: that shape is archived. A generic
+`C:\cx\repo` or `C:\cx\CRM-<task>` is not selected. Naming a clone does not change its native repository authority.
 
 ## Workbench's own local cycle
 
@@ -31,6 +41,7 @@ materializations use WORKBENCH_TEMP_ROOT or that same TEMP/ORVION-Workbench pare
 evidence and first-installation bootstrap remain outside this checkout under the existing task's own packet.
 
 ## Always, with the Monitor tool (never a hand-written alarm loop)
+Codex runs are watched by the orchestrator, or through this checkout's `lib\run_timed.ps1` with `lib\watch_run.ps1` (use absolute paths and the run's explicit WorkingDirectory).
 | When | Run under Monitor | Ends by itself |
 |---|---|---|
 | Any `scripts/run_timed.ps1` run (Finish, a suite) | `pwsh -NoProfile -File <repo>\scripts\watch_run.ps1 -Log <log> -Run finish-control -Brief` (a suite: `-Run control-suite`) | at END or RUNNER GONE |
@@ -48,9 +59,9 @@ Report state changes, receipts and blockers immediately; routine long-gate heart
 Own Workbench Finish uses watcher `-Run workbench-finish`; native product Finish retains `finish-control`. These are
 distinct comparable run families in the existing timing history, not new stores or separate monitoring engines.
 
-The user-level Claude hook (`hooks\Watch-Reminder.ps1`) is a reporting adapter, never enforcement or approval.
+Claude Code runs this checkout's `lib\hooks\Watch-Reminder.ps1`, a reporting adapter, never enforcement or approval; its sessions/events use the one data root described above.
 At the actual Workbench root SessionStart supplies this index/Pulse; a direct-native session receives no Workbench
-context. An explicit existing absolute Owner-Tools `-File` command opts in for that event only; mere mentions and
+context. An explicit existing absolute `-File` command inside this Workbench checkout's `lib\` opts in for that event only; mere mentions and
 unresolved variables do not. Archival remains separate at session start/end. Native README/AGENTS/Boot and native
 tools govern direct entry; neither product acquires an Owner-Tools dependency. No global client setting is changed.
 A post-tool reminder cannot prove prior live coverage: attach while the runner is alive; retain any coverage gap

@@ -1,4 +1,4 @@
-# ORVION-Owner-Tools — agents start here
+# ORVION-Workbench — agents start here
 
 Router only (Codex and other agents that read AGENTS.md): read `README.md`, then `RESUME.md`, then `HANDOFF.md`.
 Workbench's own engineering entry is `lib/Workbench.ps1 -Boot`; its authority is `WORKFLOW.md`.
