@@ -571,30 +571,30 @@ Minimum Commit GB: 3
 
 ## Acceptance Criteria
 
-- [ ] Exact approved scoped output. check: blob:lib/Events.ps1=48d98858f32d8c056dd3143cf1a6ad0c65944f5b
-- [ ] Exact approved scoped output. check: blob:lib/Spider.ps1=da99c5987c00c848c79af43b6a5287a5d4dc4719
-- [ ] Exact approved scoped output. check: blob:lib/Pulse.ps1=463ca7334468942c75c3e68b725bcc8a5b7b7734
-- [ ] Exact approved scoped output. check: blob:lib/Coordinator.ps1=1b513b370580a9438dab27ee047752dda26e869f
-- [ ] Exact approved scoped output. check: blob:lib/Delegate.ps1=5b7c2f2a71167c05bac9602871ff473ae77a03e0
-- [ ] Exact approved scoped output. check: blob:lib/Watch-Subagents.ps1=627e6ca702ab73d79e27f5cacce1c230857480f8
-- [ ] Exact approved scoped output. check: blob:lib/Workbench.ps1=0b912913fdc219889a2c9b338931e136dd42d9f2
-- [ ] Exact approved scoped output. check: blob:lib/run_timed.ps1=4580b662d813fdb0104343f50d8260520401ec19
-- [ ] Exact approved scoped output. check: blob:tests.ps1=3df650aca5d3b3b5880e87eb2c41b82117033640
-- [ ] Exact approved scoped output. check: blob:lib/test-events.ps1=178145d5abc84e4144cd2085ad6da9c829c37a1d
-- [ ] Exact approved scoped output. check: blob:lib/test-spider.ps1=205ea50222c0308ce84a0062f63c10a9b34c8b44
-- [ ] Exact approved scoped output. check: blob:lib/test-pulse.ps1=83e5a9e3229c9df4b1fda5c9d8f0c76eb0e2f188
-- [ ] Exact approved scoped output. check: blob:lib/test-run-timed.ps1=33f15f6037f2fbe41b70474cd0ac1df2e859adb3
-- [ ] Exact approved scoped output. check: blob:lib/test-watch-host.ps1=53978799e8fea61a8151d24ee1109f9087529a4f
-- [ ] Exact approved scoped output. check: blob:lib/test-delegate.ps1=65a297f30a568231cf413255fb7a5b19d6c43252
-- [ ] Exact approved scoped output. check: blob:lib/test-coordinator.ps1=4304247fa9f131d74a9b53996e45ba7c71b28980
-- [ ] Exact approved scoped output. check: blob:lib/README.md=d7ec0399efcc633ee909eb96868e4520be20f911
-- [ ] The owning tests prove: a missing journal is EVENTS_UNAVAILABLE (exit 3) for Find and Brief, never "nothing recorded"; a damaged journal is EVENTS_INCOMPLETE (exit 2) with results still shown; the default root finds the sibling data store and ORVION_DATA_ROOT overrides it; all six data tools carry the one identical default; Spider reports a missing archive, journal or repository as UNAVAILABLE with SPIDER_COVERAGE exit 3; Pulse says a missing session index plainly and makes a damaged one UNREADABLE (exit 2); run_timed preserves the exit code in the requested directory and stops before the command when the directory or the log cannot be used; Spider, Delegate and Coordinator keep EVENTS_INCOMPLETE/EVENTS_UNAVAILABLE visible (Spider and Delegate exit 2/3, Coordinator still assigns); index damage is attributed to the index; the Watch-Host check writes only to its own fixture.
-- [ ] Mandatory V1/V2/V3, focused proof, planted-regression mutants, accepted literal replay controls and the real before/after measurement are preserved. One isolated native timed/watched Finish owns the full schedule with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
+- [x] Exact approved scoped output. check: blob:lib/Events.ps1=48d98858f32d8c056dd3143cf1a6ad0c65944f5b
+- [x] Exact approved scoped output. check: blob:lib/Spider.ps1=da99c5987c00c848c79af43b6a5287a5d4dc4719
+- [x] Exact approved scoped output. check: blob:lib/Pulse.ps1=463ca7334468942c75c3e68b725bcc8a5b7b7734
+- [x] Exact approved scoped output. check: blob:lib/Coordinator.ps1=1b513b370580a9438dab27ee047752dda26e869f
+- [x] Exact approved scoped output. check: blob:lib/Delegate.ps1=5b7c2f2a71167c05bac9602871ff473ae77a03e0
+- [x] Exact approved scoped output. check: blob:lib/Watch-Subagents.ps1=627e6ca702ab73d79e27f5cacce1c230857480f8
+- [x] Exact approved scoped output. check: blob:lib/Workbench.ps1=0b912913fdc219889a2c9b338931e136dd42d9f2
+- [x] Exact approved scoped output. check: blob:lib/run_timed.ps1=4580b662d813fdb0104343f50d8260520401ec19
+- [x] Exact approved scoped output. check: blob:tests.ps1=3df650aca5d3b3b5880e87eb2c41b82117033640
+- [x] Exact approved scoped output. check: blob:lib/test-events.ps1=178145d5abc84e4144cd2085ad6da9c829c37a1d
+- [x] Exact approved scoped output. check: blob:lib/test-spider.ps1=205ea50222c0308ce84a0062f63c10a9b34c8b44
+- [x] Exact approved scoped output. check: blob:lib/test-pulse.ps1=83e5a9e3229c9df4b1fda5c9d8f0c76eb0e2f188
+- [x] Exact approved scoped output. check: blob:lib/test-run-timed.ps1=33f15f6037f2fbe41b70474cd0ac1df2e859adb3
+- [x] Exact approved scoped output. check: blob:lib/test-watch-host.ps1=53978799e8fea61a8151d24ee1109f9087529a4f
+- [x] Exact approved scoped output. check: blob:lib/test-delegate.ps1=65a297f30a568231cf413255fb7a5b19d6c43252
+- [x] Exact approved scoped output. check: blob:lib/test-coordinator.ps1=4304247fa9f131d74a9b53996e45ba7c71b28980
+- [x] Exact approved scoped output. check: blob:lib/README.md=d7ec0399efcc633ee909eb96868e4520be20f911
+- [x] The owning tests prove: a missing journal is EVENTS_UNAVAILABLE (exit 3) for Find and Brief, never "nothing recorded"; a damaged journal is EVENTS_INCOMPLETE (exit 2) with results still shown; the default root finds the sibling data store and ORVION_DATA_ROOT overrides it; all six data tools carry the one identical default; Spider reports a missing archive, journal or repository as UNAVAILABLE with SPIDER_COVERAGE exit 3; Pulse says a missing session index plainly and makes a damaged one UNREADABLE (exit 2); run_timed preserves the exit code in the requested directory and stops before the command when the directory or the log cannot be used; Spider, Delegate and Coordinator keep EVENTS_INCOMPLETE/EVENTS_UNAVAILABLE visible (Spider and Delegate exit 2/3, Coordinator still assigns); index damage is attributed to the index; the Watch-Host check writes only to its own fixture.
+- [x] Mandatory V1/V2/V3, focused proof, planted-regression mutants, accepted literal replay controls and the real before/after measurement are preserved. One isolated native timed/watched Finish owns the full schedule with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
 
 ## Review Gate
 
-- [ ] Inspect the seventeen scoped files, the focused/mutant/literal evidence and the real before/after; preserve all frozen prior evidence.
-- [ ] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
+- [x] Inspect the seventeen scoped files, the focused/mutant/literal evidence and the real before/after; preserve all frozen prior evidence.
+- [x] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
 
 ## Runtime Checkpoint
 
@@ -618,6 +618,10 @@ Original exact literal implementation applied by accepted native Workbench Execu
 ## Verification Notes
 
 Measured before freeze on the real workstation (real-before-after.json), same calls without -Root: Events -Find before "nothing recorded" exit 0, after 5 relevant patterns of 122; Spider before sessions 0 / events none exit 0, after 5 sessions (267 lines) and events; Pulse and Coordinator before UNREADABLE exit 2, after the live queue (17 owner items, 11 active). Run from a checkout with no sibling store the tools now say UNAVAILABLE (exit 3) instead of an empty answer. Codex tool audit (exceptional-delegation-20261026\codex-reports\tools-report.txt) rated Events, Spider, Sync-Sessions, run_timed and others UNRELIABLE for silent false success; this contract fixes the root cause it found first and the measured silent paths; the rest are deferred by name in Out of Scope. Twelve planted regressions are each detected (mutants.log); hazard scan 0; nine affected self-checks PASS. A pre-freeze Codex review (codex-review\review1-report.txt, FIX FIRST) found the Watch-Host check escaping its fixture and callers (Spider, Delegate, Coordinator) hiding incomplete reads; all five findings were fixed and pinned (review1-disposition.md). tests.ps1 previously guarded <checkout>\events\events.jsonl, a file that does not exist, so it guarded nothing; it now guards the real data-root journal and isolates ORVION_DATA_ROOT. Product git configs hold gh credential helpers that call gh auth token (no stored token; checked by key name only).
+Verdict: Confirmed Complete
+Reviewed Fingerprint: 0D689D32E001D47576B7CBDED247149E796A5AB5960ABAE88947017EF37084C3
+Reviewed Receipt: CA94C7DB77003AA99792F232D2D69069EEAD863937E8EABE5253C0064EFA47A3
+Evidence: fresh ORIGINAL root-bound timed/watched Finish, actual ordered-suite schedule/exits, approved exact outputs and independently pinned accepted-code live review. Runtime: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\ws017-package\runtime\original. No sandbox receipt transplant, remote parity, offsite recovery or equal-OS isolation claim.
 
 ## Selection reasons and sources
 
