@@ -3,6 +3,7 @@
 # edited memory file (same length, early edit) keeps the old copy; a file without an extension that shrinks loses
 # nothing; CRLF lines are counted byte-exactly; a line over 1 MB still being written is not archived half-done.
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'remove-owned.ps1')
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-rewrite-$([guid]::NewGuid().ToString('N').Substring(0,6))"
 $cp=Join-Path $t 'projects';$proj=Join-Path $cp 'C--Users-x-Documents-GitHub-CRM';$ws=Join-Path $t 'ws'
 New-Item -ItemType Directory "$proj\memory","$ws\sessions" -Force|Out-Null
@@ -39,5 +40,5 @@ try{
     Assert-That 'a line over 1 MB still being written is not archived half-done' (!(Test-Path "$arch\big.jsonl")-or(Get-Item "$arch\big.jsonl").Length-eq0)
     [IO.File]::AppendAllText($big,"}`n");Invoke-Sync
     Assert-That 'and is archived whole once complete' ((Get-FileHash "$arch\big.jsonl").Hash-eq(Get-FileHash $big).Hash)
-}finally{Get-ChildItem $t -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}
+}finally{$null=Remove-OrvionOwnedTree -Path $t -AllowedRoots @([IO.Path]::GetTempPath())}
 if($fail){throw "REWRITE_SELFCHECK_FAILED $fail"};'REWRITE_SELFCHECK PASS'

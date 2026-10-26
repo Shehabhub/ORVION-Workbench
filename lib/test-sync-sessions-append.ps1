@@ -1,6 +1,7 @@
 # Self-check for Sync-Sessions.ps1's continuous archive: partial lines wait, growth appends, a killed append is
 # completed, a rewritten source keeps the old copy, and the incremental index equals a full read.
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'remove-owned.ps1')
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-synctest-$([guid]::NewGuid().ToString('N').Substring(0,6))";New-Item -ItemType Directory $t|Out-Null
 . (Join-Path $PSScriptRoot 'Sync-Sessions.ps1') -Library -Root $t  # never the real workspace
 $src=Join-Path $t 'src.jsonl';$dst=Join-Path $t 'a\dst.jsonl';$fail=0
@@ -35,5 +36,5 @@ try{
     Write-Bytes $src "{`"rewritten`":true}`n"
     $null=Copy-Grown $src $dst
     Assert-That 'rewritten source keeps the old copy beside' ([IO.File]::ReadAllText($dst)-ceq"{`"rewritten`":true}`n"-and@(Get-ChildItem (Split-Path $dst) -Filter 'dst.replaced-*').Count-eq1)
-}finally{Get-ChildItem $t -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}
+}finally{$null=Remove-OrvionOwnedTree -Path $t -AllowedRoots @([IO.Path]::GetTempPath())}
 if($fail){throw "SYNC_SELFCHECK_FAILED $fail"};'SYNC_SELFCHECK PASS'

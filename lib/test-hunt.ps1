@@ -1,11 +1,47 @@
 # Self-check for Hunt.ps1: a planted bug its self-check catches is NOT reported, a harmless change the check cannot
 # see IS reported as a surviving mutant, a stale mutant is reported, and nothing is recorded with -NoRecord.
-param([switch]$RootProbeOnly)
+param([switch]$RootProbeOnly,[switch]$EvidenceProbeOnly)
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'remove-owned.ps1')
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-huntcheck-$([guid]::NewGuid().ToString('N').Substring(0,6))";New-Item -ItemType Directory $t|Out-Null
 $savedProfile=$env:USERPROFILE;$env:USERPROFILE=Join-Path $t 'profile'
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 try{
+    if(!$RootProbeOnly){
+        $evidenceRoot=Join-Path $t 'evidence';[void][IO.Directory]::CreateDirectory((Join-Path $evidenceRoot 'events'))
+        [void][IO.Directory]::CreateDirectory((Join-Path $evidenceRoot 'work'))
+        [IO.File]::WriteAllText((Join-Path $evidenceRoot 'work\correct.log'),'fixture')
+        $evidenceEvents=@(
+            [ordered]@{at='2026-10-20T00:00:00Z';pattern='corrected';evidence='work\wrong.log (38.027 min)';status='resolved'}
+            [ordered]@{at='2026-10-26T00:00:00Z';pattern='corrected';evidence='work\correct.log (38.027 min)';status='resolved'}
+            [ordered]@{at='2026-10-26T01:00:00Z';pattern='corrected';evidence='';status='resolved'}
+            [ordered]@{at='2026-10-26T00:00:00Z';pattern='independent';evidence='work\still-missing.log';status='resolved'}
+            # An empty latest update cannot erase a missing citation either.
+            [ordered]@{at='2026-10-26T01:00:00Z';pattern='independent';evidence='';status='resolved'}
+            # Many equal timestamps followed by an older backfill expose an unstable tie ordering.
+            foreach($tieIndex in 0..15){[ordered]@{at='2026-10-26T00:00:00Z';pattern='equal-time';evidence=$(if($tieIndex-eq15){'work\correct.log'}else{'work\wrong.log'});status='open'}}
+            [ordered]@{at='2000-01-01T00:00:00Z';pattern='equal-time';evidence='work\wrong.log';status='open'}
+        )
+        $evidenceJournal=Join-Path $evidenceRoot 'events\events.jsonl'
+        [IO.File]::WriteAllLines($evidenceJournal,[string[]]@($evidenceEvents|ForEach-Object{$_|ConvertTo-Json -Compress}))
+        $evidenceHash=(Get-FileHash -LiteralPath $evidenceJournal).Hash
+        $evidenceLauncher=Join-Path $t 'evidence-probe.ps1'
+        [IO.File]::WriteAllText($evidenceLauncher,@'
+param([string]$Hunt,[string]$Store)
+function Get-Process { @() }
+function Get-CimInstance { @() }
+& $Hunt -Root $Store -DataRoot $Store -Quick -NoRecord
+exit $LASTEXITCODE
+'@)
+        $evidenceOutput=@(& pwsh -NoProfile -File $evidenceLauncher -Hunt (Join-Path $PSScriptRoot 'Hunt.ps1') -Store $evidenceRoot)
+        $evidenceCode=$LASTEXITCODE
+        $evidenceGap=@($evidenceOutput|Where-Object{$_-match'GAP event-evidence:'})-join' '
+        Assert-That 'latest nonempty corrected evidence replaces historical missing paths' ($evidenceCode-eq0-and$evidenceGap-notmatch'corrected')
+        Assert-That 'resolved missing evidence survives a later empty metadata update' ($evidenceGap-match'independent')
+        Assert-That 'equal timestamp evidence uses last journal record despite older backfill' ($evidenceGap-notmatch'equal-time')
+        Assert-That 'evidence projection never rewrites the append-only journal' ((Get-FileHash -LiteralPath $evidenceJournal).Hash-ceq$evidenceHash)
+        if($EvidenceProbeOnly){if($fail){throw 'HUNT_EVIDENCE_PROBE_FAILED'};'HUNT_EVIDENCE_PROBE PASS';return}
+    }
 
     # Independently controlled source and data with opposing evidence; Quick avoids slow mutants/lint.
     $layout=Join-Path $t 'roots';$checkout=Join-Path $layout 'ORVION-Workbench';$copy=Join-Path $checkout 'lib'
@@ -16,7 +52,7 @@ try{
     try{
         foreach($case in 'sibling','override','explicit','fallback'){
             $env:ORVION_DATA_ROOT=$null
-            if($case-eq'fallback'){[IO.Directory]::Delete($sibling,$true)}else{[void][IO.Directory]::CreateDirectory((Join-Path $sibling 'events'))}
+            if($case-eq'fallback'){$null=Remove-OrvionOwnedTree -Path $sibling -AllowedRoots @($t)}else{[void][IO.Directory]::CreateDirectory((Join-Path $sibling 'events'))}
             $expected=if($case-eq'explicit'){$env:ORVION_DATA_ROOT=$override;$explicit}elseif($case-eq'override'){$env:ORVION_DATA_ROOT=$override+'\';$override}elseif($case-eq'sibling'){$sibling}else{$checkout}
             [void][IO.Directory]::CreateDirectory((Join-Path $expected 'work'));[void][IO.Directory]::CreateDirectory((Join-Path $expected 'sessions'));[void][IO.Directory]::CreateDirectory((Join-Path $expected 'events'))
             Set-Content (Join-Path $expected 'work\sync-errors.log') "fixture-$case"
@@ -59,5 +95,5 @@ try{
     $last=@($ev|Where-Object pattern -eq 'hunt-old-problem'|Sort-Object at)[-1]
     Assert-That 'a finding no longer found is closed by the hunter' ($last.status-eq'resolved'-and$last.summary-like'no longer found*')
     Assert-That 'current findings are recorded as events' (@($ev|Where-Object{$_.pattern-eq'hunt-index-missing'-and$_.source-eq'hunter'}).Count-eq1)
-}finally{$env:USERPROFILE=$savedProfile;Get-ChildItem $t -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}
+}finally{$env:USERPROFILE=$savedProfile;$null=Remove-OrvionOwnedTree -Path $t -AllowedRoots @([IO.Path]::GetTempPath())}
 if($fail){throw "HUNT_SELFCHECK_FAILED $fail"};'HUNT_SELFCHECK PASS'

@@ -80,6 +80,14 @@ their original roots either way.
    `%USERPROFILE%\Documents\GitHub` by default). If `ORVION_DATA_ROOT` was set before recovery, unset it or point it
    to that restored directory before starting hooks or readers. Then run Pulse with `-Root` set to that store.
    Claude Code runs this checkout's `lib\hooks\Watch-Reminder.ps1`; it starts the session archiver (`lib\Sync-Sessions.ps1`) with that data root.
+   If Hunt reports `BUG sync-errors`, inspect `<data>\work\sync-errors.log` and address its cause. To acknowledge
+   exactly those reviewed bytes, obtain `Get-FileHash -LiteralPath '<data>\work\sync-errors.log' -Algorithm SHA256`, then
+   run `pwsh -NoProfile -File lib\Sync-Sessions.ps1 -Root '<data>' -AcknowledgeErrors -ExpectedSHA256 '<hash>' -Reason '<what was reviewed and its disposition>'`.
+   This requires an explicit data root and nonempty reason. A short log lock serializes error appends with acknowledgement;
+   the command verifies a new readonly archive under `<data>\work\`, appends and verifies its journal event, then retires
+   the matching active log. A stale hash or any archive/event/retirement failure returns exit 3 and retains the active log.
+   Keep the archive and journal in the recovery package. Subsequent failures create a new active log and block Hunt again;
+   rerun `lib\Hunt.ps1 -Root '<checkout>' -DataRoot '<data>' -Quick -NoRecord` to observe the current result.
 7. Record the result as the clean-machine recovery proof (HANDOFF §12, C2) with the Boot outputs. Only then may the
    Batch 6 hold be lifted.
 8. A nested clone is rebuilt only when needed. Clone its `state.json` origin, or the restored main repository it

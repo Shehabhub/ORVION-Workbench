@@ -1,6 +1,7 @@
 # Real hook callers in a disposable workspace; bounded followers read only fixture transcripts, with Pulse stubbed.
 param([switch]$RootProbeOnly,[switch]$FailureProbeOnly)
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'remove-owned.ps1')
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-hookcheck-$([guid]::NewGuid().ToString('N').Substring(0,6))"
 $savedProfile=$env:USERPROFILE;$env:USERPROFILE=Join-Path $t 'profile'
@@ -143,6 +144,6 @@ if($Library){Add-Content (Join-Path $checkout 'library.calls') $Root;. (Join-Pat
 }finally{
     $env:USERPROFILE=$savedProfile;$env:ORVION_DATA_ROOT=$inheritedDataRoot
     $resolved=[IO.Path]::GetFullPath($t);if(!$resolved.StartsWith([IO.Path]::GetTempPath(),[StringComparison]::OrdinalIgnoreCase)-or(Split-Path $resolved -Leaf)-notlike'orvion-hookcheck-*'){throw 'HOOK_TEST_CLEANUP_BOUNDARY'}
-    [IO.Directory]::Delete($resolved,$true)
+    $null=Remove-OrvionOwnedTree -Path $resolved -AllowedRoots @([IO.Path]::GetTempPath())
 }
 if($fail){throw "WATCH_REMINDER_SELFCHECK_FAILED $fail"};'WATCH_REMINDER_SELFCHECK PASS'

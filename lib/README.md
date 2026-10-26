@@ -77,7 +77,7 @@ instead of automatically rerunning an expensive test. General management/observe
 | `Map-Repos.ps1` / `-Links <path>` / `-Orphans` / `-Install` | Interactive repository map v1: every Git repository under the GitHub folder, tracked files only, Obsidian-style links and backlinks (markdown links, named paths, globs, distinctive names, SPEC/WS/ADR ids, cross-repository) and orphans -> root `ai-map.json` + `ai-map.html` (git-ignored); `-Install` refreshes hourly and at logon |
 | `Spider.ps1 '<entity or phrase>'` | one question across sessions, events, both repos' files and commits, memory and owner packets; ranked, values masked, ~4 s |
 | `Events.ps1 -Find '<task>'` / `-Brief` / `-Add` | improvement memory: relevant past failures, discoveries, decisions; watchers record alarms |
-| `Sync-Sessions.ps1` | verbatim archive of every ORVION session + `sessions\index.jsonl` (hook runs it at start and end) |
+| `Sync-Sessions.ps1` | verbatim archive of every ORVION session + `sessions\index.jsonl` (hook runs it at start and end); explicit `-AcknowledgeErrors -Root <data> -ExpectedSHA256 <hash> -Reason <text>` archives reviewed errors and records their acknowledgement |
 | `Backup-Workspace.ps1 -Destination <usb>` / `Restore-Workspace.ps1 -From <backup>` | everything a clone cannot restore; encrypted drive required; restore never overwrites. Selective package v1: `-Package` (both) makes or restores one unencrypted 7z with a redacted secret-scan report instead (`..\docs\RECOVERY.md`) |
 | `..\tests.ps1` | sole full closure schedule: hazards plus each owning test suite; only own timed Finish may launch it with the bound recipe. The normal hook checks admission/freshness, not another full run. |
 
@@ -135,6 +135,25 @@ The evidence directory must match the explicit approval and be outside all five 
 The operation document is an explicit local operator assertion. A digest, local hook, mutable receipt or console confirmation cannot authenticate the owner or resist an actor with equal OS privileges. Actual GitHub actor identity remains UNVERIFIED here; own-account routing is configuration evidence only. Preserve independent native Gate/CI/trusted judgments and keep CTRL-19 OPEN. Do not infer live release permission from installing this tool, from a source-contract approval or from a previous release delegation.
 
 After partial success, inspect that result and the refs, then rerun the same reviewed descriptor. An exact already-completed ref is recorded as `ALREADY_DONE` and its child is skipped; the unfinished target is attempted normally. No rollback, retry loop or history rewrite occurs. Test with `pwsh -NoProfile -File <lib>/test-owner-dual.ps1`; its real local Git/child fixtures use explicit console/transport seams and never prove actual authenticated identity or live release. Preserve the external evidence directory with local backup. CTRL-19 remains open.
+
+## Session error acknowledgement
+
+Hunt reports every nonempty `<data>\work\sync-errors.log` as a BUG. Review those failures and their disposition,
+then hash the reviewed file with `Get-FileHash -LiteralPath '<data>\work\sync-errors.log' -Algorithm SHA256`.
+Run `pwsh -NoProfile -File lib\Sync-Sessions.ps1 -Root '<data>' -AcknowledgeErrors -ExpectedSHA256 '<hash>' -Reason '<review and disposition>'`.
+An explicit root, exact current hash and nonempty reason are required; acknowledgement cannot accompany `-Follow`.
+
+A short per-log mutex shared with the error writer protects the reviewed bytes. The command creates a new readonly
+`<data>\work\sync-errors-ack-<SHA256>-<id>.log`, verifies its bytes, appends and verifies a unique event containing its
+digest, reason and archive path, then retires the matching active log. The follower's lifetime mutex is independent.
+Success returns 0. A stale hash or any archive/event/retirement failure returns 3 and leaves the active log blocking.
+Retain acknowledgement archives and the journal for recovery. New failures create a new active log and block Hunt
+again; an acknowledgement records disposition of the reviewed errors, rather than proving a healthy sync.
+
+For event evidence, Hunt checks the latest nonempty citation per pattern, ordered by `at` with journal order breaking
+ties. Append corrections under the same pattern with corrected `-Evidence`; later empty assignment metadata inherits
+that citation, and resolved status alone does not excuse a missing path. `test-sync-sessions-ack.ps1` owns refusal and
+concurrency fixtures; `test-ws020-mutants.ps1 -Mutant <id>` runs a direct focused negative probe (`All` runs every mutant).
 
 ## Known traps (each cost a run)
 - `pwsh -WorkingDirectory X -File scripts/y.ps1` runs the CALLER's repo script: always pass an absolute `-File`.

@@ -45,7 +45,10 @@ $torn=@(if(Test-Path $evLog){[IO.File]::ReadAllLines($evLog)|Where-Object{$_}|Wh
 if($torn){Add-Finding BUG events-corrupt "$torn line(s) of events\events.jsonl are not valid events (skipped by every reader; repair or remove them)" 'events log corrupt torn line'}
 foreach($lg in 'sync-errors.log'){$p=Join-Path $DataRoot "work\$lg";if((Test-Path $p)-and(Get-Item $p).Length){Add-Finding BUG $lg.Replace('.log','') "the session archiver logged $(@(Get-Content $p).Count) failure(s); last: $(@(Get-Content $p -Tail 1)[0])" 'archive sync error file failed'}}
 $ids=@{};if(Test-Path $ix){foreach($l in [IO.File]::ReadAllLines($ix)|Where-Object{$_}){$ids[($l|ConvertFrom-Json).id]=1}}
-$missingEv=@($events|Where-Object{$_.evidence-match'^(?:[A-Za-z]:\\|work\\|sessions\\|lib\\)'}|Where-Object{
+# Current evidence follows the latest nonempty citation, even when later assignment metadata has none.
+# Stable timestamp ordering makes the last appended record win ties without rewriting journal history.
+$currentEvidence=@($events|Where-Object{![string]::IsNullOrWhiteSpace($_.evidence)}|Group-Object pattern|ForEach-Object{@($_.Group|Sort-Object at -Stable)[-1]})
+$missingEv=@($currentEvidence|Where-Object{$_.evidence-match'^(?:[A-Za-z]:\\|work\\|sessions\\|lib\\)'}|Where-Object{
     $e=$_.evidence-replace'\s*\(.*$','';!(Test-Path -LiteralPath $e)-and!(Test-Path -LiteralPath (Join-Path $(if($e-match'^(work|sessions)\\'){$DataRoot}else{$Root}) $e))-and!(Test-Path -LiteralPath (Join-Path (Join-Path $env:USERPROFILE 'Documents') $e))}|ForEach-Object pattern|Select-Object -Unique)
 if($missingEv){Add-Finding GAP event-evidence "evidence path missing for: $($missingEv-join', ')" 'event evidence path missing'}
 # a session already recorded as lost to the 30-day cleanup is a known, accepted loss, not a new gap
@@ -98,9 +101,10 @@ if(!$Quick){
         ,@('Watch-Subagents.ps1','$e.message.stop_reason-eq''end_turn''','$text','test-watch-subagents.ps1','finished only on end_turn')
     )}
     $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-hunt-$([guid]::NewGuid().ToString('N').Substring(0,6))"
+    . (Join-Path $PSScriptRoot 'remove-owned.ps1')
     try{
         foreach($m in $mutants){
-            if(Test-Path $t){Get-ChildItem $t -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}
+            if(Test-Path $t){$null=Remove-OrvionOwnedTree -Path $t -AllowedRoots @([IO.Path]::GetTempPath())}
             New-Item -ItemType Directory "$t\lib" -Force|Out-Null;Copy-Item "$lib\*" "$t\lib" -Recurse
             $f="$t\lib\$($m[0])";$c=[IO.File]::ReadAllText($f)
             if(!$c.Contains($m[1])){Add-Finding GAP mutant-stale "mutant for $($m[4]) no longer applies to $($m[0]) (code changed: update Hunt.ps1)" 'hunt mutant stale';continue}
@@ -108,7 +112,7 @@ if(!$Quick){
             $null=& pwsh -NoProfile -File "$t\lib\$($m[3])" 2>&1
             if($LASTEXITCODE-eq0){Add-Finding GAP mutant-survived "$($m[3]) still passes with $($m[4]) broken in $($m[0]): the check does not guard it" 'test mutant survived self-check weak'}
         }
-    }finally{if(Test-Path $t){Get-ChildItem $t -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}}
+    }finally{if(Test-Path $t){$null=Remove-OrvionOwnedTree -Path $t -AllowedRoots @([IO.Path]::GetTempPath())}}
     # capabilities: what the session history says is missing (NEED) or unused (PRUNE). Proposals only: installing or
     # removing a plugin, MCP server, hook or skill stays the owner's decision.
     $use=@{};$skillUse=@{};$gh=0;$docs=0;$sessions=@{}

@@ -1,11 +1,21 @@
 # Self-check for Events.ps1 in a temp root: add, duplicate refusal, recurrence across sessions, ranking by rare words,
 # the brief's open-first order, and the link from an event to its session's raw record through sessions\index.jsonl.
-param([switch]$RootProbeOnly,[string]$RelativeTool)
+param([switch]$RootProbeOnly,[string]$RelativeTool,[switch]$EvidenceProbeOnly)
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'remove-owned.ps1')
 $ev=Join-Path $PSScriptRoot 'Events.ps1'
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-evcheck-$([guid]::NewGuid().ToString('N').Substring(0,6))";New-Item -ItemType Directory "$t\sessions" -Force|Out-Null
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 try{
+    if(!$RootProbeOnly){
+        $evidenceStore=Join-Path $t 'evidence-correction'
+        $null=& $ev -Root $evidenceStore -Add -Pattern evidence-correction -Session same-session -Summary 'suite completed' -Evidence 'work\wrong.log'
+        $corrected=& $ev -Root $evidenceStore -Add -Pattern evidence-correction -Session same-session -Summary 'suite completed' -Evidence 'work\correct.log'
+        $repeated=& $ev -Root $evidenceStore -Add -Pattern evidence-correction -Session same-session -Summary 'suite completed' -Evidence 'work\correct.log'
+        $evidenceRows=@([IO.File]::ReadAllLines((Join-Path $evidenceStore 'events\events.jsonl'))|ForEach-Object{$_|ConvertFrom-Json})
+        Assert-That 'evidence-only correction is appended and an identical correction is deduplicated' ($corrected-match'EVENT RECORDED'-and$repeated-match'EVENT DUPLICATE'-and$evidenceRows.Count-eq2-and$evidenceRows[-1].evidence-ceq'work\correct.log'-and$evidenceRows[0].evidence-ceq'work\wrong.log')
+        if($EvidenceProbeOnly){if($fail){throw 'EVENTS_EVIDENCE_PROBE_FAILED'};'EVENTS_EVIDENCE_PROBE PASS';return}
+    }
     $expression='$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw ''ORVION_DATA_ROOT_NOT_ABSOLUTE''};$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace''[\\/]hooks$'','''') -Parent) -Parent) ''ORVION-Owner-Tools'')|Where-Object{Test-Path -LiteralPath (Join-Path $_ ''events'')})+@(Split-Path ($PSScriptRoot-replace''[\\/]hooks$'','''') -Parent))[0]})'
     $drift=@(foreach($tool in 'Events','Spider','Pulse','Coordinator','Delegate','Sync-Sessions'){if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot "$tool.ps1")).Contains('[string]$Root='+$expression)){$tool}})+@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Watch-Subagents.ps1')).Contains('[string]$EventRoot='+$expression)){'Watch-Subagents'})+@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Hunt.ps1')).Contains('[string]$DataRoot='+$expression)){'Hunt'})
     $drift+=@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Backup-Workspace.ps1')).Contains('$ownerTools='+$expression)){'Backup-Workspace'})
@@ -109,5 +119,5 @@ function Get-CimInstance{param([string]$ClassName,[string]$Filter) if($ClassName
     $hijri=Join-Path $t 'hijri';& pwsh -NoProfile -Command "[Globalization.CultureInfo]::CurrentCulture='ar-SA';& '$($ev.Replace("'","''"))' -Root '$($hijri.Replace("'","''"))' -Add -Pattern locale-check -Summary 'calendar'"|Out-Null
     $stamp=([IO.File]::ReadAllLines((Join-Path $hijri 'events\events.jsonl'))[0]|ConvertFrom-Json -DateKind String).at
     Assert-That 'timestamps stay Gregorian UTC under an ar-SA culture' ("$stamp".StartsWith([DateTime]::UtcNow.ToString('yyyy',[Globalization.CultureInfo]::InvariantCulture)))
-}finally{[IO.Directory]::Delete($t,$true)}
+}finally{$null=Remove-OrvionOwnedTree -Path $t -AllowedRoots @([IO.Path]::GetTempPath())}
 if($fail){throw "EVENTS_SELFCHECK_FAILED $fail"};'EVENTS_SELFCHECK PASS'

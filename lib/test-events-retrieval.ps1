@@ -1,6 +1,7 @@
 # Retrieval regression: on the real seeded events (fixtures\seed-events.ps1, in a temp root), each task an agent might
 # be given must bring back the lesson it needs first. Every probe here once failed or was tuned for; keep them all.
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'remove-owned.ps1')
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-retrieval-$([guid]::NewGuid().ToString('N').Substring(0,6))";New-Item -ItemType Directory $t|Out-Null
 $probes=[ordered]@{
     'write a script that takes a process id and waits until it exits'='ps-reserved-name'  # lost to "exits" until 2-letter terms counted
@@ -19,5 +20,5 @@ try{
         $top=@(& (Join-Path $PSScriptRoot 'Events.ps1') -Root $t -Find $q -Top 1|Where-Object{$_-match'^\['})[0]
         if($top-match"\] $($probes[$q]):"){"PASS $($probes[$q]) <- $q"}else{$fail++;"FAIL $($probes[$q]) <- $q (got: $top)"}
     }
-}finally{[IO.Directory]::Delete($t,$true)}
+}finally{$null=Remove-OrvionOwnedTree -Path $t -AllowedRoots @([IO.Path]::GetTempPath())}
 if($fail){throw "RETRIEVAL_SELFCHECK_FAILED $fail of $($probes.Count)"};"RETRIEVAL_SELFCHECK PASS $($probes.Count)/$($probes.Count)"

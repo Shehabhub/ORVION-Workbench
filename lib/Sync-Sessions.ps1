@@ -14,7 +14,8 @@
 # secretHits / secretNames: credential-shaped strings by kind (values never printed or stored); keep the archive out of
 # Git and back it up only to an encrypted drive (Backup-Workspace.ps1 refuses otherwise).
 param([string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent))[0]}),[switch]$Quiet,[switch]$Follow,[int]$IntervalSeconds=60,[int]$IndexMinutes=15,[switch]$Library,
-      [string]$ClaudeProjects=(Join-Path $env:USERPROFILE '.claude\projects'),[string]$CodexSessions=(Join-Path $env:USERPROFILE '.codex\sessions'))  # -Library: dot-source for tests, defines the functions only
+      [string]$ClaudeProjects=(Join-Path $env:USERPROFILE '.claude\projects'),[string]$CodexSessions=(Join-Path $env:USERPROFILE '.codex\sessions'),
+      [switch]$AcknowledgeErrors,[string]$ExpectedSHA256,[string]$Reason)  # -Library: dot-source for tests, defines the functions only
 $ErrorActionPreference='Stop'
 $Root=[IO.Path]::GetFullPath($Root).TrimEnd('\')  # a trailing \ would cut the first character of every relative path
 $raw=Join-Path $Root 'sessions\raw';$indexPath=Join-Path $Root 'sessions\index.jsonl';$errLog=Join-Path $Root 'work\sync-errors.log'
@@ -111,11 +112,62 @@ function Copy-Grown([string]$Src,[string]$Dst){
     }finally{$in.Close()}
     $true
 }
+function Enter-SyncErrorLock([int]$WaitMilliseconds=30000){
+    [void][IO.Directory]::CreateDirectory((Split-Path $errLog -Parent))
+    $logKey=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes([IO.Path]::GetFullPath($errLog).ToUpperInvariant())))
+    $logMutex=[Threading.Mutex]::new($false,"Local\orvion-sync-errors-$logKey")
+    try{
+        $logOwned=try{$logMutex.WaitOne($WaitMilliseconds)}catch [Threading.AbandonedMutexException]{$true}
+        if(!$logOwned){throw 'SYNC_ERRORS_LOCK_TIMEOUT'}
+        $logMutex
+    }catch{$logMutex.Dispose();throw}
+}
 function Write-SyncError([string]$What,$Err){
-    try{New-Item -ItemType Directory (Split-Path $errLog -Parent) -Force|Out-Null
-        [IO.File]::AppendAllText($errLog,"$([DateTime]::UtcNow.ToString('o')) $What : $($Err.Exception.Message)`n")}catch{$null=$_}
+    try{
+        # A waiting error must not time out and disappear while acknowledgement is recording its event.
+        $errorLease=Enter-SyncErrorLock -WaitMilliseconds -1
+        try{[IO.File]::AppendAllText($errLog,"$([DateTime]::UtcNow.ToString('o')) $What : $($Err.Exception.Message)`n")}
+        finally{try{$errorLease.ReleaseMutex()}finally{$errorLease.Dispose()}}
+    }catch{[Console]::Error.WriteLine('SESSIONS: error log UNREADABLE')}
     $script:failures++
     [Console]::Error.WriteLine("SESSIONS: preservation FAILED; see $errLog")
+}
+
+function Invoke-SyncErrorAcknowledgement([string]$Digest,[string]$AcknowledgementReason){
+    if($Digest-notmatch'^[0-9A-Fa-f]{64}$'-or[string]::IsNullOrWhiteSpace($AcknowledgementReason)){throw 'SYNC_ACK_HASH_AND_REASON_REQUIRED'}
+    $Digest=$Digest.ToUpperInvariant()
+    $ackLease=Enter-SyncErrorLock
+    try{
+        if(!(Test-Path -LiteralPath $errLog -PathType Leaf)-or!(Get-Item -LiteralPath $errLog).Length){throw 'SYNC_ACK_NO_ACTIVE_ERRORS'}
+        if((Get-FileHash -LiteralPath $errLog -Algorithm SHA256).Hash-cne$Digest){throw 'SYNC_ACK_STALE_HASH'}
+        $ackId=[guid]::NewGuid().ToString('N')
+        $archiveName="sync-errors-ack-$Digest-$ackId.log"
+        $archivePath=Join-Path (Split-Path $errLog -Parent) $archiveName
+        $archiveStream=[IO.File]::Open($archivePath,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+        try{
+            $activeStream=[IO.File]::OpenRead($errLog)
+            try{$activeStream.CopyTo($archiveStream);$archiveStream.Flush($true)}finally{$activeStream.Dispose()}
+        }finally{$archiveStream.Dispose()}
+        if((Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash-cne$Digest){throw 'SYNC_ACK_ARCHIVE_COPY_MISMATCH'}
+        (Get-Item -LiteralPath $archivePath).IsReadOnly=$true
+        # This operation has a unique event identity, not an invented transcript/session identity.
+        $ackPattern="sync-errors-ack-$ackId";$ackSession=''
+        $ackSummary="Acknowledged sync-errors SHA256 ${Digest}: $($AcknowledgementReason.Trim())"
+        $ackEvidence="work\$archiveName"
+        $ackOutput=@(& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'Events.ps1') -Root $Root -Add -Pattern $ackPattern -Session $ackSession -Source sync-ack -Category observation -Cause confirmed -Status resolved -Summary $ackSummary -Evidence $ackEvidence -Tool 'Sync-Sessions.ps1 -AcknowledgeErrors' -Action $AcknowledgementReason.Trim() -Tags 'archive sync errors acknowledgement' 2>&1)
+        if($LASTEXITCODE-ne0){throw 'SYNC_ACK_EVENT_FAILED'}
+        $ackJournal=Join-Path $Root 'events\events.jsonl'
+        $ackRecords=@(if(Test-Path -LiteralPath $ackJournal){foreach($ackLine in [IO.File]::ReadAllLines($ackJournal)){
+            try{$ackRecord=$ackLine|ConvertFrom-Json -DateKind String}catch{continue}
+            if($ackRecord.pattern-ceq$ackPattern-and$ackRecord.session-ceq$ackSession-and$ackRecord.source-ceq'sync-ack'-and$ackRecord.status-ceq'resolved'-and$ackRecord.summary-ceq$ackSummary-and$ackRecord.evidence-ceq$ackEvidence-and$ackRecord.action-ceq$AcknowledgementReason.Trim()){$ackRecord}
+        }})
+        if($ackRecords.Count-ne1){throw 'SYNC_ACK_EVENT_NOT_VERIFIED'}
+        # Both objects must still be the bytes reviewed and recorded before retiring the active log.
+        if((Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash-cne$Digest){throw 'SYNC_ACK_ARCHIVE_MISMATCH'}
+        if((Get-FileHash -LiteralPath $errLog -Algorithm SHA256).Hash-cne$Digest){throw 'SYNC_ACK_ACTIVE_CHANGED'}
+        [IO.File]::Delete($errLog)
+        "SESSIONS: acknowledged SHA256 $Digest -> $archivePath (event $ackPattern)"
+    }finally{try{$ackLease.ReleaseMutex()}finally{$ackLease.Dispose()}}
 }
 
 # Index metadata is read incrementally and byte-exactly: each row remembers metaBytes (where its reading stopped) and
@@ -204,7 +256,7 @@ function New-IndexRow([string]$Client,[string]$Id){
         secretHits=0;secretNames=@();bytes=0;lines=0;raw='';sha256='';metaBytes=0;headHash=''}
 }
 function Update-Index{
-    $old=@{};if(Test-Path $indexPath){foreach($l in [IO.File]::ReadAllLines($indexPath)){if($l){try{$o=$l|ConvertFrom-Json -AsHashtable;$old["$($o.client)/$($o.id)"]=$o}catch{Write-SyncError 'index.jsonl line' $_}}}}
+    $old=@{};if(Test-Path $indexPath){foreach($l in [IO.File]::ReadAllLines($indexPath)){if($l){try{$o=$l|ConvertFrom-Json -AsHashtable -DateKind String;$old["$($o.client)/$($o.id)"]=$o}catch{Write-SyncError 'index.jsonl line' $_}}}}
     $evCount=@{};$evLog=Join-Path $Root 'events\events.jsonl'
     if(Test-Path $evLog){foreach($l in [IO.File]::ReadAllLines($evLog)){$m=[regex]::Match($l,'"session":"([^"]+)"');if($m.Success){$evCount[$m.Groups[1].Value]=1+$evCount[$m.Groups[1].Value]}}}
     $rows=foreach($s in $script:sessions){
@@ -249,6 +301,13 @@ function Write-IndexPage($IndexRows){  # sessions\INDEX.md: the same index as on
 }
 
 if($Library){return}
+if($AcknowledgeErrors-or$PSBoundParameters.ContainsKey('ExpectedSHA256')-or$PSBoundParameters.ContainsKey('Reason')){
+    try{
+        if(!$AcknowledgeErrors-or$Follow-or!$PSBoundParameters.ContainsKey('Root')){throw 'SYNC_ACK_EXPLICIT_ROOT_AND_MODE_REQUIRED'}
+        Invoke-SyncErrorAcknowledgement $ExpectedSHA256 $Reason
+        exit 0
+    }catch{[Console]::Error.WriteLine("SESSIONS: acknowledgement FAILED; active errors retained ($($_.Exception.Message))");exit 3}
+}
 # Hooks of several sessions fire together and a follower may already run: one sync at a time, the others skip.
 $lock=[Threading.Mutex]::new($false,'Local\orvion-sync-sessions')
 $owned=try{$lock.WaitOne(0)}catch [Threading.AbandonedMutexException]{$true}  # a killed earlier sync still hands over the lock
