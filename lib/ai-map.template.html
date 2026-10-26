@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ORVION Repository Map</title>
+<style>
+:root{--bg:#f7f7f5;--panel:#fff;--ink:#1d1d1b;--muted:#6b6b66;--line:#e2e1dc;--accent:#3a5bd9;--warn:#b5521b}
+@media (prefers-color-scheme:dark){:root{--bg:#161615;--panel:#1f1f1d;--ink:#ecebe6;--muted:#9b9a93;--line:#33332f;--accent:#8aa2ff;--warn:#f0a070}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+header{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:16px;margin:0 8px 0 0}header .stats{color:var(--muted);font-size:12px}
+input,select,button{font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:5px 8px}
+button{cursor:pointer}button.on{border-color:var(--accent);color:var(--accent)}
+main{display:grid;grid-template-columns:minmax(220px,320px) 1fr;height:calc(100vh - 54px)}
+#list{overflow:auto;border-right:1px solid var(--line);background:var(--panel)}
+#list div{padding:4px 12px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+#list div:hover,#list div.sel{background:var(--bg)}#list .repo{color:var(--muted);font-size:11px}
+#detail{overflow:auto;padding:14px 18px;display:grid;grid-template-rows:auto 320px auto;gap:12px}
+h2{font-size:15px;margin:0;word-break:break-all}.muted{color:var(--muted)}
+canvas{width:100%;height:320px;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}.cols h3{font-size:13px;margin:0 0 6px}
+.cols a{display:block;color:var(--accent);text-decoration:none;font-size:13px;word-break:break-all;cursor:pointer}
+.orphan{color:var(--warn)}ul{margin:4px 0 0 18px;padding:0}
+@media (max-width:760px){main{grid-template-columns:1fr;height:auto}#list{max-height:40vh}.cols{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><h1>ORVION Repository Map</h1>
+<input id="q" placeholder="Search files, titles, ids" size="28">
+<select id="repo"><option value="">All repositories</option></select>
+<button id="orph">Orphans only</button>
+<span class="stats" id="stats"></span></header>
+<main><div id="list"></div><div id="detail"><div><h2 id="title">Select a file</h2><div class="muted" id="sub"></div></div>
+<canvas id="g"></canvas>
+<div class="cols"><div><h3>Links out</h3><div id="out"></div></div><div><h3>Backlinks</h3><div id="in"></div></div></div></div></main>
+<script>
+const MAP=/*MAP_DATA*/null;
+const byId=new Map(MAP.files.map(f=>[f.id,f]));const orphans=new Set(MAP.orphans);
+const $=id=>document.getElementById(id);let onlyOrph=false,cur=null;
+$('stats').textContent=`${MAP.stats.repos} repositories · ${MAP.stats.files} files · ${MAP.stats.edges} links · ${MAP.stats.orphans} orphans · ${MAP.generated.slice(0,16).replace('T',' ')} UTC`;
+for(const r of MAP.repos){const o=document.createElement('option');o.value=r.name;o.textContent=r.name;$('repo').append(o)}
+function list(){const q=$('q').value.toLowerCase(),rp=$('repo').value,box=$('list');box.textContent='';let n=0;
+ for(const f of MAP.files){if(rp&&f.repo!==rp)continue;if(onlyOrph&&!orphans.has(f.id))continue;
+  if(q&&!(f.id.toLowerCase().includes(q)||(f.title||'').toLowerCase().includes(q)))continue;if(++n>600)break;
+  const d=document.createElement('div');d.innerHTML=`<span class="repo">${esc(f.repo)}</span> ${esc(f.path)}`;if(orphans.has(f.id))d.classList.add('orphan');
+  if(cur===f.id)d.classList.add('sel');d.onclick=()=>show(f.id);box.append(d)}}
+function esc(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+function links(el,ids){el.textContent='';if(!ids.length){el.innerHTML='<span class="muted">none</span>';return}
+ for(const id of ids){const a=document.createElement('a');a.textContent=id;a.onclick=()=>show(id);el.append(a)}}
+function show(id){const f=byId.get(id);if(!f)return;cur=id;$('title').textContent=f.id;
+ $('sub').innerHTML=`${f.title?esc(f.title)+' · ':''}${f.out.length} out · ${f.in.length} in${orphans.has(id)?' · <span class="orphan">orphan: nothing links here</span>':''}`+
+ (f.sections.length?`<ul>${f.sections.slice(0,12).map(s=>`<li>${esc(s)}</li>`).join('')}</ul>`:'');
+ links($('out'),f.out);links($('in'),f.in);draw(f);list()}
+function draw(f){const c=$('g'),dpr=devicePixelRatio||1,W=c.clientWidth,H=c.clientHeight;c.width=W*dpr;c.height=H*dpr;const x=c.getContext('2d');x.scale(dpr,dpr);
+ const ids=[f.id,...new Set([...f.out,...f.in])].slice(0,80),N=ids.map((id,i)=>({id,x:W/2+(i?Math.cos(i)*W/3:0),y:H/2+(i?Math.sin(i)*H/3:0),vx:0,vy:0}));
+ const idx=new Map(N.map((n,i)=>[n.id,i])),E=[];for(const n of N){const g=byId.get(n.id);if(g)for(const t of g.out)if(idx.has(t))E.push([idx.get(n.id),idx.get(t)])}
+ for(let it=0;it<220;it++){for(let i=0;i<N.length;i++)for(let j=i+1;j<N.length;j++){const a=N[i],b=N[j],dx=a.x-b.x,dy=a.y-b.y,d2=dx*dx+dy*dy+.01,k=900/d2;a.vx+=dx*k;a.vy+=dy*k;b.vx-=dx*k;b.vy-=dy*k}
+  for(const[i,j]of E){const a=N[i],b=N[j],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1,k=(d-90)*.02;a.vx+=dx/d*k;a.vy+=dy/d*k;b.vx-=dx/d*k;b.vy-=dy/d*k}
+  for(const n of N){n.vx+=(W/2-n.x)*.004;n.vy+=(H/2-n.y)*.004;n.x+=n.vx*.5;n.y+=n.vy*.5;n.vx*=.6;n.vy*=.6;n.x=Math.max(8,Math.min(W-8,n.x));n.y=Math.max(8,Math.min(H-8,n.y))}}
+ N[0].x=W/2;N[0].y=H/2;const css=getComputedStyle(document.body);x.strokeStyle=css.getPropertyValue('--line');
+ for(const[i,j]of E){x.beginPath();x.moveTo(N[i].x,N[i].y);x.lineTo(N[j].x,N[j].y);x.stroke()}
+ x.font='11px system-ui';for(const[i,n]of N.entries()){x.fillStyle=i?(orphans.has(n.id)?css.getPropertyValue('--warn'):css.getPropertyValue('--accent')):css.getPropertyValue('--ink');
+  x.beginPath();x.arc(n.x,n.y,i?4:7,0,7);x.fill();x.fillStyle=css.getPropertyValue('--muted');x.fillText(n.id.split('/').pop(),n.x+6,n.y-6)}
+ c.onclick=e=>{const r=c.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;for(const n of N)if(Math.hypot(n.x-px,n.y-py)<8)return show(n.id)}}
+$('q').oninput=list;$('repo').onchange=list;$('orph').onclick=()=>{onlyOrph=!onlyOrph;$('orph').classList.toggle('on',onlyOrph);list()};
+list();const start=MAP.files.find(f=>/README\.md$/.test(f.path));if(start)show(start.id);
+</script>
+</body>
+</html>

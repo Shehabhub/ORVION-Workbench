@@ -10,4 +10,6 @@
 
 # Proposed derived discovery views are regenerated locally, not authored source authority.
 /ai-map.json
+# Interactive repository map v1: lib/Map-Repos.ps1 regenerates its viewer beside ai-map.json.
+/ai-map.html
 /repository-index.md

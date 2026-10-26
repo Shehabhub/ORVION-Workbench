@@ -42,6 +42,10 @@ the event journal and the session archive; do not ask the owner to re-explain th
    home through a contract. Long work writes a dated checkpoint that names the next step, and adds a `RESUME HERE`
    event pointing at it.
 7. Recovery after reinstalling Windows: [docs/RECOVERY.md](docs/RECOVERY.md).
+8. See the whole estate at once (Interactive repository map v1): `lib\Map-Repos.ps1` maps every Git repository under
+   the GitHub folder (discovered on each run) into `ai-map.json` and `ai-map.html` in this root (git-ignored, refreshed
+   hourly once `-Install` registers its task). `-Links <path>` prints a file's links and backlinks; `-Orphans` lists
+   files nothing links to: link a new file from where it belongs so it is never orphaned. A derived view, never authority.
 
 Not repository authority. Platinum (`..\CRM`, PlatPlusHub/CRM) and Founder (`..\ORVION`, Shehabhub/ORVION) each decide
 through their own Boot, contracts and certification; everything here only drives, observes or preserves them.
