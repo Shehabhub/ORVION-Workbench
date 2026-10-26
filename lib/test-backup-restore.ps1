@@ -15,7 +15,18 @@ foreach($key in [Environment]::GetEnvironmentVariables('Process').Keys|Where-Obj
 $env:GIT_CONFIG_GLOBAL=Join-Path $t 'fixture.gitconfig';$env:GIT_CONFIG_NOSYSTEM='1'
 $gh=Join-Path $t 'GitHub';$lib=Join-Path $gh 'ORVION-Owner-Tools\lib';New-Item -ItemType Directory $lib -Force|Out-Null
 Copy-Item (Join-Path $PSScriptRoot 'Backup-Workspace.ps1'),(Join-Path $PSScriptRoot 'Restore-Workspace.ps1') $lib
+Copy-Item (Join-Path $PSScriptRoot 'Restore-ORVION.cmd'),(Join-Path $PSScriptRoot 'Restore-ORVION.ps1') $lib
 $previousProfile=$env:USERPROFILE;$env:USERPROFILE=Join-Path $t 'profile'
+[void][IO.Directory]::CreateDirectory((Join-Path $env:USERPROFILE '.codex'))
+$configFixture=@'
+[mcp_servers.postgres-local]
+url = "postgresql://local_user:fake-local@127.0.0.1:5432/local"
+[mcp_servers.postgres-founder]
+url = "postgresql://founder_user:fake-founder@127.0.0.1:5433/founder"
+[mcp_servers.example]
+bearer_token_env_var = "EXAMPLE_TOKEN"
+'@
+[IO.File]::WriteAllText((Join-Path $env:USERPROFILE '.codex/config.toml'),$configFixture)
 $savedDataRoot=$env:ORVION_DATA_ROOT;$env:ORVION_DATA_ROOT=$null
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 function Invoke-Quiet{param([string]$Dir)$o=& git -C $Dir -c user.name=t -c user.email=t@t @args 2>&1;if($LASTEXITCODE){throw "git $args : $o"};$o}
@@ -55,10 +66,21 @@ try{
     Assert-That 'missing optional Claude root is not created' (!(Test-Path (Join-Path $env:USERPROFILE '.claude')))
     Assert-That 'backup warns that older stashes do not survive' (($out-join' ')-match'2 stash\(es\)')
     $bk=@(Get-ChildItem (Join-Path $t 'usb') -Directory)[0].FullName
+    $maskedFile=Join-Path $bk 'codex/config.toml';$masked=[IO.File]::ReadAllText($maskedFile)
+    Assert-That 'Codex URL passwords masked before manifest hashing; usernames and env names intact' ($masked-notmatch'://[^:/@\s]+:(?!\*\*\*@)[^@\s]*@'-and$masked.Contains('://local_user:***@127.0.0.1')-and$masked.Contains('://founder_user:***@127.0.0.1')-and$masked.Contains('EXAMPLE_TOKEN')-and[IO.File]::ReadAllText("$bk\SHA256SUMS.txt").Contains((Get-FileHash $maskedFile).Hash+'  codex\config.toml'))
+    Assert-That 'backup records source profile without making Codex a recovery input' ((Get-Content "$bk\backup.json" -Raw|ConvertFrom-Json).sourceUserProfile-ceq$env:USERPROFILE-and!(Test-Path "$bk\recovery-inputs"))
     Assert-That 'a legacy folder that is itself a repository is backed up without its .git' ((Test-Path "$bk\legacy\ORVION-drafts-backup\draft.md")-and!(Test-Path "$bk\legacy\ORVION-drafts-backup\.git"))
     $res=Join-Path $t 'restored'
-    $r=@(& pwsh -NoProfile -File "$lib\Restore-Workspace.ps1" -From $bk -Target $res -ClaudeHome (Join-Path $t 'ch') -LegacyTarget (Join-Path $t 'docs2'))
+    $codexHome=Join-Path $t 'restored-codex'
+    $r=@(& pwsh -NoProfile -File "$lib\Restore-Workspace.ps1" -From $bk -Target $res -ClaudeHome (Join-Path $t 'ch') -LegacyTarget (Join-Path $t 'docs2') -CodexHome $codexHome)
     if($LASTEXITCODE-ne0){throw ('RESTORE_FIXTURE_FAILED: '+($r-join' '))}
+    Assert-That 'absent Codex config copied byte-identically; NEXT explains masked passwords' ((Get-FileHash "$codexHome\config.toml").Hash-ceq(Get-FileHash $maskedFile).Hash-and($r-join' ')-match'NEXT: .*masked local postgres passwords')
+    [IO.File]::WriteAllText("$codexHome\config.toml",'owner configuration')
+    foreach($round in 1,2){
+        $configRestore=@(& pwsh -NoProfile -File "$lib\Restore-Workspace.ps1" -From $bk -Target (Join-Path $t "config-target-$round") -ClaudeHome (Join-Path $t "config-claude-$round") -LegacyTarget (Join-Path $t "config-docs-$round") -CodexHome $codexHome 2>&1)
+        Assert-That "existing Codex config untouched, restored copy written once (round $round)" ($LASTEXITCODE-eq0-and[IO.File]::ReadAllText("$codexHome\config.toml")-ceq'owner configuration'-and$(if($round-eq1){(Get-FileHash "$codexHome\config.toml.restored").Hash-ceq(Get-FileHash $maskedFile).Hash}else{[IO.File]::ReadAllText("$codexHome\config.toml.restored")-ceq'preserve earlier recovery'}))
+        [IO.File]::WriteAllText("$codexHome\config.toml.restored",'preserve earlier recovery')
+    }
     $rc="$res\CRM"
     Assert-That 'restored at the exact HEAD with identical refs' (($r-join' ')-match'RESTORED CRM main@'-and(& git -C $rc rev-parse HEAD)-eq(& git -C $crm rev-parse HEAD))
     Assert-That 'the DISABLED push URL is kept' ((& git -C $rc config --get remote.origin.pushurl)-eq'DISABLED')
@@ -289,6 +311,7 @@ try{
     # Selective package v1: run from a production-shaped checkout (lib not under ORVION-Owner-Tools), as the real tool does.
     $probeLib=Join-Path $gh 'Workbench-checkout\lib';[void][IO.Directory]::CreateDirectory($probeLib)
     Copy-Item (Join-Path $lib 'Backup-Workspace.ps1'),(Join-Path $lib 'Restore-Workspace.ps1') $probeLib
+    Copy-Item (Join-Path $lib 'Restore-ORVION.cmd'),(Join-Path $lib 'Restore-ORVION.ps1') $probeLib
     $journalBytes=[IO.File]::ReadAllBytes($journal);[IO.File]::Delete($journal)
     $noJournal=@(& pwsh -NoProfile -File "$probeLib\Backup-Workspace.ps1" -Destination (Join-Path $t 'no-journal') -RecoveryInputs $inputs -AllowUnencrypted 2>&1)
     Assert-That 'missing journal blocks a Workbench backup without success' ($LASTEXITCODE-ne0-and($noJournal-join' ')-match'BACKUP_JOURNAL_REQUIRED'-and($noJournal-join' ')-notmatch'BACKUP:')
@@ -326,7 +349,21 @@ try{
         $pkg=@(& pwsh -NoProfile -File "$probeLib\Backup-Workspace.ps1" -Destination $cloud -RecoveryInputs $inputs -Package 2>&1)
         if($LASTEXITCODE){throw ('PACKAGE_FIXTURE_FAILED: '+($pkg-join' '))}
         $archive=@(Get-ChildItem $cloud -Filter *.7z -Force)[0].FullName;$scan="$archive.secret-scan.txt"
-        Assert-That 'package destination holds one archive plus its scan report and staging is removed' (@(Get-ChildItem $cloud -Force).Count-eq2-and(Test-Path $scan)-and$archive-and@(Get-ChildItem $pkgTemp -Force).Count-eq0-and($pkg-join' ')-match'PACKAGE: .*unencrypted')
+        Assert-That 'package destination holds archive, scan, hash and both launchers; staging is removed' (@(Get-ChildItem $cloud -Force).Count-eq5-and(Test-Path $scan)-and$archive-and@(Get-ChildItem $pkgTemp -Force).Count-eq0-and($pkg-join' ')-match'PACKAGE: .*unencrypted'-and[IO.File]::ReadAllText("$archive.sha256").Trim()-ceq((Get-FileHash $archive).Hash+' *'+(Split-Path $archive -Leaf))-and(Get-FileHash "$cloud\Restore-ORVION.cmd").Hash-ceq(Get-FileHash "$lib\Restore-ORVION.cmd").Hash-and(Get-FileHash "$cloud\Restore-ORVION.ps1").Hash-ceq(Get-FileHash "$lib\Restore-ORVION.ps1").Hash)
+        # Fail archive creation and verification separately. Real 7z handles successful commands; no installer seam.
+        $backupFile=Join-Path $probeLib 'Backup-Workspace.ps1';$backupBytes=[IO.File]::ReadAllText($backupFile)
+        $tokens=$null;$parseErrors=$null;$backupAst=[Management.Automation.Language.Parser]::ParseInput($backupBytes,[ref]$tokens,[ref]$parseErrors)
+        $zipFunction=$backupAst.Find({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]-and$n.Name-eq'Get-SevenZip'},$false).Extent.Text
+        foreach($operation in 'a','t'){
+            $failedCloud=Join-Path $t "cloud-failed-$operation";[void][IO.Directory]::CreateDirectory($failedCloud)
+            foreach($name in 'Restore-ORVION.cmd','Restore-ORVION.ps1','unrelated.txt'){[IO.File]::WriteAllText((Join-Path $failedCloud $name),'keep existing bytes')}
+            $fakeZip=Join-Path $t "7z-fail-$operation.cmd"
+            [IO.File]::WriteAllLines($fakeZip,[string[]]@('@echo off',('if "%1"=="'+$operation+'" exit /b 71'),('"'+$zip+'" %*'),'exit /b %ERRORLEVEL%'))
+            [IO.File]::WriteAllText($backupFile,$backupBytes.Replace($zipFunction,("function Get-SevenZip{'"+$fakeZip.Replace("'","''")+"'}")))
+            try{$failedPackage=@(& pwsh -NoProfile -File $backupFile -Destination $failedCloud -RecoveryInputs $inputs -Package 2>&1);$failedCode=$LASTEXITCODE}
+            finally{[IO.File]::WriteAllText($backupFile,$backupBytes)}
+            Assert-That "failed package $operation writes no hash or launcher; existing files untouched" ($failedCode-ne0-and($failedPackage-join' ')-match'PACKAGE_(VERIFY_)?FAILED'-and@((Get-ChildItem -LiteralPath $failedCloud -Filter *.sha256)).Count-eq0-and[IO.File]::ReadAllText((Join-Path $failedCloud 'Restore-ORVION.cmd'))-ceq'keep existing bytes'-and[IO.File]::ReadAllText((Join-Path $failedCloud 'Restore-ORVION.ps1'))-ceq'keep existing bytes'-and[IO.File]::ReadAllText((Join-Path $failedCloud 'unrelated.txt'))-ceq'keep existing bytes'-and@(Get-ChildItem $pkgTemp -Force).Count-eq0)
+        }
         if(Get-Command gitleaks -CommandType Application -ErrorAction SilentlyContinue){
             if([IO.File]::ReadAllText($scan)-match'^SECRET SCAN: FAILED'){
                 Assert-That 'a failed installed scanner is reported without exposing the planted value' (($pkg-join' ')-match'SECRET SCAN: FAILED'-and[IO.File]::ReadAllText($scan)-notmatch$planted-and($pkg-join' ')-notmatch$planted)

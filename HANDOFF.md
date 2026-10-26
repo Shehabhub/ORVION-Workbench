@@ -198,6 +198,8 @@ written closure criteria (contract C1); each needs recorded evidence, none is in
    a cold-start agent in each repository reaches that next action from its README/Boot alone.
 4. Shared Evidence: waived as a closure prerequisite (not earned). CTRL-19: OPEN, residual risk accepted by the owner.
    Workbench Stages 2-7 / P3 management are not Batch 6 prerequisites.
-5. C2: the owner's planned Windows reinstallation is the clean-machine recovery proof; it is performed by
-   `docs/RECOVERY.md` and is UNPROVEN until its restore and Boots succeed there.
+5. C2, amended by the owner 2026-10-27 (no Windows reinstallation): C1 on package
+   orvion-backup-20261026T201821Z.7z (SHA256 BC28B482F6E101D40D3DD2E9DA5690C122589350804F64FE59BC612D8E9F0203; cloud
+   re-download matched; isolated restore; CRM, ORVION and Workbench Boots READY), plus one isolated run of the released
+   `lib/Restore-ORVION.cmd` launcher against a fresh package. Clean-machine tool installation stays UNPROVEN: residual risk accepted by the owner.
 The hold is lifted by one recorded lift decision that cites the evidence of 1-5; each product's Boot then owns Batch 6.

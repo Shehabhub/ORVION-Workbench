@@ -97,7 +97,7 @@ if($workbenchPresent){
         if($receipt.digest-cnotmatch'^[A-F0-9]{64}$'-or$receipt.root-cne$receiptRoot-or$receipt.result-cne'READY'){throw 'BACKUP_WORKBENCH_RECEIPT_INVALID'}
     }
 }
-$plan=[ordered]@{created=[DateTime]::UtcNow.ToString('o');machine=$env:COMPUTERNAME;repos=@()};$bundledTips=@{}
+$plan=[ordered]@{created=[DateTime]::UtcNow.ToString('o');machine=$env:COMPUTERNAME;sourceUserProfile=$env:USERPROFILE;repos=@()};$bundledTips=@{}
 foreach($name in 'CRM','ORVION','CRM-trusted-main','ORVION-trusted-main','ORVION-Workbench','ORVION-Workbench-trusted-main'){
     $r=Join-Path $gh $name;if(!(Test-Path (Join-Path $r '.git'))){continue}
     $dir=Join-Path $out "repos\$name";New-Item -ItemType Directory $dir -Force|Out-Null
@@ -138,6 +138,13 @@ if($Package-and@(Get-ChildItem -LiteralPath (Join-Path $ownerTools 'work\sandbox
 Copy-Tree $ownerTools (Join-Path $out 'owner-tools') {param($rel)$rel-like'work\sandboxes\*'}
 Copy-Tree "$env:USERPROFILE\.claude\settings.json" (Join-Path $out 'claude')
 Copy-Tree "$env:USERPROFILE\.claude\statusline.ps1" (Join-Path $out 'claude')
+# Recovery settings only: retain MCP names/trust, mask URL passwords before the manifest hashes these bytes.
+$codexConfig=Join-Path $env:USERPROFILE '.codex\config.toml'
+if(Test-Path -LiteralPath $codexConfig -PathType Leaf){
+    $codexOut=Join-Path $out 'codex';New-Item -ItemType Directory $codexOut -Force|Out-Null
+    $masked=[IO.File]::ReadAllText($codexConfig)-replace'://([^:/@\s]+):([^@\s]*)@','://${1}:***@'
+    [IO.File]::WriteAllText((Join-Path $codexOut 'config.toml'),$masked,[Text.UTF8Encoding]::new($false))
+}
 $projects=Join-Path $env:USERPROFILE '.claude\projects'
 # Claude is optional; errors reading a present source still terminate the backup before its manifest.
 if(Test-Path -LiteralPath $projects){
@@ -196,6 +203,8 @@ $plan.repos|ForEach-Object{"  $($_.name) $($_.branch)@$($_.head.Substring(0,7))$
 if($Package){
     New-Item -ItemType Directory $Destination -Force|Out-Null
     $archive=Join-Path $Destination ((Split-Path $out -Leaf)+'.7z');if(Test-Path -LiteralPath $archive){throw "exists: $archive"}
+    # A stale success marker must not survive a failed attempt at this archive name.
+    if(Test-Path -LiteralPath "$archive.sha256"){Remove-Item -LiteralPath "$archive.sha256"}
     # Selective package v1: identify secrets without exposing them; the JSON report stays in the staging that is deleted below.
     # Report-only: the sidecar always records the outcome; Git history inside the *.bundle files is not scanned.
     $scan="$archive.secret-scan.txt";$scope='files only; Git history inside *.bundle is not scanned'
@@ -211,8 +220,16 @@ if($Package){
     }else{$scanLine='SECRET SCAN: SKIPPED (gitleaks not installed)';[IO.File]::WriteAllLines($scan,[string[]]@($scanLine))}
     $o=& $zip a -t7z -mx7 $archive $out 2>&1;if($LASTEXITCODE){throw "PACKAGE_FAILED ($LASTEXITCODE)`n$o"}
     $o=& $zip t $archive 2>&1;if($LASTEXITCODE){throw "PACKAGE_VERIFY_FAILED ($LASTEXITCODE)"}
-    $packageLine="PACKAGE: $archive $([math]::Round((Get-Item $archive).Length/1MB,1)) MB SHA256 $((Get-FileHash -LiteralPath $archive).Hash) (unencrypted; staging removed)"
+    $hash=(Get-FileHash -LiteralPath $archive).Hash
+    $packageLine="PACKAGE: $archive $([math]::Round((Get-Item $archive).Length/1MB,1)) MB SHA256 $hash (unencrypted; staging removed)"
 }
 }finally{if($Package-and$staging-and(Test-Path -LiteralPath $staging)){Get-ChildItem $staging -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($staging,$true)}}
 # Printed only after the staging is gone; an interrupted run leaves %TEMP%\orvion-package-* to delete by hand.
-if($packageLine){$scanLine;$packageLine}
+if($packageLine){
+    # Publish the recovery entry only after verification, hashing AND staging cleanup succeeded.
+    try{
+        foreach($launcher in 'Restore-ORVION.cmd','Restore-ORVION.ps1'){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $launcher) -Destination (Join-Path $Destination $launcher) -Force}
+        [IO.File]::WriteAllText("$archive.sha256",("$hash *"+(Split-Path $archive -Leaf)+[Environment]::NewLine),[Text.Encoding]::ASCII)
+    }catch{if(Test-Path -LiteralPath "$archive.sha256"){Remove-Item -LiteralPath "$archive.sha256"};throw}
+    $scanLine;$packageLine
+}

@@ -6,7 +6,7 @@
 # Selective package v1: -Package <file.7z> extracts a Backup-Workspace -Package archive into TEMP first (removed afterwards).
 param([string]$From,[string]$Target=(Join-Path $env:USERPROFILE 'Documents\GitHub'),
       [string]$ClaudeHome=(Join-Path $env:USERPROFILE '.claude'),[string]$LegacyTarget=(Join-Path $env:USERPROFILE 'Documents'),[switch]$SkipLegacy,
-      [string]$Package)
+      [string]$Package,[string]$CodexHome=(Join-Path $env:USERPROFILE '.codex'))
 $ErrorActionPreference='Stop'
 # stdout only on success; a failure names the subcommand and masks URL credentials (config values pass through here)
 function Invoke-Git{param([string]$Repo)$o=& git -C $Repo @args 2>&1;if($LASTEXITCODE){throw "GIT_FAILED $Repo git $($args[0]) (exit $LASTEXITCODE)`n$("$o"-replace'://[^/@\s]+@','://***@')"};$o|Where-Object{$_-isnot[Management.Automation.ErrorRecord]}}
@@ -109,6 +109,11 @@ foreach($f in 'settings.json','statusline.ps1'){
     $s=Join-Path $From "claude\$f";if(!(Test-Path $s)){continue};$d=Join-Path $ClaudeHome $f
     if(Test-Path $d){if(Test-Path "$d.restored"){"KEPT existing $d and $f.restored (nothing copied)"}else{Copy-Item $s "$d.restored";"KEPT existing $d (backup copy: $f.restored, merge by hand)"}}else{New-Item -ItemType Directory $ClaudeHome -Force|Out-Null;Copy-Item $s $d;"RESTORED $d"}
 }
+$s=Join-Path $From 'codex\config.toml';$d=Join-Path $CodexHome 'config.toml'
+if(Test-Path -LiteralPath $s -PathType Leaf){
+    if(Test-Path -LiteralPath $d){if(Test-Path -LiteralPath "$d.restored"){"KEPT existing $d and config.toml.restored (nothing copied)"}else{Copy-Item -LiteralPath $s -Destination "$d.restored";"KEPT existing $d (backup copy: config.toml.restored, merge by hand)"}}
+    else{New-Item -ItemType Directory $CodexHome -Force|Out-Null;Copy-Item -LiteralPath $s -Destination $d;"RESTORED $d"}
+}
 if(!$SkipLegacy){foreach($l in Get-ChildItem (Join-Path $From 'legacy') -Directory -ErrorAction SilentlyContinue){
     $d=Join-Path $LegacyTarget $l.Name;if(Test-Path $d){"SKIPPED legacy $($l.Name) (exists)"}else{Copy-Item $l.FullName $d -Recurse;"RESTORED legacy $($l.Name)"}
 }}
@@ -117,5 +122,5 @@ if($plan.workbenchRecovery){
     Copy-Item -LiteralPath (Join-Path $From 'backup.json') -Destination (Join-Path $Target 'ORVION-Recovery-Inputs/source-map.json')
     'RESTORED Workbench proof inputs; source-map.json retains original paths. Historical receipts retain their original physical roots; no new-machine certification or trust advancement is implied.'
 }
-"NEXT: gh auth login (PlatPlusHub and Shehabhub), then Boot in each repository."
+"NEXT: gh auth login (PlatPlusHub and Shehabhub); re-enter the masked local postgres passwords in $CodexHome\config.toml (merge config.toml.restored if present), then Boot in each repository."
 }finally{if($staging-and(Test-Path -LiteralPath $staging)){Get-ChildItem $staging -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($staging,$true)}}
