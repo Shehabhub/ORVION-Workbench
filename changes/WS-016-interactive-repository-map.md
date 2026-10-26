@@ -378,19 +378,19 @@ Minimum Commit GB: 3
 
 ## Acceptance Criteria
 
-- [ ] Exact approved scoped output. check: blob:lib/Map-Repos.ps1=a0d77573b8aaaab77b2eea1b86a87a0dc0d49ddc
-- [ ] Exact approved scoped output. check: blob:lib/ai-map.template.html=cd7fcb51077581aaecf5535b7e60750ff958d840
-- [ ] Exact approved scoped output. check: blob:lib/test-map-repos.ps1=1e5dc5b43a491f2f9a201306dc405261d00f4923
-- [ ] Exact approved scoped output. check: blob:.gitignore=9ad9397a7f6e56cfcea7fcfb9536ae3c819669b3
-- [ ] Exact approved scoped output. check: blob:README.md=40d50f6cbc1b9499f3a0d50dbe0f92e16285a975
-- [ ] Exact approved scoped output. check: blob:lib/README.md=ee2638b8123596eea559aeea41612a04ae81781c
-- [ ] The owning test proves: repositories are discovered, *-trusted-main copies skipped and unborn or broken ones reported without failing; the full HEAD is recorded; a nested folder named like a sibling repository resolves locally; two anchors into one file stay two edges; markdown links, named repository paths, contract ids, ADR sections, cross-repository paths (both ways), globs and distinctive bare names each produce their edge; backlinks, titles and sections are recorded; orphans list unlinked files but never entry documents; only committed content enters (no untracked, ignored, staged or working-tree text); sessions and origin credentials never enter; the HTML view embeds the data; -Links and -Orphans answer; a repository added later joins on the next run.
-- [ ] Mandatory V1/V2/V3, focused proof, planted-regression mutants, accepted literal replay controls and the real three-repository measurement are preserved. One isolated native timed/watched Finish owns the full schedule with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
+- [x] Exact approved scoped output. check: blob:lib/Map-Repos.ps1=a0d77573b8aaaab77b2eea1b86a87a0dc0d49ddc
+- [x] Exact approved scoped output. check: blob:lib/ai-map.template.html=cd7fcb51077581aaecf5535b7e60750ff958d840
+- [x] Exact approved scoped output. check: blob:lib/test-map-repos.ps1=1e5dc5b43a491f2f9a201306dc405261d00f4923
+- [x] Exact approved scoped output. check: blob:.gitignore=9ad9397a7f6e56cfcea7fcfb9536ae3c819669b3
+- [x] Exact approved scoped output. check: blob:README.md=40d50f6cbc1b9499f3a0d50dbe0f92e16285a975
+- [x] Exact approved scoped output. check: blob:lib/README.md=ee2638b8123596eea559aeea41612a04ae81781c
+- [x] The owning test proves: repositories are discovered, *-trusted-main copies skipped and unborn or broken ones reported without failing; the full HEAD is recorded; a nested folder named like a sibling repository resolves locally; two anchors into one file stay two edges; markdown links, named repository paths, contract ids, ADR sections, cross-repository paths (both ways), globs and distinctive bare names each produce their edge; backlinks, titles and sections are recorded; orphans list unlinked files but never entry documents; only committed content enters (no untracked, ignored, staged or working-tree text); sessions and origin credentials never enter; the HTML view embeds the data; -Links and -Orphans answer; a repository added later joins on the next run.
+- [x] Mandatory V1/V2/V3, focused proof, planted-regression mutants, accepted literal replay controls and the real three-repository measurement are preserved. One isolated native timed/watched Finish owns the full schedule with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
 
 ## Review Gate
 
-- [ ] Inspect the six scoped files, the focused/mutant/literal evidence and the real measurement; preserve all frozen prior evidence.
-- [ ] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
+- [x] Inspect the six scoped files, the focused/mutant/literal evidence and the real measurement; preserve all frozen prior evidence.
+- [x] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
 
 ## Runtime Checkpoint
 
@@ -414,6 +414,10 @@ Original exact literal implementation applied by accepted native Workbench Execu
 ## Verification Notes
 
 Measured before freeze on the real workstation (real-measurement.json): 3 repositories discovered (CRM 20ea5e0, ORVION 0529a0d, ORVION-Workbench a8bf1fd), 0 problems, 2086 committed files, 35319 links (name 15643, path 14634, contract 3598, adr 791, glob 633, link 19, cross-repo 1), 146 orphans (mostly reports/history, superseded contracts and pgTAP tests), 0 unscanned, 16 broad patterns reported, 56 s, 8.7 MB JSON and 8.7 MB HTML. A first run reached only 300 orphans by path links; bare migration names and test globs then linked their files; an unbounded glob linked whole folders (20748 edges, 5 orphans), so a pattern matching more than 30 files is reported under stats.broadPatterns instead of linking. An independent Codex review (codex-review/review1-report.txt) held the first candidate for credential export, working-tree reads, wrong relative resolution, truncated HEAD, fatal unborn repositories, collapsed anchors and dropped -Skip; every proven finding is fixed and pinned by the 19-case self-check (codex-review/review1-disposition.md); section-level orphans are deferred. The hazard scanner caught $Raw/$raw, then $Ids/$ids, $Out/$out and $Ref/$ref; scan now 0. All three repositories are public (gh, 2026-10-26); the map reads committed HEAD blobs only. Four planted regressions (trusted-copy skip, backlinks, anchor dedupe, working-tree read) are each detected (mutants.log).
+Verdict: Confirmed Complete
+Reviewed Fingerprint: AC514A9D8FF1ED6C3FE2893E8D0F055E7979C1BFD9C728EB12889C45BC86CC17
+Reviewed Receipt: BE5613F344ECAEC88DA1E6876F654F185149C3BE1F1445558DAB085FFE982BD0
+Evidence: fresh ORIGINAL root-bound timed/watched Finish, actual ordered-suite schedule/exits, approved exact outputs and independently pinned accepted-code live review. Runtime: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\ws016-package\runtime\original. No sandbox receipt transplant, remote parity, offsite recovery or equal-OS isolation claim.
 
 ## Selection reasons and sources
 
