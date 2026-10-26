@@ -2,8 +2,8 @@
 
 ## Status
 
-[x] Draft
-[ ] Approved
+[ ] Draft
+[x] Approved
 [ ] In Progress
 [ ] Complete
 [ ] Cancelled
@@ -819,6 +819,14 @@ Recovery Attempt: 0
 ## Execution Log
 
 Decision D26 in C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\exceptional-delegation-20261026\DECISIONS.md (under D19-D25, D12 and OWNER-DECISION-20261027-no-reinstall.md). Codex investigated at xhigh effort (before pass and rebuttal round, ws023-package\codex) and implemented at high effort (codex\impl1-final.md) in disposable C:\cx\ORVION-ws023 under orchestrator verification (codex\impl1-disposition.md). Under the owner's exceptional delegation this one Workbench contract is authorized. Gate 1 for this Draft is DELEGATED: the owner did not type its digest. Sandbox approval is synthetic and grants no original authority.
+Approved Draft: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\ws023-package\assurance\V3\DRAFT.md
+Approved SHA256: A21DC3B204EDD02FB33782DF2829B4013D5A8C6F380ABB1D037CC68FE6494EEB
+Owner Evidence: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\exceptional-delegation-20261026\GATE1-WS023-DELEGATED.md
+Owner Evidence SHA256: EA291CE48B97FA0C3163168D8FD6E9F5384022F1D31BEEF3A5B2A2369E0E743D
+Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
+Sandbox Receipt: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\ws023-package\runtime\sandbox\own-finish-receipt.json
+Sandbox Receipt SHA256: 7BF683ED930A479BDA23C6F4AEC2C918B48F18E3532E1CE072498151345FD1BF
+Original admission: DELEGATED exact Gate 1 under the owner's exceptional delegation of 2026-10-26 (OWNER-DELEGATION.md SHA-256 94631C14708B783C584D0867AD4AD11221D5394F5FDEDAA48F64FA0BF9788217; decisions D1-D26; D26 is the delegated decision for this contract). The owner did not type this digest. Bound to this literal root, the exact V3 digest and the fresh sandbox receipt; no sandbox receipt transplant as original certification.
 
 ## Verification Notes
 
