@@ -6,6 +6,8 @@ $ErrorActionPreference='Stop';$fail=0
 function Assert-Stage([string]$Name,[bool]$Condition,[string]$Detail=''){if($Condition){"PASS $Name"}else{$script:fail++;"FAIL $Name";if($Detail){$Detail}}}
 $tempRoot=Join-Path ([IO.Path]::GetTempPath()) ('orvion-stage-'+[guid]::NewGuid().ToString('N').Substring(0,6))
 [void][IO.Directory]::CreateDirectory($tempRoot)
+$savedGitGlobal=$env:GIT_CONFIG_GLOBAL;$savedGitNoSystem=$env:GIT_CONFIG_NOSYSTEM
+$env:GIT_CONFIG_GLOBAL=Join-Path $tempRoot 'fixture.gitconfig';$env:GIT_CONFIG_NOSYSTEM='1'
 $savedTrailer=$env:ORVION_COMMIT_TRAILER;$env:ORVION_COMMIT_TRAILER=$null
 function Read-StageGit([string]$dir,[string[]]$arguments){$o=@(& git -C $dir @arguments 2>$null);if($LASTEXITCODE){throw 'STAGE_FIXTURE_GIT_FAILED'};$o}
 function New-StageFixture([string]$Name,[switch]$Outside,[switch]$RefuseBoot,[string]$Clause=''){
@@ -183,6 +185,7 @@ try{
     $bad=Invoke-StageFixture $swapped -Library $mutantLib
     Assert-Stage 'causal removal of allocation binding allows the exact unallocated revision to execute' ($bad.Exit-eq0-and$bad.FileExists-and$bad.Head-cne$swapped.Head)
 }finally{
+    $env:GIT_CONFIG_GLOBAL=$savedGitGlobal;$env:GIT_CONFIG_NOSYSTEM=$savedGitNoSystem
     $env:ORVION_COMMIT_TRAILER=$savedTrailer
     $resolved=[IO.Path]::GetFullPath($tempRoot)
     $allowedTemp=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')

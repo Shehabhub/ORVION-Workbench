@@ -52,5 +52,9 @@ try{
     $expression='$(if($env:ORVION_DATA_ROOT){$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) ''ORVION-Owner-Tools'')|Where-Object{Test-Path -LiteralPath (Join-Path $_ ''events'')})+@(Split-Path $PSScriptRoot -Parent))[0]})'
     $drift=@(foreach($tool in 'Events','Spider','Pulse','Coordinator','Delegate'){if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot "$tool.ps1")).Contains('[string]$Root='+$expression)){$tool}})+@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Watch-Subagents.ps1')).Contains('[string]$EventRoot='+$expression)){'Watch-Subagents'})
     Assert-That "every data tool carries the one identical data-root default$(if($drift.Count){' (drifted: '+($drift-join', ')+')'})" (!$drift.Count)
+    # A Hijri-calendar culture (ar-SA) must not leak into stored timestamps: readers parse them as Gregorian UTC.
+    $hijri=Join-Path $t 'hijri';& pwsh -NoProfile -Command "[Globalization.CultureInfo]::CurrentCulture='ar-SA';& '$($ev.Replace("'","''"))' -Root '$($hijri.Replace("'","''"))' -Add -Pattern locale-check -Summary 'calendar'"|Out-Null
+    $stamp=([IO.File]::ReadAllLines((Join-Path $hijri 'events\events.jsonl'))[0]|ConvertFrom-Json -DateKind String).at
+    Assert-That 'timestamps stay Gregorian UTC under an ar-SA culture' ("$stamp".StartsWith([DateTime]::UtcNow.ToString('yyyy',[Globalization.CultureInfo]::InvariantCulture)))
 }finally{[IO.Directory]::Delete($t,$true)}
 if($fail){throw "EVENTS_SELFCHECK_FAILED $fail"};'EVENTS_SELFCHECK PASS'

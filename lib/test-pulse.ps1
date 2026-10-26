@@ -9,6 +9,9 @@ $pulsePath=Join-Path $Library 'Pulse.ps1'
 $pulseTestParent=if($env:WORKBENCH_TEST_ROOT){[IO.Path]::GetFullPath($env:WORKBENCH_TEST_ROOT)}else{Join-Path ([IO.Path]::GetTempPath()) 'ORVION-Workbench'}
 $pulseFixture=Join-Path $pulseTestParent ('pulse-'+[guid]::NewGuid().ToString('N').Substring(0,8))
 [void][IO.Directory]::CreateDirectory($pulseFixture)
+$savedGitGlobal=$env:GIT_CONFIG_GLOBAL;$savedGitNoSystem=$env:GIT_CONFIG_NOSYSTEM
+$env:GIT_CONFIG_GLOBAL=Join-Path $pulseFixture 'fixture.gitconfig';$env:GIT_CONFIG_NOSYSTEM='1'
+$savedGitCeiling=$env:GIT_CEILING_DIRECTORIES;$env:GIT_CEILING_DIRECTORIES=$pulseFixture
 $pulseRepository=Join-Path $pulseFixture 'native'
 [void][IO.Directory]::CreateDirectory($pulseRepository)
 [void][IO.Directory]::CreateDirectory((Join-Path $pulseFixture 'events'))
@@ -85,6 +88,8 @@ try{
     Assert-PulseCheck 'a damaged session index is UNREADABLE with nonzero exit' ($pulseObserved.Exit-eq2-and$pulseObserved.Text-match'last     UNREADABLE: 1 damaged') $pulseObserved.Text
     $pulseCompleted=$true
 }finally{
+    $env:GIT_CEILING_DIRECTORIES=$savedGitCeiling
+    $env:GIT_CONFIG_GLOBAL=$savedGitGlobal;$env:GIT_CONFIG_NOSYSTEM=$savedGitNoSystem
     if($pulseCompleted-and$pulseFailures-eq0){$null=Remove-OrvionOwnedTree -Path $pulseFixture -AllowedRoots @($pulseTestParent)}
     else{"PULSE_FIXTURE_PRESERVED: $pulseFixture"}
 }

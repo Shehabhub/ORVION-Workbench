@@ -4,6 +4,8 @@
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Invoke-DraftSteps.ps1')
 $root=Join-Path ([IO.Path]::GetTempPath()) "orvion-draft-steps-$PID";$fail=0
+$savedGitGlobal=$env:GIT_CONFIG_GLOBAL;$savedGitNoSystem=$env:GIT_CONFIG_NOSYSTEM
+$env:GIT_CONFIG_GLOBAL=Join-Path $root 'fixture.gitconfig';$env:GIT_CONFIG_NOSYSTEM='1'
 function Test-Case([string]$Name,[string]$Base,[string]$Edited,[bool]$Refused=$false){
     $r=Join-Path $root $Name;New-Item -ItemType Directory -Force $r|Out-Null
     git -C $r init -q;git -C $r config core.autocrlf false
@@ -106,6 +108,7 @@ try{
     Test-Case 'no-final-newline' "MARK`na`n" "MARK`na`nc" $true
     Test-CreationCases
 }finally{
+    $env:GIT_CONFIG_GLOBAL=$savedGitGlobal;$env:GIT_CONFIG_NOSYSTEM=$savedGitNoSystem
     $resolved=[IO.Path]::GetFullPath($root);$tempRoot=[IO.Path]::GetFullPath([IO.Path]::GetTempPath())
     if(!$resolved.StartsWith($tempRoot,[StringComparison]::OrdinalIgnoreCase)-or(Split-Path $resolved -Leaf)-ne"orvion-draft-steps-$PID"){throw 'FIXTURE_CLEANUP_BOUNDARY'}
     if(!$fail){Remove-Item -LiteralPath $resolved -Recurse -Force -ErrorAction SilentlyContinue}else{"retained failed fixtures: $resolved"}

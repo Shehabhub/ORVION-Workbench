@@ -22,6 +22,24 @@ $ownerTools=Join-Path $gh 'ORVION-Owner-Tools'
 # A failure names the subcommand and masks URL credentials: arguments and output may carry config values.
 function Invoke-Git{param([string]$Repo)$o=& git -C $Repo @args 2>&1;if($LASTEXITCODE){throw "GIT_FAILED $Repo git $($args[0]) (exit $LASTEXITCODE)`n$("$o"-replace'://[^/@\s]+@','://***@')"};$o|Where-Object{$_-isnot[Management.Automation.ErrorRecord]}}
 function Get-SevenZip{$z=(Get-Command 7z -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1).Source;if(!$z){$z=Join-Path $env:ProgramFiles '7-Zip\7z.exe'};if(!(Test-Path -LiteralPath $z)){throw 'PACKAGE_7ZIP_REQUIRED'};$z}
+function Get-SafeConfig([string]$Repo){
+    foreach($entry in ((@(Invoke-Git $Repo config --local --null --list)-join"`n")-split"`0"|Where-Object{$_})){
+        $key,$value=$entry-split"`n",2
+        $safeKey=$key-replace'://[^/\s]*@','://';$safeValue=$value-replace'://[^/\s]*@','://'
+        if($key-cne$safeKey-or$value-cne$safeValue){Write-Warning "BACKUP_CONFIG_USERINFO_STRIPPED: $safeKey"}
+        $key=$safeKey;$value=$safeValue
+        if($key-match'^http\..*(extraheader|cookiefile)$'-or$value-match'[\x00-\x1f]'){throw "BACKUP_UNSAFE_CONFIG: $key"}
+        # Clone/init recreates this metadata; neither store it nor warn about its omission.
+        if($key-match'^(core\.(repositoryformatversion|filemode|bare|logallrefupdates|symlinks|ignorecase)|remote\.origin\.fetch)$'){continue}
+        # Whole helper values only; the owner function must use the same login twice.
+        if($key-match'^credential\.(.*\.)?helper$'-and$value-cnotmatch'\A(?:|manager|manager-core|wincred|!gh auth (?:git-credential|token)(?: --hostname [A-Za-z0-9.-]+)?|!f\(\) \{ echo username=([A-Za-z0-9-]{1,39}); echo "password=\$\(gh auth token --user \1\)"; \}; f)\z'){throw "BACKUP_UNSAFE_CONFIG: $key"}
+        if($key-match'^(user\.(name|email)|core\.(hookspath|autocrlf)|branch\.[^=]+\.(remote|merge)|remote\.origin\.(url|pushurl)|push\.default|protocol\.[a-z.]+|gc\.auto|maintenance\.auto|credential\.(.*\.)?(helper|username|usehttppath))$'){
+            if($value-match'gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}|password=(?!\$\(gh auth token)'){throw "BACKUP_UNSAFE_CONFIG: $key"}
+            "$key=$value"
+        }
+        else{Write-Warning "BACKUP_CONFIG_OMITTED: $key"}
+    }
+}
 
 if($Package){
     $zip=Get-SevenZip
@@ -91,16 +109,11 @@ foreach($name in 'CRM','ORVION','CRM-trusted-main','ORVION-trusted-main','ORVION
     Invoke-Git $r bundle create (Join-Path $out "repos\$name.bundle") --all|Out-Null
     Invoke-Git $r bundle verify (Join-Path $out "repos\$name.bundle")|Out-Null
     $bundledTips[$r]=@(Invoke-Git $r bundle list-heads (Join-Path $out "repos\$name.bundle")|ForEach-Object{($_-split' ')[0]}|Sort-Object -Unique)
-    $localConfig=@(Invoke-Git $r config --local --list)
-    if($name-like'ORVION-Workbench*'){
-        # Only approved non-secret identity/routing settings. Never retain auth headers or arbitrary helper commands.
-        if(@($localConfig|Where-Object{$_-match'^(http\..*(extraheader|cookiefile)|credential\..*|core\.(sshcommand|gitproxy)|include\.)='}).Count){throw 'BACKUP_WORKBENCH_UNSAFE_CONFIG'}
-        $localConfig=@($localConfig|Where-Object{$_-match'^(user\.(name|email)|core\.(hookspath|autocrlf)|branch\.[^=]+\.(remote|merge)|remote\.origin\.(url|pushurl)|push\.default|protocol\.[a-z.]+|gc\.auto|maintenance\.auto)='})
-        foreach($line in $localConfig){
-            $key,$value=$line-split'=',2
-            if($value-match'[\x00-\x1f]' -or ($key-like'remote.origin.*'-and$value-ne'DISABLED'-and$value-notmatch'^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\.git)?$') -or ($key-eq'core.hookspath'-and$value-ne'.githooks')){throw 'BACKUP_WORKBENCH_UNSAFE_CONFIG'}
-        }
-    }
+    $localConfig=@(Get-SafeConfig $r)
+    if($name-like'ORVION-Workbench*'){foreach($line in $localConfig){
+        $key,$value=$line-split'=',2
+        if(($key-like'remote.origin.*'-and$value-ne'DISABLED'-and$value-notmatch'^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\.git)?$')-or($key-eq'core.hookspath'-and$value-ne'.githooks')){throw "BACKUP_UNSAFE_CONFIG: $key"}
+    }}
     [IO.File]::WriteAllLines((Join-Path $dir 'git-config-local.txt'),[string[]]$localConfig)
     [IO.File]::WriteAllLines((Join-Path $dir 'refs.txt'),[string[]]@(Invoke-Git $r for-each-ref --format='%(objectname) %(refname)'))  # a detached trusted clone may hold no refs
     $receiptPaths=if($name-like'ORVION-Workbench*'){@('.workbench-local-certification.json','.workbench-certifications')}else{@('.orvion-local-certification.json','.orvion-certifications','.claude\settings.json','.claude\settings.local.json')}
@@ -108,7 +121,7 @@ foreach($name in 'CRM','ORVION','CRM-trusted-main','ORVION-trusted-main','ORVION
         $toDir=if(Test-Path -LiteralPath (Join-Path $r $p) -PathType Container){Join-Path $dir $p}else{[IO.Path]::Combine($dir,(Split-Path $p -Parent))}
         Copy-Tree (Join-Path $r $p) $toDir
     }
-    $plan.repos+=[ordered]@{name=$name;head=$head;branch=$branch;dirty=$dirty;stash=$stash;worktrees=$worktrees;origin=(Invoke-Git $r config --local remote.origin.url).Trim()
+    $plan.repos+=[ordered]@{name=$name;head=$head;branch=$branch;dirty=$dirty;stash=$stash;worktrees=$worktrees;origin=(($localConfig|Where-Object{$_-like'remote.origin.url=*'})-replace'^remote.origin.url=','')
         originHead="$(& git -C $r symbolic-ref -q refs/remotes/origin/HEAD)".Trim()}  # empty when the clone has none
 }
 if($workbenchPresent){
@@ -134,6 +147,7 @@ foreach($p in Get-ChildItem -LiteralPath $projects -Directory|Where-Object{Test-
 }
 # Selective package v1: a nested clone is regenerated from its recorded origin/HEAD; only state no main bundle holds is kept.
 function Save-CloneState([string]$Clone,[string]$To){
+    $localConfig=@(Get-SafeConfig $Clone)
     # .clone-state is reserved for generated metadata; a source path of that name would be overwritten, so refuse.
     if(Test-Path -LiteralPath (Join-Path $Clone '.clone-state')){throw "BACKUP_CLONE_STATE_NAME_COLLISION: $Clone"}
     # Unresolved merge entries cannot be rebuilt by git apply from the saved diffs: refuse rather than save a broken patch.
@@ -161,7 +175,7 @@ function Save-CloneState([string]$Clone,[string]$To){
     if($staged){& git -C $Clone diff --cached --binary "--output=$short";if($LASTEXITCODE){throw "GIT_FAILED $Clone diff --cached"};[IO.File]::Move($short,(Join-Path $state 'staged.diff'))}
     if($unstaged){& git -C $Clone diff --binary "--output=$short";if($LASTEXITCODE){throw "GIT_FAILED $Clone diff"};[IO.File]::Move($short,(Join-Path $state 'worktree.diff'))}
     foreach($f in @($untracked|Where-Object{$_-notmatch'(^|/)node_modules/'})){Copy-Tree (Join-Path $Clone $f) (Split-Path (Join-Path "$state\untracked" $f) -Parent)}
-    [ordered]@{head=$head;branch="$(& git -C $Clone symbolic-ref -q --short HEAD)".Trim();origin="$(& git -C $Clone config --get remote.origin.url)".Trim();refs=$refs;unique=$unique}|ConvertTo-Json -Depth 3|Set-Content (Join-Path $state 'state.json')
+    [ordered]@{head=$head;branch="$(& git -C $Clone symbolic-ref -q --short HEAD)".Trim();origin=(($localConfig|Where-Object{$_-like'remote.origin.url=*'})-replace'^remote.origin.url=','');refs=$refs;unique=$unique}|ConvertTo-Json -Depth 3|Set-Content (Join-Path $state 'state.json')
 }
 if(!$SkipLegacy){foreach($n in 'ORVION-Owner-Review','ORVION-Owner-Tools','ORVION-Owner-Recovery','ORVION-Sandbox','ORVION-drafts-backup','Windows-Memory-Config'){
     $src=Join-Path $docs $n;if(!(Test-Path $src)){continue}

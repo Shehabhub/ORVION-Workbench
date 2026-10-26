@@ -49,7 +49,7 @@ if($Add){
         # an assignment repeats the summary with a new owner, action, due or status: that is a new fact
         $last=@(Read-Events|Where-Object{$_.pattern-eq$Pattern-and$_.session-eq$Session-and$_.summary-eq$Summary-and$_.status-eq$Status-and"$($_.owner)"-eq$Owner-and"$($_.action)"-eq$Action-and"$($_.due)"-eq$Due})
         if($last.Count){"EVENT DUPLICATE $Pattern (already recorded for this session)";exit 0}  # watchers repeat; one line per fact
-        $e=[ordered]@{at=$At.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ');session="$Session";source=$Source;repo=$Repo;sha=$Sha
+        $e=[ordered]@{at=$At.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ',[Globalization.CultureInfo]::InvariantCulture);session="$Session";source=$Source;repo=$Repo;sha=$Sha
             pattern=$Pattern;category=$Category;severity=$Severity;summary=$Summary;cause=$Cause;status=$Status
             tool=$Tool;action=$Action;evidence=$Evidence;trigger=$Trigger;tags=$Tags;owner=$Owner;due=$Due}
         # a torn last line (a writer killed mid-line) is closed first, or this record would join it and be lost with it

@@ -20,6 +20,10 @@ try{
     $r=@($rows|Where-Object id -eq 's1')[0]
     Assert-That 'a rewritten, grown transcript restarts its index row' ($r.firstPrompt-eq'NEW TASK, a longer first line than before'-and$r.prompts-eq2-and$r.lines-eq2-and$r.metaBytes-eq$r.bytes)
     Assert-That 'and keeps the old copy beside' ((Get-Aside 's1.replaced-*.jsonl').Count-eq1-and([IO.File]::ReadAllText("$arch\s1.jsonl"))-ceq[IO.File]::ReadAllText($s))
+    $middle="$proj\middle.jsonl";$old=('{"pad":"'+('a'*12KB)+'"}'+"`n")*2
+    [IO.File]::WriteAllText($middle,$old);Invoke-Sync
+    [IO.File]::WriteAllText($middle,$old.Substring(0,12KB)+'b'+$old.Substring(12KB+1)+"{}`n");Invoke-Sync
+    Assert-That 'unchanged ends with a rewritten middle preserve both whole versions' ((Get-Aside 'middle.replaced-*.jsonl').Count-eq1-and[IO.File]::ReadAllText((Get-Aside 'middle.replaced-*.jsonl')[0].FullName)-ceq$old-and(Get-FileHash "$arch\middle.jsonl").Hash-ceq(Get-FileHash $middle).Hash)
     $m="$proj\memory\note.md";[IO.File]::WriteAllText($m,"first value`nrest of the note`n");Invoke-Sync
     [IO.File]::WriteAllText($m,"other value`nrest of the note`n");(Get-Item $m).LastWriteTime=(Get-Date).AddMinutes(1);Invoke-Sync
     Assert-That 'an edited memory file (same length) is re-copied and the old copy kept' ([IO.File]::ReadAllText("$arch\memory\note.md")-ceq"other value`nrest of the note`n"-and(Get-Aside 'note.replaced-*.md').Count-eq1)

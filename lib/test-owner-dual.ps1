@@ -3,6 +3,9 @@ param([string]$EvidenceDirectory,[string[]]$CaseNames)
 $ErrorActionPreference='Stop'
 $work=Join-Path ([IO.Path]::GetTempPath()) ('orvion-dual-'+[guid]::NewGuid().ToString('N'))
 [void][IO.Directory]::CreateDirectory($work)
+$savedGitGlobal=$env:GIT_CONFIG_GLOBAL;$savedGitNoSystem=$env:GIT_CONFIG_NOSYSTEM
+$env:GIT_CONFIG_GLOBAL=Join-Path $work 'fixture.gitconfig';$env:GIT_CONFIG_NOSYSTEM='1'
+try{
 $gitExe=(Get-Command git -CommandType Application|Select-Object -First 1).Source
 $records=[Collections.Generic.List[object]]::new()
 function Write-DualFixture([string]$Path,[string]$Content){[void][IO.Directory]::CreateDirectory((Split-Path $Path -Parent));[IO.File]::WriteAllText($Path,$Content,[Text.UTF8Encoding]::new($false))}
@@ -158,7 +161,7 @@ foreach($operation in 'PUBLISH','PROMOTE'){
             workbenchHead=(Invoke-DualSetupGit @('-C',$workbenchRoot,'rev-parse','HEAD')).Trim();
             workbenchConfigSha256=(Get-FileHash -LiteralPath (Join-Path $workbenchRoot '.git\config')).Hash;
             descriptorSha256=(Get-FileHash -LiteralPath $descriptorPath).Hash;
-            sourceDraftSha256=('A'*64);reviewSha256=('B'*64);expiresUtc=[DateTime]::UtcNow.AddHours(1).ToString('yyyy-MM-ddTHH:mm:ssZ');
+            sourceDraftSha256=('A'*64);reviewSha256=('B'*64);expiresUtc=[DateTime]::UtcNow.AddHours(1).ToString('yyyy-MM-ddTHH:mm:ssZ',[Globalization.CultureInfo]::InvariantCulture);
             sourceFiles=@(Get-ChildItem -LiteralPath $lib -File|ForEach-Object{@{path=('lib/'+$_.Name);sha256=(Get-FileHash -LiteralPath $_.FullName).Hash}});
             configurations=@($targets|ForEach-Object{foreach($subject in @($_.CandidateRoot,$_.TrustedRoot)){@{root=$subject;sha256=(Get-FileHash -LiteralPath (Join-Path $subject '.git\config')).Hash}}})}
         if($mode-eq'expired-approval'){$authorization.expiresUtc='2000-01-01T00:00:00Z'}
@@ -256,3 +259,4 @@ if(!$failed-and!$EvidenceDirectory){
     Remove-Item -LiteralPath $resolved -Recurse -Force -ErrorAction Stop
 }else{"retained fixture root: $work"}
 exit [int]($failed-gt0)
+}finally{$env:GIT_CONFIG_GLOBAL=$savedGitGlobal;$env:GIT_CONFIG_NOSYSTEM=$savedGitNoSystem}

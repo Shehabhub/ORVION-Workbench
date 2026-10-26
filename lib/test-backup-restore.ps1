@@ -2,18 +2,24 @@
 # exact HEAD and refs, a DISABLED push URL kept, branch upstream single-valued, an ignored receipt byte-identical, stash
 # loss warned, a legacy folder that is itself a repository backed up; a tampered backup and an existing target refused.
 $ErrorActionPreference='Stop'
+$zip=(Get-Command 7z -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1).Source;if(!$zip){$zip=Join-Path $env:ProgramFiles '7-Zip\7z.exe'}
+if(!(Test-Path -LiteralPath $zip)){throw 'BACKUP_RESTORE_SELFCHECK_7ZIP_REQUIRED: package self-checks require 7z'}
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-brcheck-$([guid]::NewGuid().ToString('N').Substring(0,6))"
+$savedGitGlobal=$env:GIT_CONFIG_GLOBAL;$savedGitNoSystem=$env:GIT_CONFIG_NOSYSTEM
+$env:GIT_CONFIG_GLOBAL=Join-Path $t 'fixture.gitconfig';$env:GIT_CONFIG_NOSYSTEM='1'
 $gh=Join-Path $t 'GitHub';$lib=Join-Path $gh 'ORVION-Owner-Tools\lib';New-Item -ItemType Directory $lib -Force|Out-Null
 Copy-Item (Join-Path $PSScriptRoot 'Backup-Workspace.ps1'),(Join-Path $PSScriptRoot 'Restore-Workspace.ps1') $lib
 $previousProfile=$env:USERPROFILE;$env:USERPROFILE=Join-Path $t 'profile'
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 function Invoke-Quiet{param([string]$Dir)$o=& git -C $Dir -c user.name=t -c user.email=t@t @args 2>&1;if($LASTEXITCODE){throw "git $args : $o"};$o}
+function Read-BackupTree([string]$Path){(@(Get-ChildItem -LiteralPath $Path -Recurse -File -Force|ForEach-Object{[Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($_.FullName))})-join"`n")}
 try{
     $remote=Join-Path $t 'remote.git';& git init -q --bare -b main $remote
     $crm=Join-Path $gh 'CRM';& git clone -q $remote $crm 2>&1|Out-Null
     Set-Content "$crm\.gitignore" '.orvion-local-certification.json';Set-Content "$crm\a.txt" 'one';Invoke-Quiet $crm add -A|Out-Null;Invoke-Quiet $crm commit -q -m one|Out-Null
     Invoke-Quiet $crm push -q -u origin main|Out-Null;Invoke-Quiet $crm remote set-url --push origin DISABLED|Out-Null
     Invoke-Quiet $crm branch orvion/x-pending|Out-Null
+    Invoke-Quiet $crm config credential.https://github.com.helper '!gh auth token'|Out-Null
     Set-Content "$crm\.orvion-local-certification.json" '{"receipt":"exact"}'
     foreach($i in 1,2){Set-Content "$crm\a.txt" "stash $i";Invoke-Quiet $crm stash -q|Out-Null}
     $legacy=Join-Path $t 'ORVION-drafts-backup';New-Item -ItemType Directory $legacy|Out-Null;& git init -q $legacy;Set-Content "$legacy\draft.md" 'kept'
@@ -29,10 +35,95 @@ try{
     $rc="$res\CRM"
     Assert-That 'restored at the exact HEAD with identical refs' (($r-join' ')-match'RESTORED CRM main@'-and(& git -C $rc rev-parse HEAD)-eq(& git -C $crm rev-parse HEAD))
     Assert-That 'the DISABLED push URL is kept' ((& git -C $rc config --get remote.origin.pushurl)-eq'DISABLED')
-    $up=& git -C $rc config --get-all branch.main.remote
+    $up=& git -C $rc config --local --get-all branch.main.remote
     Assert-That 'the branch upstream is single-valued' (@($up).Count-eq1-and$up-eq'origin')
     Assert-That 'the ignored receipt is byte-identical' ((Get-FileHash "$rc\.orvion-local-certification.json").Hash-eq(Get-FileHash "$crm\.orvion-local-certification.json").Hash)
     Assert-That 'restore warns about the stash' (($r-join' ')-match'WARN CRM: 2 stash')
+    $helperKept=(& git -C $rc config --get credential.https://github.com.helper)-ceq'!gh auth token'
+    $fake='ghp_'+'FAKE'+('x'*36)
+    $shellHelper='!f() { echo username=fixture-login; echo "password=$(gh auth token --user fixture-login)"; }; f'
+    $unsafeCases=@(
+        @('header','http.https://github.com/.extraheader',"AUTHORIZATION: $fake",$fake),
+        @('cookiefile','http.https://github.com/.cookiefile','fixture-cookie-path','fixture-cookie-path'),
+        @('helper','credential.helper',"!echo $fake",$fake),
+        @('shell-literal-token','credential.helper',$shellHelper.Replace('$(gh auth token --user fixture-login)',$fake),$fake),
+        @('contains-gh-probe','credential.helper','!echo gh auth token; echo UNAPPROVED_FIXTURE_SECRET','UNAPPROVED_FIXTURE_SECRET'),
+        @('username-token-probe','credential.https://github.com.username',$fake,$fake),
+        @('mismatched-login','credential.helper',$shellHelper.Replace('--user fixture-login','--user different-login'),'different-login'),
+        @('echo-password','credential.helper','echo password=hunter2','hunter2'),
+        @('gh-literal-token','credential.helper',($shellHelper+'; echo '+$fake),$fake),
+        @('gh-pat-prefix','credential.helper',($shellHelper+'; echo github_pat_fixture'),'github_pat_fixture'),
+        @('gh-literal-password','credential.helper','!f() { echo "password=hunter2"; gh auth token; }; f','hunter2'))
+    foreach($case in $unsafeCases){
+        Invoke-Quiet $crm config $case[1] $case[2]|Out-Null
+        $destination=Join-Path $t ('unsafe-'+$case[0])
+        try{$unsafe=@(& pwsh -NoProfile -File "$lib\Backup-Workspace.ps1" -Destination $destination -AllowUnencrypted 2>&1);$code=$LASTEXITCODE}
+        finally{if($case[1]-eq'remote.origin.url'){Invoke-Quiet $crm config $case[1] $remote|Out-Null}else{Invoke-Quiet $crm config --unset-all $case[1]|Out-Null}}
+        $copies=Read-BackupTree $destination
+        Assert-That ('product config refuses '+$case[0]+' by key without saving its value; external helper survives') ($helperKept-and$code-ne0-and($unsafe-join' ')-match'BACKUP_UNSAFE_CONFIG'-and($unsafe-join' ').Contains($case[1])-and!($unsafe-join' ').Contains($case[3])-and!$copies.Contains($case[3])-and($unsafe-join' ')-notmatch'BACKUP:')
+    }
+    # The real helper chain resets first, then asks gh at restore-time; never execute the helper here.
+    $helperKey='credential.https://github.com.helper'
+    Invoke-Quiet $crm config --unset-all $helperKey|Out-Null
+    Invoke-Quiet $crm config --add $helperKey ''|Out-Null;Invoke-Quiet $crm config --add $helperKey $shellHelper|Out-Null
+    $helperDestination=Join-Path $t 'helper-chain'
+    $helperBackup=@(& pwsh -NoProfile -File "$lib\Backup-Workspace.ps1" -Destination $helperDestination -AllowUnencrypted 2>&1);$helperCode=$LASTEXITCODE
+    $restoredHelpers=@();$helperRestoreCode=-1
+    if($helperCode-eq0){
+        $helperFolder=@(Get-ChildItem $helperDestination -Directory)[0].FullName;$helperTarget=Join-Path $t 'restored-helpers'
+        $helperRestore=@(& pwsh -NoProfile -File "$lib\Restore-Workspace.ps1" -From $helperFolder -Target $helperTarget -ClaudeHome (Join-Path $t 'helper-ch') -LegacyTarget (Join-Path $t 'helper-docs') 2>&1);$helperRestoreCode=$LASTEXITCODE
+        if($helperRestoreCode-eq0){$restoredHelpers=@(& git -C "$helperTarget\CRM" config --local --get-all $helperKey)}
+    }
+    Assert-That 'empty reset and exact gh shell-function helper survive backup and restore in order' ($helperCode-eq0-and$helperRestoreCode-eq0-and$restoredHelpers.Count-eq2-and$restoredHelpers[0]-ceq''-and$restoredHelpers[1]-ceq$shellHelper)
+    Invoke-Quiet $crm config --unset-all $helperKey|Out-Null;Invoke-Quiet $crm config $helperKey '!gh auth token'|Out-Null
+    # Force every clone/init key to be present, independent of Git/platform defaults.
+    $cloneMetadata=[ordered]@{'core.repositoryformatversion'='0';'core.filemode'='false';'core.bare'='false';'core.logallrefupdates'='true';'core.symlinks'='false';'core.ignorecase'='true';'remote.origin.fetch'='+refs/heads/*:refs/remotes/origin/*'}
+    foreach($metadataKey in $cloneMetadata.Keys){Invoke-Quiet $crm config $metadataKey $cloneMetadata[$metadataKey]|Out-Null}
+    foreach($case in @(@('username','someone'),@('token',$fake),@('password',"fixture-user:$fake"))){
+        $origin="https://$($case[1])@github.com/o/r.git";$cleanOrigin='https://github.com/o/r.git'
+        $urlKey="credential.https://$($case[1])@github.com.username";$cleanUrlKey='credential.https://github.com.username'
+        Invoke-Quiet $crm config remote.origin.url $origin|Out-Null;Invoke-Quiet $crm config $urlKey 'fixture-account'|Out-Null
+        Invoke-Quiet $legacy config remote.origin.url $origin|Out-Null
+        $destination=Join-Path $t ('userinfo-'+$case[0]);$target=Join-Path $t ('restored-userinfo-'+$case[0])
+        try{
+            $stripped=@(& pwsh -NoProfile -File "$lib\Backup-Workspace.ps1" -Destination $destination -AllowUnencrypted 2>&1);$code=$LASTEXITCODE
+            $originKept=$false;$urlKeyKept=$false;$nestedOriginKept=$false;$configLines=@()
+            if($code-eq0){
+                $folder=@(Get-ChildItem $destination -Directory)[0].FullName
+                $configLines=[IO.File]::ReadAllLines("$folder\repos\CRM\git-config-local.txt")
+                $nestedOriginKept=(Get-Content -LiteralPath "$folder\legacy\ORVION-drafts-backup\.clone-state\state.json" -Raw|ConvertFrom-Json).origin-ceq$cleanOrigin
+                $userRestore=@(& pwsh -NoProfile -File "$lib\Restore-Workspace.ps1" -From $folder -Target $target -ClaudeHome ($target+'-ch') -LegacyTarget ($target+'-docs') 2>&1)
+                if($LASTEXITCODE-eq0){
+                    $originKept=(& git -C "$target\CRM" config --get remote.origin.url)-ceq$cleanOrigin
+                    $urlKeyKept=(& git -C "$target\CRM" config --get $cleanUrlKey)-ceq'fixture-account'
+                }
+            }
+            $tree=Read-BackupTree $destination;$messages=$stripped-join"`n"
+            Assert-That ('userinfo '+$case[0]+' stripped from origin, backup.json and state.json; every backup file searched') ($code-eq0-and$originKept-and$nestedOriginKept-and$configLines-ccontains"remote.origin.url=$cleanOrigin"-and$messages.Contains('BACKUP_CONFIG_USERINFO_STRIPPED: remote.origin.url')-and!$messages.Contains($case[1])-and!$tree.Contains($case[1])-and!$tree.Contains($fake))
+            Assert-That ('userinfo '+$case[0]+' stripped from URL-shaped key and restored with key-only warning') ($code-eq0-and$urlKeyKept-and$configLines-ccontains"$cleanUrlKey=fixture-account"-and$messages.Contains("BACKUP_CONFIG_USERINFO_STRIPPED: $cleanUrlKey")-and!$messages.Contains($case[1])-and!$tree.Contains($case[1]))
+            if($case[0]-eq'username'){foreach($metadataKey in $cloneMetadata.Keys){
+                Assert-That ("clone metadata silently omitted: $metadataKey") ($code-eq0-and!$messages.Contains("BACKUP_CONFIG_OMITTED: $metadataKey")-and@($configLines|Where-Object{($_-split'=',2)[0]-eq$metadataKey}).Count-eq0)
+            }}
+        }finally{
+            Invoke-Quiet $crm config remote.origin.url $remote|Out-Null;Invoke-Quiet $crm config --unset-all $urlKey|Out-Null
+            Invoke-Quiet $legacy config --unset-all remote.origin.url|Out-Null
+        }
+    }
+    $manifestFile=Join-Path $bk 'SHA256SUMS.txt';$manifest=[IO.File]::ReadAllText($manifestFile)
+    foreach($case in 'empty','plan','config','data','absolute','parent'){
+        $changed=switch($case){
+            empty {''}
+            plan {(@($manifest-split'\r?\n'|Where-Object{$_-and$_-notmatch'  backup\.json$'})-join"`n")+"`n"}
+            config {(@($manifest-split'\r?\n'|Where-Object{$_-and$_-notmatch'git-config-local\.txt$'})-join"`n")+"`n"}
+            data {(@($manifest-split'\r?\n'|Where-Object{$_-and$_-notmatch'draft\.md$'})-join"`n")+"`n"}
+            absolute {$manifest+((Get-FileHash "$bk\backup.json").Hash)+"  $bk\backup.json`n"}
+            parent {$manifest+((Get-FileHash "$bk\backup.json").Hash)+"  ..\$([IO.Path]::GetFileName($bk))\backup.json`n"}
+        }
+        [IO.File]::WriteAllText($manifestFile,$changed);$destination=Join-Path $t ('manifest-'+$case)
+        $refused=@(& pwsh -NoProfile -File "$lib\Restore-Workspace.ps1" -From $bk -Target $destination -ClaudeHome ($destination+'-ch') -LegacyTarget ($destination+'-docs') 2>&1);$code=$LASTEXITCODE
+        Assert-That ('manifest '+$case+' refuses before restore writes') ($code-ne0-and($refused-join' ')-match'BACKUP_MANIFEST_(INCOMPLETE|INVALID)'-and!(Test-Path $destination)-and!(Test-Path ($destination+'-ch'))-and!(Test-Path ($destination+'-docs')))
+    }
+    [IO.File]::WriteAllText($manifestFile,$manifest)
     $again=try{& pwsh -NoProfile -File "$lib\Restore-Workspace.ps1" -From $bk -Target $res -ClaudeHome (Join-Path $t 'ch') 2>&1|Out-String}catch{"$_"}
     Assert-That 'an existing target is refused' ($again-match'RESTORE_TARGET_EXISTS')
     $projects=Join-Path $env:USERPROFILE '.claude/projects'
@@ -119,7 +210,7 @@ try{
     [IO.File]::WriteAllBytes($proof,$originalProof)
     Invoke-Quiet $wb config http.https://github.com/.extraheader 'fixture-redacted-header'|Out-Null
     $unsafe=@(& pwsh -NoProfile -File "$lib/Backup-Workspace.ps1" -Destination (Join-Path $t 'wb-unsafe') -RecoveryInputs $inputs -AllowUnencrypted 2>&1)
-    Assert-That 'auth-header config is refused without success' ($LASTEXITCODE-ne0-and($unsafe-join' ')-match'BACKUP_WORKBENCH_UNSAFE_CONFIG'-and($unsafe-join' ')-notmatch'BACKUP:')
+    Assert-That 'auth-header config is refused without success' ($LASTEXITCODE-ne0-and($unsafe-join' ')-match'BACKUP_UNSAFE_CONFIG'-and($unsafe-join' ')-notmatch'BACKUP:')
     Invoke-Quiet $wb config --unset-all http.https://github.com/.extraheader|Out-Null
     $back=@(& pwsh -NoProfile -File "$lib/Backup-Workspace.ps1" -Destination (Join-Path $t 'wb-usb') -RecoveryInputs $inputs -AllowUnencrypted 2>&1)
     if($LASTEXITCODE){throw ('WB_BACKUP_FIXTURE_FAILED: '+($back-join' '))}
@@ -197,7 +288,6 @@ try{
     $modules=Join-Path $t 'ORVION-Sandbox\evidence\node_modules\pkg';[void][IO.Directory]::CreateDirectory($modules);[IO.File]::WriteAllText("$modules\x.js",'regenerable')
     # The real trusted clone is detached with no refs at all; its bundle and restore must still round trip.
     foreach($ref in @(Invoke-Quiet $trusted for-each-ref --format='%(refname)')){& git -C $trusted update-ref --no-deref -d $ref;if($LASTEXITCODE){throw 'TRUSTED_REF_FIXTURE_FAILED'}}
-    $zip=(Get-Command 7z -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1).Source;if(!$zip){$zip=Join-Path $env:ProgramFiles '7-Zip\7z.exe'}
     $cloud=Join-Path $t 'cloud';$pkgTemp=Join-Path $t 'pkg-temp';[void][IO.Directory]::CreateDirectory($pkgTemp)
     # A token-shaped value built at run time, so this file never holds one: the scan must name it without its value.
     $planted='ghp_'+-join((48..57)+(65..90)+(97..122)|Get-Random -Count 36|ForEach-Object{[char]$_});[IO.File]::WriteAllText((Join-Path $t 'ORVION-Sandbox\evidence\leak.txt'),"token=$planted")
@@ -211,7 +301,11 @@ try{
         $archive=@(Get-ChildItem $cloud -Filter *.7z -Force)[0].FullName;$scan="$archive.secret-scan.txt"
         Assert-That 'package destination holds one archive plus its scan report and staging is removed' (@(Get-ChildItem $cloud -Force).Count-eq2-and(Test-Path $scan)-and$archive-and@(Get-ChildItem $pkgTemp -Force).Count-eq0-and($pkg-join' ')-match'PACKAGE: .*unencrypted')
         if(Get-Command gitleaks -CommandType Application -ErrorAction SilentlyContinue){
+            if([IO.File]::ReadAllText($scan)-match'^SECRET SCAN: FAILED'){
+                Assert-That 'a failed installed scanner is reported without exposing the planted value' (($pkg-join' ')-match'SECRET SCAN: FAILED'-and[IO.File]::ReadAllText($scan)-notmatch$planted-and($pkg-join' ')-notmatch$planted)
+            }else{
             Assert-That 'secret scan names the planted token by rule and path, never its value' ([IO.File]::ReadAllText($scan)-match'github-pat  legacy/ORVION-Sandbox/evidence/leak\.txt:1'-and[IO.File]::ReadAllText($scan)-notmatch$planted-and($pkg-join' ')-notmatch$planted-and($pkg-join' ')-match'SECRET SCAN: [1-9]')
+            }
         }else{Assert-That 'without gitleaks the scan is reported as skipped' (($pkg-join' ')-match'SECRET SCAN: SKIPPED'-and[IO.File]::ReadAllText($scan)-match'SKIPPED')}
         $stashy=Join-Path $t 'ORVION-Sandbox\evidence\c3';& git clone -q $remote $stashy 2>&1|Out-Null;foreach($i in 1,2){Set-Content "$stashy\a.txt" "stash $i";Invoke-Quiet $stashy stash -q|Out-Null}
         $stashed=@(& pwsh -NoProfile -File "$probeLib\Backup-Workspace.ps1" -Destination (Join-Path $t 'cloud4') -RecoveryInputs $inputs -Package 2>&1)
@@ -255,5 +349,5 @@ try{
         Assert-That 'a linked worktree inside the evidence tree keeps its own uncommitted change' ([IO.File]::ReadAllText((Join-Path $pkgDocs 'ORVION-Sandbox\evidence\wt\.clone-state\worktree.diff'))-match'\+worktree change')
         Assert-That 'a unique commit on a detached HEAD is bundled and recoverable' ((Invoke-Quiet $rebuilt rev-parse FETCH_HEAD).Trim()-ceq$detachedHead)
     }finally{$env:TEMP=$savedTemp;$env:TMP=$savedTmp}
-}finally{$env:USERPROFILE=$previousProfile;Get-ChildItem $t -Recurse -Force -File -ErrorAction SilentlyContinue|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}
+}finally{$env:GIT_CONFIG_GLOBAL=$savedGitGlobal;$env:GIT_CONFIG_NOSYSTEM=$savedGitNoSystem;$env:USERPROFILE=$previousProfile;Get-ChildItem $t -Recurse -Force -File -ErrorAction SilentlyContinue|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}
 if($fail){throw "BACKUP_RESTORE_SELFCHECK_FAILED $fail"};'BACKUP_RESTORE_SELFCHECK PASS'

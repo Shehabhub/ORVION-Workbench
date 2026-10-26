@@ -2,6 +2,8 @@
 $ErrorActionPreference='Stop'
 $t=Join-Path ([IO.Path]::GetTempPath()) ('orvion-map-test-'+[guid]::NewGuid().ToString('N'));$gh=Join-Path $t 'GitHub';$out=Join-Path $t 'out'
 [void][IO.Directory]::CreateDirectory($gh);[void][IO.Directory]::CreateDirectory($out);$fail=0
+$savedGitGlobal=$env:GIT_CONFIG_GLOBAL;$savedGitNoSystem=$env:GIT_CONFIG_NOSYSTEM
+$env:GIT_CONFIG_GLOBAL=Join-Path $t 'fixture.gitconfig';$env:GIT_CONFIG_NOSYSTEM='1'
 function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 function New-Repo([string]$Name,[hashtable]$Files){
     $r=Join-Path $gh $Name;[void][IO.Directory]::CreateDirectory($r);& git init -q $r 2>&1|Out-Null
@@ -58,5 +60,5 @@ try{
     [void](New-Repo 'RepoC' @{'README.md'="# C`n"})
     & pwsh -NoProfile -File $script -GitHub $gh -Out $out 2>&1|Out-Null
     Assert-That 'a new repository joins on the next run' ((@((Get-Content (Join-Path $out 'ai-map.json') -Raw|ConvertFrom-Json).repos.name)-join',')-ceq'RepoA,RepoB,RepoC,RepoD')
-}finally{Get-ChildItem $t -Recurse -Force -File -ErrorAction SilentlyContinue|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}
+}finally{$env:GIT_CONFIG_GLOBAL=$savedGitGlobal;$env:GIT_CONFIG_NOSYSTEM=$savedGitNoSystem;Get-ChildItem $t -Recurse -Force -File -ErrorAction SilentlyContinue|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}
 if($fail){throw "MAP_REPOS_SELFCHECK_FAILED $fail"};'MAP_REPOS_SELFCHECK PASS'

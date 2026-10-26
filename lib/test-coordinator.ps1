@@ -22,7 +22,7 @@ try{
     $out=@(& $co -Root $t -Assign lynx-leak -Owner agent -Action 'close the handle in finally')
     Assert-That 'taking work first shows the prior resolution of a related event' ((($out-join' ')-match'PRIOR RESOLUTIONS')-and(($out-join' ')-match'Dispose in finally \(OTTER\)'))
     Assert-That 'owned with an action it is ACTIVE, not escalated, and named as in flight' ((Get-State lynx-leak)-eq'ACTIVE'-and((@(& $co -Root $t -Brief)-join' ')-match'in flight: lynx-leak \(agent\): close the handle in finally')-and((@(& $co -Root $t -Brief)|Select-Object -Skip 1|Where-Object{$_-notmatch'in flight'})-join' ')-notmatch'lynx-leak')
-    & $co -Root $t -Assign lynx-leak -Owner agent -Action 'close the handle in finally' -Due ([DateTime]::UtcNow.ToString('yyyy-MM-dd'))|Out-Null
+    & $co -Root $t -Assign lynx-leak -Owner agent -Action 'close the handle in finally' -Due ([DateTime]::UtcNow.ToString('yyyy-MM-dd',[Globalization.CultureInfo]::InvariantCulture))|Out-Null
     Assert-That 'an explicit due time escalates once passed' ((Get-State lynx-leak ([DateTime]::UtcNow.AddDays(2)))-eq'OVERDUE')
     $out=@(& $co -Root $t -Dispatch lynx-leak -Question 'Does the LYNX handle leak on every path?' -Minutes 10)
     $dir=Split-Path ([regex]::Match(($out-join"`n"),'DELEGATED lynx-leak -> (.+BRIEF\.md)').Groups[1].Value)

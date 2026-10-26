@@ -2,6 +2,7 @@
 # see IS reported as a surviving mutant, a stale mutant is reported, and nothing is recorded with -NoRecord.
 $ErrorActionPreference='Stop'
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-huntcheck-$([guid]::NewGuid().ToString('N').Substring(0,6))";New-Item -ItemType Directory $t|Out-Null
+$savedProfile=$env:USERPROFILE;$env:USERPROFILE=Join-Path $t 'profile'
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 try{
     $set=@(
@@ -21,5 +22,5 @@ try{
     $last=@($ev|Where-Object pattern -eq 'hunt-old-problem'|Sort-Object at)[-1]
     Assert-That 'a finding no longer found is closed by the hunter' ($last.status-eq'resolved'-and$last.summary-like'no longer found*')
     Assert-That 'current findings are recorded as events' (@($ev|Where-Object{$_.pattern-eq'hunt-index-missing'-and$_.source-eq'hunter'}).Count-eq1)
-}finally{Get-ChildItem $t -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}
+}finally{$env:USERPROFILE=$savedProfile;Get-ChildItem $t -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}
 if($fail){throw "HUNT_SELFCHECK_FAILED $fail"};'HUNT_SELFCHECK PASS'

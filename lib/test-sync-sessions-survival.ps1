@@ -20,5 +20,21 @@ try{
     Invoke-Pass;$rows=@(Update-Index)
     Assert-That 'a set-aside copy is not indexed as a session' ($rows.Count-eq1)
     Assert-That 'INDEX.md is written' ((Get-Content "$ws\sessions\INDEX.md" -Raw)-match'keep me')
+    $sync=Join-Path $t 'sync.ps1';$locked="$cp\C--Users-x-Documents-GitHub-CRM\locked.jsonl"
+    $body=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Sync-Sessions.ps1')).Replace('Local\orvion-sync-sessions',('Local\orvion-sync-sessions-'+[guid]::NewGuid().ToString('N')))
+    [IO.File]::WriteAllText($sync,$body)
+    [IO.File]::WriteAllText($locked,"{}`n")
+    $handle=[IO.File]::Open($locked,'Open','ReadWrite','None')
+    try{$failed=@(& pwsh -NoProfile -File $sync -Root $ws -ClaudeProjects $cp -CodexSessions $cx -Quiet 2>&1);$code=$LASTEXITCODE}finally{$handle.Dispose()}
+    $onceFailed=$code-eq3-and($failed-join' ')-match'SESSIONS: preservation FAILED'-and(Test-Path "$ws\work\sync-errors.log")
+    # Only process discovery is stubbed: the first failed pass recovers before the final pass.
+    $followerPath=Join-Path $t 'follow.ps1'
+    $body=[IO.File]::ReadAllText($sync).Replace('function Test-AgentsRunning{[bool](Get-Process -Name claude,codex -ErrorAction SilentlyContinue)}','function Test-AgentsRunning{$blocked=Join-Path $Root ''sessions\raw\claude\C--Users-x-Documents-GitHub-CRM\locked.jsonl'';if(Test-Path -LiteralPath $blocked -PathType Container){Remove-Item -LiteralPath $blocked};return $false}')
+    [IO.File]::WriteAllText($followerPath,$body)
+    [void][IO.Directory]::CreateDirectory("$ws\sessions\raw\claude\C--Users-x-Documents-GitHub-CRM\locked.jsonl")
+    $failed=@(& pwsh -NoProfile -File $followerPath -Root $ws -ClaudeProjects $cp -CodexSessions $cx -Quiet -Follow -IntervalSeconds 0 2>&1);$code=$LASTEXITCODE
+    Assert-That 'quiet follower remembers a failed pass after recovery and exits 3' ($code-eq3-and($failed-join' ')-match'SESSIONS: preservation FAILED'-and(Test-Path "$ws\sessions\raw\claude\C--Users-x-Documents-GitHub-CRM\locked.jsonl" -PathType Leaf))
+    $success=@(& pwsh -NoProfile -File $sync -Root $ws -ClaudeProjects $cp -CodexSessions $cx -Quiet 2>&1)
+    Assert-That 'quiet preservation failure is visible with exit 3; success stays silent with exit 0' ($onceFailed-and$LASTEXITCODE-eq0-and$success.Count-eq0)
 }finally{[IO.Directory]::Delete($t,$true)}
 if($fail){throw "SURVIVAL_SELFCHECK_FAILED $fail"};'SURVIVAL_SELFCHECK PASS'

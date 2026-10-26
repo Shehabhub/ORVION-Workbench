@@ -112,7 +112,7 @@ yourself: the delegating agent records your verdict when it saves your reply (on
 "@
 [IO.File]::WriteAllText((Join-Path $dir 'BRIEF.md'),$brief)
 # due = twice the budget: past it, Coordinator.ps1 reports the delegation OVERDUE (no report came back)
-$null=& $ev -Root $Root -Add -Pattern $Pattern -Source delegate-road -Category observation -Status open -Summary "delegated ($Mode, $Minutes min): $Question" -Evidence (Join-Path $dir 'BRIEF.md') -Owner "delegate:$(Split-Path $dir -Leaf)" -Action 'report back' -Due ([DateTime]::UtcNow.AddMinutes(2*$Minutes).ToString('yyyy-MM-ddTHH:mm:ssZ'))
+$null=& $ev -Root $Root -Add -Pattern $Pattern -Source delegate-road -Category observation -Status open -Summary "delegated ($Mode, $Minutes min): $Question" -Evidence (Join-Path $dir 'BRIEF.md') -Owner "delegate:$(Split-Path $dir -Leaf)" -Action 'report back' -Due ([DateTime]::UtcNow.AddMinutes(2*$Minutes).ToString('yyyy-MM-ddTHH:mm:ssZ',[Globalization.CultureInfo]::InvariantCulture))
 "DELEGATED $Pattern -> $(Join-Path $dir 'BRIEF.md')"
 "LAUNCH a background agent with exactly this prompt: Read `"$(Join-Path $dir 'BRIEF.md')`" and carry it out exactly as written."
 "WHEN IT FINISHES: save its reply to a file, then: pwsh -NoProfile -File `"$PSCommandPath`" -Report `"$dir`" -Reply <that file>   (re-run its decisive check yourself before acting on it)"

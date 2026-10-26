@@ -70,6 +70,9 @@ instead of automatically rerunning an expensive test. General management/observe
 | `Backup-Workspace.ps1 -Destination <usb>` / `Restore-Workspace.ps1 -From <backup>` | everything a clone cannot restore; encrypted drive required; restore never overwrites. Selective package v1: `-Package` (both) makes or restores one unencrypted 7z with a redacted secret-scan report instead (`..\docs\RECOVERY.md`) |
 | `..\tests.ps1` | sole full closure schedule: hazards plus each owning test suite; only own timed Finish may launch it with the bound recipe. The normal hook checks admission/freshness, not another full run. |
 
+Session appends prove every archived prefix byte by streaming; rewrites retain the old version. Any failed pass emits a diagnostic even with `-Quiet` and exits 3 (follow remembers earlier failures). Hooks launch detached: success stays silent, failure status/output belongs to the child and never blocks the hook.
+Restore requires a complete hash manifest, including `backup.json`, and refuses absolute or parent paths before writing. Every repository uses the same config allowlist; auth headers, cookie files, unapproved helpers and helpers containing literal secrets refuse by key only. Empty helper resets, manager/manager-core/wincred and gh auth token/git-credential commands (including shell functions) survive for re-login. URL userinfo is stripped from config keys and values with a key-only warning before any config or origin metadata is saved. Clone/init metadata is silently omitted; branch upstream entries remain kept.
+
 ## Contract lifecycle
 | Tool | Purpose |
 |---|---|

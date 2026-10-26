@@ -2,11 +2,11 @@
 #   Claude Code: ~/.claude/projects/<CRM / ORVION project>/  (main transcript, subagents, tool-results, memory) -> sessions\raw\claude\...
 #   Codex:       ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl whose cwd is a CRM / ORVION folder -> sessions\raw\codex\...
 # Never loses or invents bytes: a transcript (.jsonl, append-only) gains only complete lines, and only after the archived
-# bytes are proven to match the source at both their head and their tail; any other file is compared whole. A source
+# bytes are proven to match the whole source prefix; any other file is compared whole. A source
 # that changed any other way keeps the old copy beside the new one (<name>.replaced-<UTC>[.ext]); nothing in the archive
 # is ever deleted (Claude Code deletes its own transcripts after cleanupPeriodDays, default 30). A pass killed mid-append
 # leaves a partial line that the next pass completes. A file that fails is logged to work\sync-errors.log and skipped;
-# it never stops the others (Hunt.ps1 reports the log).
+# it never stops the others (Hunt.ps1 reports the log). Exit 3: any preservation/index failure, including earlier follow passes.
 #   (default)  one pass, then the index
 #   -Follow    a pass every -IntervalSeconds while any Claude Code or Codex process runs, the index every -IndexMinutes,
 #              a final pass when none is left: no session depends on its shutdown hook
@@ -58,14 +58,16 @@ function Hide-Secret([string]$Line){  # the whole line masked; cut a snippet onl
 }
 
 function Open-Shared([string]$Path){[IO.File]::Open($Path,'Open','Read','ReadWrite,Delete')}  # live sessions hold their file open
-function Test-Prefix([IO.Stream]$Source,[string]$Dst,[long]$Len){  # the archived bytes still match the source at their head and their tail
+function Test-Prefix([IO.Stream]$Source,[string]$Dst,[long]$Len){
     if($Source.Length-lt$Len){return $false};if(!$Len){return $true}
     $d=[IO.File]::Open($Dst,'Open','Read','ReadWrite')
-    try{foreach($at in @(0,[Math]::Max(0,$Len-4096))|Select-Object -Unique){
-        $n=[int][Math]::Min(4096,$Len-$at);$a=New-Object byte[] $n;$b=New-Object byte[] $n
-        $d.Position=$at;$got=0;while($got-lt$n){$r=$d.Read($a,$got,$n-$got);if(!$r){return $false};$got+=$r}
-        $Source.Position=$at;$got=0;while($got-lt$n){$r=$Source.Read($b,$got,$n-$got);if(!$r){return $false};$got+=$r}
+    try{$Source.Position=0;$left=$Len
+        while($left-gt0){
+        $n=[int][Math]::Min(1MB,$left);$a=New-Object byte[] $n;$b=New-Object byte[] $n
+        $got=0;while($got-lt$n){$r=$d.Read($a,$got,$n-$got);if(!$r){return $false};$got+=$r}
+        $got=0;while($got-lt$n){$r=$Source.Read($b,$got,$n-$got);if(!$r){return $false};$got+=$r}
         if(![Linq.Enumerable]::SequenceEqual($a,$b)){return $false}
+        $left-=$n
     }}finally{$d.Close()}
     $true
 }
@@ -91,7 +93,7 @@ function Copy-Grown([string]$Src,[string]$Dst){
     $in=Open-Shared $Src
     try{
         $have=if($d){$d.Length}else{-1}
-        if($lines){  # a transcript grows: same history if the archived bytes are still its head and tail
+        if($lines){  # a transcript grows: same history only if every archived byte still matches
             $same=$have-lt0-or(Test-Prefix $in $Dst $have)
             $end=Find-LineEnd $in $in.Length $(if($same){[Math]::Max(0,$have)}else{0})  # a line still being written waits
         }else{  # an edited file (memory, meta): unchanged only if every byte is the same
@@ -113,6 +115,7 @@ function Write-SyncError([string]$What,$Err){
     try{New-Item -ItemType Directory (Split-Path $errLog -Parent) -Force|Out-Null
         [IO.File]::AppendAllText($errLog,"$([DateTime]::UtcNow.ToString('o')) $What : $($Err.Exception.Message)`n")}catch{$null=$_}
     $script:failures++
+    [Console]::Error.WriteLine("SESSIONS: preservation FAILED; see $errLog")
 }
 
 # Index metadata is read incrementally and byte-exactly: each row remembers metaBytes (where its reading stopped) and
@@ -261,7 +264,8 @@ if($Follow){
         }
         Start-Sleep -Seconds $IntervalSeconds
     }
-    exit 0
+    exit $(if($script:failures){3}else{0})
 }
-Invoke-Pass;$rows=Update-Index
+try{Invoke-Pass;$rows=Update-Index}catch{Write-SyncError 'pass' $_}
 if(!$Quiet){"SESSIONS: $($rows.Count) indexed, $copied files copied, $([math]::Round(($rows|Measure-Object bytes -Sum).Sum/1MB,1)) MB main transcripts, credentials in $(@($rows|Where-Object secretHits).Count) sessions ($(@($rows.secretNames|Where-Object{$_}|Select-Object -Unique)-join', '))$(if($script:failures){"; $($script:failures) file(s) FAILED, see $errLog"}) -> $indexPath"}
+exit $(if($script:failures){3}else{0})

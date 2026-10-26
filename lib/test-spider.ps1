@@ -3,6 +3,8 @@
 $ErrorActionPreference='Stop'
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-spidercheck-$([guid]::NewGuid().ToString('N').Substring(0,6))"
 $previousProfile=$env:USERPROFILE;$env:USERPROFILE=Join-Path $t 'profile'
+$savedGitGlobal=$env:GIT_CONFIG_GLOBAL;$savedGitNoSystem=$env:GIT_CONFIG_NOSYSTEM
+$env:GIT_CONFIG_GLOBAL=Join-Path $t 'fixture.gitconfig';$env:GIT_CONFIG_NOSYSTEM='1'
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 function Invoke-Quiet{param([string]$Dir)& git -C $Dir @args 2>&1|Out-Null;if($LASTEXITCODE){throw "git $args failed"}}
 try{
@@ -60,5 +62,5 @@ try{
     Add-Content $journal '{"torn line'
     $damaged=@(& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'Spider.ps1') 'ABSENT-97' -Root (Join-Path $t 'ws') -Repos $repo -ReviewRoot (Join-Path $t 'none'));$damagedCode=$LASTEXITCODE;$damagedText=$damaged-join"`n"
     Assert-That 'damaged journal with no matches exits 3 and retains EVENTS_INCOMPLETE' ($damagedCode-eq3-and$damagedText-match'(?m)^== events: EVENTS_INCOMPLETE: 1 unreadable'-and$damagedText-match'SPIDER_COVERAGE: incomplete - events \(EVENTS_INCOMPLETE\)'-and$damagedText-notmatch'events: none')
-}finally{$env:USERPROFILE=$previousProfile;if(Test-Path $t){Get-ChildItem $t -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}}
+}finally{$env:GIT_CONFIG_GLOBAL=$savedGitGlobal;$env:GIT_CONFIG_NOSYSTEM=$savedGitNoSystem;$env:USERPROFILE=$previousProfile;if(Test-Path $t){Get-ChildItem $t -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}}
 if($fail){throw "SPIDER_SELFCHECK_FAILED $fail"};'SPIDER_SELFCHECK PASS'

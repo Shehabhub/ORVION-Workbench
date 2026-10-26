@@ -22,11 +22,18 @@ if($Package){
     $From=@(Get-ChildItem -LiteralPath $staging -Directory)[0].FullName
 }
 $From=(Resolve-Path $From).Path
+$listed=@{}
 $bad=@(foreach($l in [IO.File]::ReadAllLines((Join-Path $From 'SHA256SUMS.txt'))){
-    $h,$rel=$l-split'  ',2;$f=Join-Path $From $rel
-    if(!(Test-Path -LiteralPath $f)-or(Get-FileHash -LiteralPath $f).Hash-ne$h){$rel}
+    $h,$rel=$l-split'  ',2
+    if($h-cnotmatch'^[A-Fa-f0-9]{64}$'-or!$rel-or[IO.Path]::IsPathRooted($rel)-or$rel-match'(^|[\\/])\.\.([\\/]|$)|:'){throw 'BACKUP_MANIFEST_INVALID'}
+    $f=[IO.Path]::GetFullPath((Join-Path $From $rel));$listed[$f]=$true
+    if(!(Test-Path -LiteralPath $f -PathType Leaf)-or(Get-FileHash -LiteralPath $f).Hash-ne$h){$rel}
 })
 if($bad.Count){throw "BACKUP_CORRUPT: $($bad.Count) file(s) fail SHA256SUMS, first: $($bad[0])"}
+if(!$listed.Count-or!$listed.ContainsKey((Join-Path $From 'backup.json'))){throw 'BACKUP_MANIFEST_INCOMPLETE'}
+foreach($f in Get-ChildItem -LiteralPath $From -Recurse -File -Force){
+    if($f.FullName-ne(Join-Path $From 'SHA256SUMS.txt')-and!$listed.ContainsKey($f.FullName)){throw 'BACKUP_MANIFEST_INCOMPLETE'}
+}
 $plan=Get-Content (Join-Path $From 'backup.json') -Raw|ConvertFrom-Json
 # Workbench recovery coverage v1: required consumers must exist even if omitted from a partial manifest.
 if(@($plan.repos|Where-Object{$_.name-like'ORVION-Workbench*'}).Count){
