@@ -2,8 +2,8 @@
 
 ## Status
 
-[x] Draft
-[ ] Approved
+[ ] Draft
+[x] Approved
 [ ] In Progress
 [ ] Complete
 [ ] Cancelled
@@ -627,6 +627,14 @@ Recovery Attempt: 0
 ## Execution Log
 
 Decision D24 in C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\exceptional-delegation-20261026\DECISIONS.md (under D19/D20/D21/D22 and D12). Codex investigated at xhigh effort (before pass, codex\before1-report.txt), implemented at high effort (codex\impl1-report.txt) and fixed at medium effort (codex\fix1-report.txt) in disposable C:\cx\ORVION-ws021 under orchestrator verification. Under the owner's exceptional delegation this one Workbench contract is authorized. Gate 1 for this Draft is DELEGATED: the owner did not type its digest. Sandbox approval is synthetic and grants no original authority.
+Approved Draft: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\ws021-package\assurance\V3\DRAFT.md
+Approved SHA256: C1355F950562A877DB035ACB204FF9CD8F039B713CDEDD8E21A9172B1215D51D
+Owner Evidence: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\exceptional-delegation-20261026\GATE1-WS021-DELEGATED.md
+Owner Evidence SHA256: 61B7CC0C35AD404CD46A4B3623852A359386B5241CD658A26C8402B6910ED374
+Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
+Sandbox Receipt: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\ws021-package\runtime\sandbox\own-finish-receipt.json
+Sandbox Receipt SHA256: 2F16B206D5456175BBE0031E5696354E421E9B18D829064F5816D925FA67E286
+Original admission: DELEGATED exact Gate 1 under the owner's exceptional delegation of 2026-10-26 (OWNER-DELEGATION.md SHA-256 94631C14708B783C584D0867AD4AD11221D5394F5FDEDAA48F64FA0BF9788217; decisions D1-D24; D24 is the delegated decision for this contract). The owner did not type this digest. Bound to this literal root, the exact V3 digest and the fresh sandbox receipt; no sandbox receipt transplant as original certification.
 
 ## Verification Notes
 
