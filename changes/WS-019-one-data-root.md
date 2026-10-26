@@ -1136,36 +1136,36 @@ Minimum Commit GB: 3
 
 ## Acceptance Criteria
 
-- [ ] Exact approved scoped output. check: blob:lib/Sync-Sessions.ps1=e674fcf83b4b5ac1363da8b2013a39fdf4a47db2
-- [ ] Exact approved scoped output. check: blob:lib/hooks/Watch-Reminder.ps1=f72275d083abc1ee0bf0fba2cdfad6769943cc2f
-- [ ] Exact approved scoped output. check: blob:lib/Hunt.ps1=da35c87362b38010be1a4c2092d05a524c3a8b18
-- [ ] Exact approved scoped output. check: blob:lib/Backup-Workspace.ps1=b758ee5e99e0aa18960ac3c60bc613cfb6c49450
-- [ ] Exact approved scoped output. check: blob:lib/Events.ps1=3de2ece51245a5205ad168684d98a593cd3ff82e
-- [ ] Exact approved scoped output. check: blob:lib/Spider.ps1=647887da093bddf1f499796a214b8996b6546e79
-- [ ] Exact approved scoped output. check: blob:lib/Pulse.ps1=eb3fadea63c3386af20ae1d8f82f77dffdda9804
-- [ ] Exact approved scoped output. check: blob:lib/Coordinator.ps1=3d66f1bfe022c1d1b7c8bc335f31a98825c0e054
-- [ ] Exact approved scoped output. check: blob:lib/Delegate.ps1=c836bfabc1ce86ca65fcfa44d97b7f82b4220c83
-- [ ] Exact approved scoped output. check: blob:lib/Watch-Subagents.ps1=4b7e9d3663229e9b752cfae0517e6b2115d12d85
-- [ ] Exact approved scoped output. check: blob:lib/test-pulse.ps1=cae6733812779ec89c02e57018c8ee7508d53806
-- [ ] Exact approved scoped output. check: blob:lib/test-sync-sessions-survival.ps1=8fc8e1428edcab496e4e2c04fcab059b31322898
-- [ ] Exact approved scoped output. check: blob:lib/test-watch-reminder.ps1=192dcf231e6d6de151e97102b6fcd20f17bd646b
-- [ ] Exact approved scoped output. check: blob:lib/test-hunt.ps1=01d2204f4c9a748b9b2e688f8daf57176c7cb161
-- [ ] Exact approved scoped output. check: blob:lib/test-events.ps1=508aca7735b4c700b0470e0076493378045295c4
-- [ ] Exact approved scoped output. check: blob:lib/test-backup-restore.ps1=011efcda04e87ccdbdc09094607545eb18334b1b
-- [ ] Exact approved scoped output. check: blob:lib/README.md=af865a48aeca0f00defca15c7deee54cd695a47b
-- [ ] Exact approved scoped output. check: blob:AGENTS.md=2aa413298cf6b89b32005234f25d465e1664f0ce
-- [ ] Exact approved scoped output. check: blob:README.md=037320f61a1602a363a283a4a0497db7fbf76ab3
-- [ ] Exact approved scoped output. check: blob:HANDOFF.md=399f1ecc5779117fb94fe011b080ef6501ba1e41
-- [ ] Exact approved scoped output. check: blob:docs/EXECUTION-PLAN.md=3a0e1dae25ab5c29f8a6d9037244eb21aae0f469
-- [ ] Exact approved scoped output. check: blob:docs/RECOVERY.md=30a1008bf31c9e8b3f27d03f253876c95ea68cb0
-- [ ] Exact approved scoped output. check: blob:docs/WORKSPACE-LAYOUT.md=0b2ddeb385bffd91bb5c4546b0fd9f3cb1827fa6
-- [ ] The owning tests prove, for the sibling store, ORVION_DATA_ROOT and the checkout fallback: Sync-Sessions defaults to the data root; the hook archives into the data root and never creates <checkout>\sessions, passes the root to the masking library and Pulse, logs errors in the data root and still logs through the fallback when the root itself fails, silent with exit 0 on success; Hunt reads sessions, events and sync/hook errors from -DataRoot and writes findings there while git and lint checks stay on its source root; Backup packages the data-root store; the drift test pins the identical expression in all ten data tools; a relative ORVION_DATA_ROOT from two launch directories is refused by every tool and creates no store, while an absolute root with spaces and a trailing separator works; Pulse bounds title and last prompt to 300 characters and keeps the archive pointer; the backup check clears and restores injected git config (GIT_CONFIG_COUNT/PARAMETERS/KEY_n/VALUE_n); test-watch-reminder is hermetic to an inherited ORVION_DATA_ROOT.
-- [ ] Mandatory V1/V2/V3, focused proof, planted-regression mutants, accepted literal replay controls and the real read-only measurement are preserved. One isolated native timed/watched Finish owns the full schedule with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
+- [x] Exact approved scoped output. check: blob:lib/Sync-Sessions.ps1=e674fcf83b4b5ac1363da8b2013a39fdf4a47db2
+- [x] Exact approved scoped output. check: blob:lib/hooks/Watch-Reminder.ps1=f72275d083abc1ee0bf0fba2cdfad6769943cc2f
+- [x] Exact approved scoped output. check: blob:lib/Hunt.ps1=da35c87362b38010be1a4c2092d05a524c3a8b18
+- [x] Exact approved scoped output. check: blob:lib/Backup-Workspace.ps1=b758ee5e99e0aa18960ac3c60bc613cfb6c49450
+- [x] Exact approved scoped output. check: blob:lib/Events.ps1=3de2ece51245a5205ad168684d98a593cd3ff82e
+- [x] Exact approved scoped output. check: blob:lib/Spider.ps1=647887da093bddf1f499796a214b8996b6546e79
+- [x] Exact approved scoped output. check: blob:lib/Pulse.ps1=eb3fadea63c3386af20ae1d8f82f77dffdda9804
+- [x] Exact approved scoped output. check: blob:lib/Coordinator.ps1=3d66f1bfe022c1d1b7c8bc335f31a98825c0e054
+- [x] Exact approved scoped output. check: blob:lib/Delegate.ps1=c836bfabc1ce86ca65fcfa44d97b7f82b4220c83
+- [x] Exact approved scoped output. check: blob:lib/Watch-Subagents.ps1=4b7e9d3663229e9b752cfae0517e6b2115d12d85
+- [x] Exact approved scoped output. check: blob:lib/test-pulse.ps1=cae6733812779ec89c02e57018c8ee7508d53806
+- [x] Exact approved scoped output. check: blob:lib/test-sync-sessions-survival.ps1=8fc8e1428edcab496e4e2c04fcab059b31322898
+- [x] Exact approved scoped output. check: blob:lib/test-watch-reminder.ps1=192dcf231e6d6de151e97102b6fcd20f17bd646b
+- [x] Exact approved scoped output. check: blob:lib/test-hunt.ps1=01d2204f4c9a748b9b2e688f8daf57176c7cb161
+- [x] Exact approved scoped output. check: blob:lib/test-events.ps1=508aca7735b4c700b0470e0076493378045295c4
+- [x] Exact approved scoped output. check: blob:lib/test-backup-restore.ps1=011efcda04e87ccdbdc09094607545eb18334b1b
+- [x] Exact approved scoped output. check: blob:lib/README.md=af865a48aeca0f00defca15c7deee54cd695a47b
+- [x] Exact approved scoped output. check: blob:AGENTS.md=2aa413298cf6b89b32005234f25d465e1664f0ce
+- [x] Exact approved scoped output. check: blob:README.md=037320f61a1602a363a283a4a0497db7fbf76ab3
+- [x] Exact approved scoped output. check: blob:HANDOFF.md=399f1ecc5779117fb94fe011b080ef6501ba1e41
+- [x] Exact approved scoped output. check: blob:docs/EXECUTION-PLAN.md=3a0e1dae25ab5c29f8a6d9037244eb21aae0f469
+- [x] Exact approved scoped output. check: blob:docs/RECOVERY.md=30a1008bf31c9e8b3f27d03f253876c95ea68cb0
+- [x] Exact approved scoped output. check: blob:docs/WORKSPACE-LAYOUT.md=0b2ddeb385bffd91bb5c4546b0fd9f3cb1827fa6
+- [x] The owning tests prove, for the sibling store, ORVION_DATA_ROOT and the checkout fallback: Sync-Sessions defaults to the data root; the hook archives into the data root and never creates <checkout>\sessions, passes the root to the masking library and Pulse, logs errors in the data root and still logs through the fallback when the root itself fails, silent with exit 0 on success; Hunt reads sessions, events and sync/hook errors from -DataRoot and writes findings there while git and lint checks stay on its source root; Backup packages the data-root store; the drift test pins the identical expression in all ten data tools; a relative ORVION_DATA_ROOT from two launch directories is refused by every tool and creates no store, while an absolute root with spaces and a trailing separator works; Pulse bounds title and last prompt to 300 characters and keeps the archive pointer; the backup check clears and restores injected git config (GIT_CONFIG_COUNT/PARAMETERS/KEY_n/VALUE_n); test-watch-reminder is hermetic to an inherited ORVION_DATA_ROOT.
+- [x] Mandatory V1/V2/V3, focused proof, planted-regression mutants, accepted literal replay controls and the real read-only measurement are preserved. One isolated native timed/watched Finish owns the full schedule with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
 
 ## Review Gate
 
-- [ ] Inspect the twenty-three scoped files, the focused/mutant/literal evidence and the real read-only measurement; preserve all frozen prior evidence.
-- [ ] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
+- [x] Inspect the twenty-three scoped files, the focused/mutant/literal evidence and the real read-only measurement; preserve all frozen prior evidence.
+- [x] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
 
 ## Runtime Checkpoint
 
@@ -1189,6 +1189,10 @@ Original exact literal implementation applied by accepted native Workbench Execu
 ## Verification Notes
 
 Measured before freeze on the real workstation, read-only (real-measurement.json; booleans and hook shapes only): no ORVION_DATA_ROOT override is set; the identical expression evaluated from the live checkout resolves to ORVION-Owner-Tools, which holds events\events.jsonl and sessions\raw; the checkout has no sessions folder of its own; the owner's five Watch-Reminder hook entries all run the old ORVION-Owner-Tools lib copy, one PostToolUse entry is an exact duplicate. Codex proved 26+7+21 direct mutants killed; the orchestrator's ten planted regressions are each detected (mutants.log); a Codex xhigh pre-freeze review (codex\review1-report.txt) proved a relative ORVION_DATA_ROOT selected stores by current directory (Hunt crashed), unbounded Pulse output (20 KB), non-archived generic Codex clone names and three inaccurate doc statements, all fixed in fix4; the orchestrator found and fixed a fix4 regression (the new Pulse test launcher dropped the exit code, failing two assertions) that Codex could not see because its full check was blocked; hazard scan 0; thirteen owning self-checks PASS with an isolated ORVION_DATA_ROOT, which exposed a non-hermetic hook test (fixed by the orchestrator: the test clears and restores an inherited override). The orchestrator found two Codex misses: lib/README still said Hunt's root was this checkout and named six tools, and RESUME.md edits were dropped because native stages own that file.
+Verdict: Confirmed Complete
+Reviewed Fingerprint: D8510BCC5B0404F93FF854F5E4941E24460DE2EBE40708E9DBAA267C818105EE
+Reviewed Receipt: A8F98133951D82922445B4748EBE1D4F45790B971F05C203C02377114E84FF24
+Evidence: fresh ORIGINAL root-bound timed/watched Finish, actual ordered-suite schedule/exits, approved exact outputs and independently pinned accepted-code live review. Runtime: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\ws019-package\runtime\original. No sandbox receipt transplant, remote parity, offsite recovery or equal-OS isolation claim.
 
 ## Selection reasons and sources
 
