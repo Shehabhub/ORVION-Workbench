@@ -19,7 +19,7 @@ param([Parameter(ParameterSetName='brief',Mandatory)][ValidatePattern('^[a-z0-9]
       [Parameter(ParameterSetName='list',Mandatory)][switch]$List,
       [Parameter(ParameterSetName='report',Mandatory)][string]$Report,
       [Parameter(ParameterSetName='report',Mandatory)][string]$Reply,
-      [string]$Root=(Split-Path $PSScriptRoot -Parent))
+      [string]$Root=$(if($env:ORVION_DATA_ROOT){$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path $PSScriptRoot -Parent))[0]}))
 $ErrorActionPreference='Stop'
 $base=Join-Path $Root 'work\delegations';$ev=Join-Path $PSScriptRoot 'Events.ps1'
 
@@ -50,9 +50,14 @@ if($List){
     exit 0
 }
 
-$history=@(if(Test-Path (Join-Path $Root 'events\events.jsonl')){[IO.File]::ReadAllLines((Join-Path $Root 'events\events.jsonl'))|Where-Object{$_}|ForEach-Object{try{$_|ConvertFrom-Json}catch{$null=$_}}|Where-Object{$_}|Where-Object pattern -eq $Pattern|Sort-Object at})
+$log=Join-Path $Root 'events\events.jsonl';$historyBad=0
+$history=@(if(Test-Path $log){[IO.File]::ReadAllLines($log)|Where-Object{$_}|ForEach-Object{try{$o=$_|ConvertFrom-Json;if(!$o.pattern-or!$o.at){throw 'invalid record'};$o}catch{$historyBad++}}|Where-Object pattern -eq $Pattern|Sort-Object at})
 $known=@($history|ForEach-Object{"- $(([datetime]$_.at).ToUniversalTime().ToString('yyyy-MM-dd')) [$($_.category), $($_.status), cause $($_.cause)] $($_.summary)$(if($_.action){" -> $($_.action)"})$(if($_.evidence){" (evidence: $($_.evidence))"})"})
-$related=@(& $ev -Root $Root -Find $Question -Top 3|Where-Object{$_-notmatch"^EVENTS|\] $([regex]::Escape($Pattern)):"})  # solved before? say so before the work starts
+if($historyBad){$known+="- EVENTS_INCOMPLETE: $historyBad unreadable history record(s) skipped in $log"}
+if(!(Test-Path $log)){$known+="- EVENTS_UNAVAILABLE: no history journal at $log"}
+$related=@(& $ev -Root $Root -Find $Question -Top 3);$lookupCode=$LASTEXITCODE
+$related=@($related|Where-Object{$_-notmatch"^EVENTS:|^EVENTS relevant|\] $([regex]::Escape($Pattern)):"})  # solved before? say so before the work starts
+if($historyBad-and$lookupCode-eq0){$lookupCode=2}
 $spider=if($Query){@(& (Join-Path $PSScriptRoot 'Spider.ps1') $Query -Top 3 -Root $Root)}else{@()}
 $dir=Join-Path $base "$([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))-$Pattern";New-Item -ItemType Directory $dir -Force|Out-Null
 $reportPath=Join-Path $dir 'REPORT.md'
@@ -111,3 +116,4 @@ $null=& $ev -Root $Root -Add -Pattern $Pattern -Source delegate-road -Category o
 "DELEGATED $Pattern -> $(Join-Path $dir 'BRIEF.md')"
 "LAUNCH a background agent with exactly this prompt: Read `"$(Join-Path $dir 'BRIEF.md')`" and carry it out exactly as written."
 "WHEN IT FINISHES: save its reply to a file, then: pwsh -NoProfile -File `"$PSCommandPath`" -Report `"$dir`" -Reply <that file>   (re-run its decisive check yourself before acting on it)"
+exit $lookupCode

@@ -52,6 +52,15 @@ try{
     $validJournal=Join-Path $t 'events\events.jsonl';$validHash=(Get-FileHash $validJournal).Hash
     $invalidDue=try{& $co -Root $t -Assign technical-choice -Owner agent -Action x -Due not-a-date|Out-Null;$false}catch{"$_"-match'COORDINATOR_DUE_INVALID'}
     Assert-That 'new assignments cannot poison a valid journal with an invalid due date' ($invalidDue-and(Get-FileHash $validJournal).Hash-eq$validHash)
+    New-Item -ItemType Directory (Join-Path $t 'sessions')|Out-Null;Set-Content (Join-Path $t 'sessions\index.jsonl') '{"torn index'
+    $aux=@(& pwsh -NoProfile -File $co -Root $t -Assign technical-choice -Owner agent -Action 'retain assignment');$auxCode=$LASTEXITCODE
+    Assert-That 'incomplete auxiliary lookup warns without blocking assignment' ($auxCode-eq0-and($aux-join' ')-match'EVENTS_INCOMPLETE:'-and(Get-State technical-choice)-eq'ACTIVE')
+    $auxLib=Join-Path $t 'aux-lib';New-Item -ItemType Directory $auxLib|Out-Null;Copy-Item $co $auxLib
+    # Select an absent store only for the auxiliary read; assignment still appends to its required journal.
+    $proxy='param([string]$Root,[string]$Find,[int]$Top);if($Find){& ''__EVENTS__'' -Root (Join-Path $Root ''absent'') -Find $Find -Top $Top;exit $LASTEXITCODE};& ''__EVENTS__'' -Root $Root @args;exit $LASTEXITCODE'
+    Set-Content (Join-Path $auxLib 'Events.ps1') ($proxy.Replace('__EVENTS__',$ev.Replace("'","''")))
+    $aux=@(& pwsh -NoProfile -File (Join-Path $auxLib 'Coordinator.ps1') -Root $t -Assign technical-choice -Owner agent -Action 'retain assignment');$auxCode=$LASTEXITCODE
+    Assert-That 'unavailable auxiliary lookup warns without blocking assignment' ($auxCode-eq0-and($aux-join' ')-match'EVENTS_UNAVAILABLE:'-and(Get-State technical-choice)-eq'ACTIVE')
     # journal corruption: a writer killed mid-line leaves a torn line; the next record must stay readable
     [IO.File]::AppendAllText((Join-Path $t 'events\events.jsonl'),'{"at":"2026-10-20T00:00:00Z","pattern":"torn","summ')
     Add-Event -Pattern after-tear -Session s1 -Category failure -Severity high -Summary 'written after a torn line'

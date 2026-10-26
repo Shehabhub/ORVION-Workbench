@@ -229,9 +229,11 @@ try {
         if(Test-Path -LiteralPath $workingReceipt){[IO.File]::Delete($workingReceipt)}
         $clock=[Diagnostics.Stopwatch]::StartNew()
         if($context){
-            & pwsh -NoProfile -File (Join-Path $Root 'lib/Events.ps1') -Root $Root -Find $record.Id
-            if($LASTEXITCODE-ne0){throw 'WB_REQUIRED_EVENTS_READ_FAILED'}
-            'WORKBENCH_PREFLIGHT: Events Find READY'
+            # Lessons come from the data root (Events.ps1 default), not this checkout; a journal that is absent (3,
+            # sandbox or CI) or partly damaged (2) is said plainly by Events and does not block the Finish.
+            & pwsh -NoProfile -File (Join-Path $Root 'lib/Events.ps1') -Find $record.Id
+            if($LASTEXITCODE-notin0,2,3){throw 'WB_REQUIRED_EVENTS_READ_FAILED'}
+            'WORKBENCH_PREFLIGHT: Events Find '+@{0='READY';2='INCOMPLETE (unreadable records skipped)';3='UNAVAILABLE (no journal at the data root; lessons not consulted)'}[$LASTEXITCODE]
             & pwsh -NoProfile -File (Join-Path $Root 'lib/Hunt.ps1') -Root $Root -Quick -NoRecord
             if($LASTEXITCODE-ne0){throw 'WB_REQUIRED_HUNT_FAILED'}
             'WORKBENCH_PREFLIGHT: Hunt Quick READY (GAP/proposal text is not zero findings or approval)'

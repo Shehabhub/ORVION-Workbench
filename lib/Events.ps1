@@ -28,7 +28,7 @@ param(
     [Parameter(ParameterSetName='find',Mandatory)][string]$Find,
     [Parameter(ParameterSetName='brief')][switch]$Brief,
     [int]$Top=5,
-    [string]$Root=(Split-Path $PSScriptRoot -Parent)
+    [string]$Root=$(if($env:ORVION_DATA_ROOT){$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path $PSScriptRoot -Parent))[0]})  # the data root: ORVION_DATA_ROOT, else sibling ORVION-Owner-Tools, else this checkout
 )
 $ErrorActionPreference='Stop'
 $log=Join-Path $Root 'events\events.jsonl'
@@ -60,6 +60,13 @@ if($Add){
     "EVENT RECORDED $Pattern ($n session(s))";exit 0
 }
 
+# A reader never reports a missing or damaged journal as "nothing recorded": exit 3 unavailable, exit 2 incomplete.
+if(!(Test-Path -LiteralPath $log)){"EVENTS_UNAVAILABLE: no journal at $log (pass -Root or set ORVION_DATA_ROOT)";exit 3}
+function Exit-Reader{
+    if($script:badLines){"EVENTS_INCOMPLETE: $($script:badLines) unreadable record(s) skipped in $log; results may miss them"}
+    if($script:badIndexLines){"EVENTS_INCOMPLETE: $($script:badIndexLines) unreadable record(s) skipped in $ix; session links may miss them"}
+    if($script:badLines-or$script:badIndexLines){exit 2};exit 0
+}
 # One view per pattern: the latest record decides status and advice; recurrence = distinct sessions.
 $views=foreach($g in @(Read-Events|Group-Object pattern)){
     $r=@($g.Group|Sort-Object at);$z=$r[-1]
@@ -82,8 +89,8 @@ function Format-View($v,[switch]$WithSession){
     $line
 }
 # The session index links an event to its full raw transcript (written by Sync-Sessions.ps1).
-$sessionIndex=@{};$ix=Join-Path $Root 'sessions\index.jsonl'
-if($Find-and(Test-Path $ix)){foreach($l in [IO.File]::ReadAllLines($ix)){if($l){try{$o=$l|ConvertFrom-Json;$sessionIndex[$o.id]=$o}catch{$script:badLines++}}}}
+$sessionIndex=@{};$ix=Join-Path $Root 'sessions\index.jsonl';$script:badIndexLines=0
+if($Find-and(Test-Path $ix)){foreach($l in [IO.File]::ReadAllLines($ix)){if($l){try{$o=$l|ConvertFrom-Json;$sessionIndex[$o.id]=$o}catch{$script:badIndexLines++}}}}
 if($Find){
     $stop='the','and','for','with','that','this','from','into','then','run','use','new','all','any','our','its','are','was','not','but','when',  # 2-letter words count (id, ui, db), common ones do not
         'is','it','to','of','in','on','an','at','by','or','as','be','do','if','me','my','we','so','up','no','us','am','he','go'
@@ -94,9 +101,10 @@ if($Find){
     $hits=foreach($v in $views){$s=0.0;foreach($q in $idf.Keys){$s+=$idf[$q]*(2*(Test-WordMatch $q $v.tagWords)+(Test-WordMatch $q $v.words))/6};if($s){[pscustomobject]@{v=$v;s=$s}}}
     $hits=@($hits|Sort-Object @{e='s';Descending=$true},@{e={$_.v.sessions};Descending=$true})
     if($hits.Count){$best=$hits[0].s;$hits=@($hits|Where-Object{$_.s-ge0.4*$best}|Select-Object -First $Top)}
-    if(!$hits.Count){"EVENTS: nothing recorded matches this task.";exit 0}
-    "EVENTS relevant to this task ($($hits.Count) of $(@($views).Count) patterns):";$hits|ForEach-Object{Format-View $_.v -WithSession};exit 0
+    if(!$hits.Count){"EVENTS: nothing recorded matches this task.";Exit-Reader}
+    "EVENTS relevant to this task ($($hits.Count) of $(@($views).Count) patterns):";$hits|ForEach-Object{Format-View $_.v -WithSession};Exit-Reader
 }
 # owner decisions are Pulse's "waiting" list, so the brief leaves them out
 $live=@($views|Where-Object{$_.category-ne'decision'}|Where-Object{$_.status-in'open','deferred'-or$_.sessions-ge2}|Sort-Object @{e={$_.status-in'open','deferred'};Descending=$true},@{e='sessions';Descending=$true},@{e='last';Descending=$true}|Select-Object -First $Top)
 if($live.Count){"EVENTS open or recurring (top $($live.Count) of $(@($views).Count); for a task run Events.ps1 -Find '<task>'):";$live|ForEach-Object{Format-View $_}}
+Exit-Reader

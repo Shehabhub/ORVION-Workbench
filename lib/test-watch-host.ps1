@@ -6,6 +6,7 @@ $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-hostcheck-$([guid]::NewGuid().To
 Copy-Item (Join-Path $PSScriptRoot 'Watch-Host.ps1'),(Join-Path $PSScriptRoot 'Events.ps1') "$t\lib"
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 try{
+    $savedRoot=$env:ORVION_DATA_ROOT;$env:ORVION_DATA_ROOT=$t
     $a=Start-Process pwsh -ArgumentList '-NoProfile','-Command','Start-Sleep 4' -PassThru -WindowStyle Hidden
     $b=Start-Process pwsh -ArgumentList '-NoProfile','-Command','Start-Sleep 8' -PassThru -WindowStyle Hidden
     $o=@(& pwsh -NoProfile -File "$t\lib\Watch-Host.ps1" -CommitGB 999 -PollSeconds 1 -WatchPid "$($a.Id),$($b.Id)" -ExitWhenPidsGone)
@@ -14,5 +15,6 @@ try{
     Assert-That 'each exit is reported, then the watch ends' (@($o|Where-Object{$_-like'PID GONE*'}).Count-eq2-and$o[-1]-eq'ALL PIDS GONE')
     $ev=@(Get-Content "$t\events\events.jsonl"|ForEach-Object{$_|ConvertFrom-Json})
     Assert-That 'the alarm is recorded as one event' (@($ev|Where-Object{$_.pattern-eq'host-memory-pressure'-and$_.source-eq'monitor'}).Count-eq1)
-}finally{Get-ChildItem $t -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}
+}finally{$env:ORVION_DATA_ROOT=$savedRoot;Get-ChildItem $t -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}
+Assert-That 'the inherited data root is restored' ($env:ORVION_DATA_ROOT-eq$savedRoot)
 if($fail){throw "HOST_SELFCHECK_FAILED $fail"};'HOST_SELFCHECK PASS'

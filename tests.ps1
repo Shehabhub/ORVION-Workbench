@@ -23,8 +23,11 @@ if($env:WORKBENCH_SUITE_MODE-ceq'CI'){
     if(!$suiteRecipe-or$suiteRecipe.Digest-cne$env:WORKBENCH_SUITE_RECIPE){throw 'WB_SUITE_RECIPE_MISMATCH'}
 }else{throw 'WB_SUITE_MODE_REFUSED'}
 $lib=Join-Path $PSScriptRoot 'lib';$fail=0;$sw=[Diagnostics.Stopwatch]::StartNew()
-# test events never reach the real journal: every check writes to its own disposable root
-$journal=Join-Path $PSScriptRoot 'events\events.jsonl';$journalHash=if(Test-Path $journal){(Get-FileHash $journal).Hash}
+# test events never reach the real journal: every check writes to its own disposable root, and the data tools'
+# default root (ORVION_DATA_ROOT) is an empty disposable folder for the whole run
+$dataRoot=if($env:ORVION_DATA_ROOT){$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path $PSScriptRoot -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@($PSScriptRoot))[0]}
+$journal=Join-Path $dataRoot 'events\events.jsonl';$journalHash=if(Test-Path $journal){(Get-FileHash $journal).Hash}
+$env:ORVION_DATA_ROOT=Join-Path $(if($env:WORKBENCH_TEMP_ROOT){$env:WORKBENCH_TEMP_ROOT}else{[IO.Path]::GetTempPath()}) "orvion-test-data-$PID";[void][IO.Directory]::CreateDirectory($env:ORVION_DATA_ROOT)
 $scripts=@(Get-ChildItem $PSScriptRoot -Recurse -File -Filter *.ps1|Where-Object{$_.FullName-notmatch'\\(sessions|events|work|\.git)\\'})
 $actualHazards=@($scripts|ForEach-Object{[IO.Path]::GetRelativePath($suiteRoot,$_.FullName).Replace('\','/')}|Sort-Object -CaseSensitive)
 if(($actualHazards-join[char]10)-cne(@($suiteRecipe.Material.hazards)-join[char]10)){throw 'WB_SUITE_UNDECLARED_HAZARD_INPUT'}

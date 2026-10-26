@@ -6,6 +6,11 @@ Contract B supplied each product's own independent native adapters. This directo
 not a dependency injected into direct-native product operation. Its historical move from Documents\ORVION-Sandbox\lib
 does not make that old copy an execution entry.
 
+Data root (trustworthy answers v1): Events, Spider, Pulse, Coordinator, Delegate and Watch-Subagents default `-Root` to
+`ORVION_DATA_ROOT`, else the sibling `..\ORVION-Owner-Tools` store when it has `events\`, else this checkout. A missing or
+damaged store is said, never answered as "nothing found": `EVENTS_UNAVAILABLE` (exit 3), `EVENTS_INCOMPLETE` (exit 2),
+`SPIDER_COVERAGE: incomplete` (exit 3), Pulse `last UNREADABLE` (exit 2). Hunt's `-Root` is still this checkout.
+
 ## Workbench's own local cycle
 
 `Workbench.ps1 -Boot` routes own work; `-Execute` checks the accepted applier's read-only plan before writes;

@@ -26,5 +26,31 @@ try{
     Add-Content "$t\events\events.jsonl" '{"torn line'
     $okBrief=try{$null=& $ev -Root $t -Brief;$true}catch{$false};$okFind=try{$null=& $ev -Root $t -Find 'process';$true}catch{$false}
     Assert-That 'a torn line does not silence the readers' ($okBrief-and$okFind)
+    $torn=@(& pwsh -NoProfile -File $ev -Root $t -Find 'process');$tornCode=$LASTEXITCODE
+    Assert-That 'a damaged journal is reported INCOMPLETE with exit 2, results still shown' ($tornCode-eq2-and($torn-join"`n")-match'EVENTS_INCOMPLETE: 1 unreadable'-and($torn-join"`n")-match'ps-reserved-name')
+    $tornBrief=@(& pwsh -NoProfile -File $ev -Root $t -Brief);$tornBriefCode=$LASTEXITCODE
+    Assert-That 'Brief retains EVENTS_INCOMPLETE and exit 2 on a damaged journal' ($tornBriefCode-eq2-and($tornBrief-join"`n")-match'EVENTS_INCOMPLETE: 1 unreadable')
+    $journal=Join-Path $t 'events\events.jsonl';$valid=@(Get-Content $journal|Select-Object -SkipLast 1);[IO.File]::WriteAllLines($journal,[string[]]$valid)
+    Add-Content "$t\sessions\index.jsonl" '{"torn index'
+    $indexOnly=@(& pwsh -NoProfile -File $ev -Root $t -Find 'process');$indexCode=$LASTEXITCODE;$indexText=$indexOnly-join"`n"
+    Assert-That 'index damage alone names the index, not the journal, and exits 2' ($indexCode-eq2-and$indexText.Contains("EVENTS_INCOMPLETE: 1 unreadable record(s) skipped in $t\sessions\index.jsonl")-and!$indexText.Contains("skipped in $journal"))
+    Add-Content $journal '{"torn journal';Add-Content $journal '{}'
+    $both=@(& pwsh -NoProfile -File $ev -Root $t -Find 'process');$bothCode=$LASTEXITCODE;$bothText=$both-join"`n"
+    Assert-That 'journal and index damage have separate counts and file attribution' ($bothCode-eq2-and$bothText.Contains("EVENTS_INCOMPLETE: 2 unreadable record(s) skipped in $journal")-and$bothText.Contains("EVENTS_INCOMPLETE: 1 unreadable record(s) skipped in $t\sessions\index.jsonl"))
+    Assert-That 'Workbench incomplete preflight wording is source-neutral' ([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Workbench.ps1')).Contains("2='INCOMPLETE (unreadable records skipped)'"))
+    $none=@(& pwsh -NoProfile -File $ev -Root (Join-Path $t 'no-store') -Find 'process');$noneCode=$LASTEXITCODE
+    $null=& pwsh -NoProfile -File $ev -Root (Join-Path $t 'no-store') -Brief;$noneBriefCode=$LASTEXITCODE
+    Assert-That 'a missing journal is UNAVAILABLE (exit 3), never "nothing recorded"' ($noneCode-eq3-and$none[0]-match'^EVENTS_UNAVAILABLE'-and($none-join' ')-notmatch'nothing recorded'-and$noneBriefCode-eq3)
+    # The default data root: the sibling ORVION-Owner-Tools store when it has events\, ORVION_DATA_ROOT above all.
+    $gh=Join-Path $t 'gh';$copy=Join-Path $gh 'ORVION-Workbench\lib';[void][IO.Directory]::CreateDirectory($copy);Copy-Item $ev $copy
+    $null=& $ev -Root (Join-Path $gh 'ORVION-Owner-Tools') -Add -Pattern sibling-store-marker -Session s9 -Summary 'found in the sibling data store' -Tags 'siblingmarker'
+    $null=& $ev -Root (Join-Path $t 'env-store') -Add -Pattern env-store-marker -Session s9 -Summary 'found through ORVION_DATA_ROOT' -Tags 'siblingmarker'
+    $savedRoot=$env:ORVION_DATA_ROOT
+    try{$env:ORVION_DATA_ROOT=$null;$sib=@(& pwsh -NoProfile -File (Join-Path $copy 'Events.ps1') -Find 'siblingmarker')
+        $env:ORVION_DATA_ROOT=Join-Path $t 'env-store';$viaEnv=@(& pwsh -NoProfile -File (Join-Path $copy 'Events.ps1') -Find 'siblingmarker')}finally{$env:ORVION_DATA_ROOT=$savedRoot}
+    Assert-That 'default root finds the sibling data store; ORVION_DATA_ROOT overrides it' (($sib-join' ')-match'sibling-store-marker'-and($viaEnv-join' ')-match'env-store-marker'-and($viaEnv-join' ')-notmatch'sibling-store-marker')
+    $expression='$(if($env:ORVION_DATA_ROOT){$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) ''ORVION-Owner-Tools'')|Where-Object{Test-Path -LiteralPath (Join-Path $_ ''events'')})+@(Split-Path $PSScriptRoot -Parent))[0]})'
+    $drift=@(foreach($tool in 'Events','Spider','Pulse','Coordinator','Delegate'){if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot "$tool.ps1")).Contains('[string]$Root='+$expression)){$tool}})+@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Watch-Subagents.ps1')).Contains('[string]$EventRoot='+$expression)){'Watch-Subagents'})
+    Assert-That "every data tool carries the one identical data-root default$(if($drift.Count){' (drifted: '+($drift-join', ')+')'})" (!$drift.Count)
 }finally{[IO.Directory]::Delete($t,$true)}
 if($fail){throw "EVENTS_SELFCHECK_FAILED $fail"};'EVENTS_SELFCHECK PASS'

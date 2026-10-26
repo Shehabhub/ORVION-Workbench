@@ -78,6 +78,11 @@ try{
     $null=Read-PulseFixtureGit @('config','--unset','branch.main.merge')
     $pulseObserved=Invoke-PulseCheck
     Assert-PulseCheck 'genuinely unconfigured upstream remains a readable no-upstream state' ($pulseObserved.Exit-eq0-and$pulseObserved.Text-match'no upstream') $pulseObserved.Text
+    Assert-PulseCheck 'a missing session index is said plainly, not silently skipped' ($pulseObserved.Text-match'last     none: no session index') $pulseObserved.Text
+    [void][IO.Directory]::CreateDirectory((Join-Path $pulseFixture 'sessions'))
+    [IO.File]::WriteAllText((Join-Path $pulseFixture 'sessions/index.jsonl'),"{`"torn`n")
+    $pulseObserved=Invoke-PulseCheck
+    Assert-PulseCheck 'a damaged session index is UNREADABLE with nonzero exit' ($pulseObserved.Exit-eq2-and$pulseObserved.Text-match'last     UNREADABLE: 1 damaged') $pulseObserved.Text
     $pulseCompleted=$true
 }finally{
     if($pulseCompleted-and$pulseFailures-eq0){$null=Remove-OrvionOwnedTree -Path $pulseFixture -AllowedRoots @($pulseTestParent)}

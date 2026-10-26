@@ -18,7 +18,8 @@ param(
 )
 $ErrorActionPreference = 'Continue'
 $Log = [IO.Path]::GetFullPath($Log, (Get-Location).Path)
-Set-Location -LiteralPath $WorkingDirectory
+# A directory or log that cannot be used stops the run: a command never runs elsewhere under this label.
+Set-Location -LiteralPath $WorkingDirectory -ErrorAction Stop
 
 # Other PowerShell script files running now (`-File <x>.ps1`, from any directory: the run that made
 # SPEC-248's -Finish timing unusable was a scratch validation script outside `scripts/`). An editor's
@@ -42,7 +43,8 @@ $env:ORVION_TIMED_LOG = $Log
 # Workbench adoption: bind a self-Finish to this runner and its actual selected root.
 $env:ORVION_TIMED_ROOT = [IO.Path]::GetFullPath($WorkingDirectory)
 $env:ORVION_TIMED_PID = [string]$PID
-'[{0}] START pid={1} {2} | {3}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $PID, $envLabel, $Command | Out-File -LiteralPath $Log -Encoding utf8
+try { '[{0}] START pid={1} {2} | {3}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $PID, $envLabel, $Command | Out-File -LiteralPath $Log -Encoding utf8 -ErrorAction Stop }
+catch { "run_timed: cannot write the log $Log ($($_.Exception.Message)); the command was not run"; exit 1 }
 # Stamped to a thousandth of a minute (0.06 s), culture-invariant, so every test line a suite prints
 # carries its own measurable time (SPEC-283); a tenth of a minute hid every test shorter than 6 s.
 function Stamp { $sw.Elapsed.TotalMinutes.ToString('0.000', [Globalization.CultureInfo]::InvariantCulture).PadLeft(8) }

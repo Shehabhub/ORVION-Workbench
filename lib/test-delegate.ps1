@@ -18,5 +18,19 @@ try{
     Assert-That 'list shows the verdict once reported' ((@(& (Join-Path $PSScriptRoot 'Delegate.ps1') -Root $t -List)-join' ')-match'zebra-case: DISPROVEN')
     $bad=try{& (Join-Path $PSScriptRoot 'Delegate.ps1') -Root $t -Pattern 'Not Valid' -Question x|Out-Null;$false}catch{$true}
     Assert-That 'a malformed pattern id is refused' $bad
+    $de=Join-Path $PSScriptRoot 'Delegate.ps1';$evPath=Join-Path $PSScriptRoot 'Events.ps1'
+    $damaged=Join-Path $t 'damaged';$null=& $evPath -Root $damaged -Add -Pattern unrelated -Summary 'unrelated history'
+    Add-Content (Join-Path $damaged 'events\events.jsonl') '{"torn row';Add-Content (Join-Path $damaged 'events\events.jsonl') '{}'
+    $out=@(& pwsh -NoProfile -File $de -Root $damaged -Pattern damaged-case -Question 'ABSENT-97');$code=$LASTEXITCODE
+    $path=([regex]::Match(($out-join"`n"),'DELEGATED damaged-case -> (.+BRIEF\.md)')).Groups[1].Value;$text=[IO.File]::ReadAllText($path)
+    Assert-That 'damaged history is counted in the brief with exit 2' ($code-eq2-and$text-match'EVENTS_INCOMPLETE: 2 unreadable history record\(s\) skipped'-and$text-notmatch'nothing recorded yet')
+    $indexed=Join-Path $t 'indexed';$null=& $evPath -Root $indexed -Add -Pattern unrelated -Summary 'unrelated history'
+    New-Item -ItemType Directory (Join-Path $indexed 'sessions')|Out-Null;Set-Content (Join-Path $indexed 'sessions\index.jsonl') '{"torn index'
+    $out=@(& pwsh -NoProfile -File $de -Root $indexed -Pattern indexed-case -Question 'ABSENT-97');$code=$LASTEXITCODE
+    $path=([regex]::Match(($out-join"`n"),'DELEGATED indexed-case -> (.+BRIEF\.md)')).Groups[1].Value;$text=[IO.File]::ReadAllText($path)
+    Assert-That 'incomplete related lookup remains visible in the brief with exit 2' ($code-eq2-and$text-match'(?s)Related past events.+EVENTS_INCOMPLETE:'-and$text-notmatch'none recorded')
+    $out=@(& pwsh -NoProfile -File $de -Root (Join-Path $t 'absent') -Pattern absent-case -Question 'ABSENT-97');$code=$LASTEXITCODE
+    $path=([regex]::Match(($out-join"`n"),'DELEGATED absent-case -> (.+BRIEF\.md)')).Groups[1].Value;$text=[IO.File]::ReadAllText($path)
+    Assert-That 'unavailable history and related lookup remain visible in the brief with exit 3' ($code-eq3-and$text-match'(?s)What is already known.+EVENTS_UNAVAILABLE: no history journal'-and$text-match'(?s)Related past events.+EVENTS_UNAVAILABLE:'-and$text-notmatch'none recorded|nothing recorded yet')
 }finally{[IO.Directory]::Delete($t,$true)}
 if($fail){throw "DELEGATE_SELFCHECK_FAILED $fail"};'DELEGATE_SELFCHECK PASS'

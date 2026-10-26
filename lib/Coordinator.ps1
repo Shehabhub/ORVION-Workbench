@@ -32,7 +32,7 @@ param([Parameter(ParameterSetName='queue')][switch]$Check,
       [Parameter(ParameterSetName='dispatch')][ValidateSet('readonly','sandbox')][string]$Mode='readonly',
       [Parameter(ParameterSetName='dispatch')][int]$Minutes=30,
       [datetime]$Now=[DateTime]::UtcNow,  # the self-check moves the clock
-      [string]$Root=(Split-Path $PSScriptRoot -Parent))
+      [string]$Root=$(if($env:ORVION_DATA_ROOT){$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path $PSScriptRoot -Parent))[0]}))
 $ErrorActionPreference='Stop'
 $ev=Join-Path $PSScriptRoot 'Events.ps1';$log=Join-Path $Root 'events\events.jsonl'
 # The journal is the only state: every view is computed from it at read time, so there is no index to drift or rebuild.
@@ -87,7 +87,9 @@ function Format-QueueLine($i){
     "{0,-10} {1} (age {2} d{3}): {4} -> {5}{6}" -f $i.state,$i.pattern,$i.age,$(if($i.due){", due $($i.due.ToString('yyyy-MM-dd'))"}),$s,$need,$(if($i.lastFix){"`n           last time ($($i.recurred)x): $($i.lastFix.Substring(0,[Math]::Min(140,$i.lastFix.Length)))"})
 }
 function Show-PriorResolution([string]$Text,[string]$Except){  # before new work: what was already solved, and how
-    $hits=@(& $ev -Root $Root -Find $Text -Top 5|Where-Object{$_-match'^\[(resolved|disproven|superseded) '-and$_-notmatch"\] $([regex]::Escape($Except)):"})
+    $prior=@(& $ev -Root $Root -Find $Text -Top 5)
+    $prior|Where-Object{$_-match'^EVENTS_(INCOMPLETE|UNAVAILABLE)'}
+    $hits=@($prior|Where-Object{$_-match'^\[(resolved|disproven|superseded) '-and$_-notmatch"\] $([regex]::Escape($Except)):"})
     if($hits){'PRIOR RESOLUTIONS of related events (read before acting):';$hits|ForEach-Object{"  $_"}}
 }
 
