@@ -1,5 +1,5 @@
 # Real hook callers in a disposable workspace; bounded followers read only fixture transcripts, with Pulse stubbed.
-param([switch]$RootProbeOnly,[switch]$FailureProbeOnly)
+param([switch]$RootProbeOnly,[switch]$FailureProbeOnly,[switch]$DeadlineProbeOnly,[string]$BaselineHook)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'remove-owned.ps1')
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
@@ -36,6 +36,82 @@ function Wait-Archive([int]$Count){
     throw 'HOOK_ARCHIVE_STUB_TIMEOUT'
 }
 try{
+    if(!$RootProbeOnly-and!$FailureProbeOnly){
+        $deadlineCheckout=Join-Path $t 'deadline checkout';$deadlineLib=Join-Path $deadlineCheckout 'lib'
+        $deadlineStore=Join-Path $t 'deadline store';$deadlineTemp=Join-Path $deadlineStore 'temp'
+        [void][IO.Directory]::CreateDirectory((Join-Path $deadlineLib 'hooks'));[void][IO.Directory]::CreateDirectory($deadlineTemp)
+        $deadlineHook=Join-Path $deadlineLib 'hooks/Watch-Reminder.ps1'
+        Copy-Item (Join-Path $PSScriptRoot 'hooks/Watch-Reminder.ps1') $deadlineHook
+        [IO.File]::WriteAllText((Join-Path $deadlineLib 'README.md'),"## Always`nFIXTURE-TOOLS`n## Next`n")
+        [IO.File]::WriteAllText((Join-Path $deadlineLib 'Sync-Sessions.ps1'),$stub.Replace('__SYNC__',$sync.Replace("'","''")))
+        $deadlinePulse=@'
+param([string]$Root)
+[IO.File]::WriteAllText((Join-Path $Root 'received-root'),$Root)
+[IO.File]::WriteAllText((Join-Path $Root 'pulse.pid'),"$PID")
+$mode=[IO.File]::ReadAllText((Join-Path $Root 'mode'))
+if($mode-eq'hang'){
+    $leaf=Join-Path $Root 'leaf.ps1'
+    $child=Start-Process pwsh -ArgumentList "-NoProfile -File `"$leaf`" -Root `"$Root`"" -WindowStyle Hidden -PassThru
+    [IO.File]::WriteAllText((Join-Path $Root 'leaf.pid'),"$($child.Id)")
+    Start-Sleep -Seconds 30
+}
+if($mode-eq'flood'){'X'*70000;'Pulse UNREADABLE flood';exit 2}
+if($mode-eq'nonzero'){'Pulse UNREADABLE fixture';exit 2}
+'FIXTURE-PULSE'
+'@
+        [IO.File]::WriteAllText((Join-Path $deadlineLib 'Pulse.ps1'),$deadlinePulse)
+        [IO.File]::WriteAllText((Join-Path $deadlineStore 'leaf.ps1'),'param([string]$Root) Start-Sleep -Seconds 30')
+        function Invoke-DeadlineEvent([string]$selectedHook=$deadlineHook,[string]$eventName='SessionStart',[string]$eventCwd=$deadlineCheckout){
+            $info=[Diagnostics.ProcessStartInfo]::new((Get-Command pwsh -CommandType Application|Select-Object -First 1).Source)
+            $info.UseShellExecute=$false;$info.CreateNoWindow=$true
+            $info.RedirectStandardInput=$true;$info.RedirectStandardOutput=$true;$info.RedirectStandardError=$true
+            foreach($argument in @('-NoProfile','-File',$selectedHook)){$info.ArgumentList.Add($argument)}
+            $child=[Diagnostics.Process]::Start($info);$elapsed=[Diagnostics.Stopwatch]::StartNew()
+            try{
+                $outTask=$child.StandardOutput.ReadToEndAsync();$errTask=$child.StandardError.ReadToEndAsync()
+                $child.StandardInput.Write((@{hook_event_name=$eventName;cwd=$eventCwd}|ConvertTo-Json -Compress));$child.StandardInput.Close()
+                $expired=!$child.WaitForExit(12000)
+                if($expired){$child.Kill($true);$null=$child.WaitForExit(2000)}
+                [pscustomobject]@{Text=$outTask.GetAwaiter().GetResult();Error=$errTask.GetAwaiter().GetResult();Exit=$child.ExitCode;Ms=[math]::Round($elapsed.Elapsed.TotalMilliseconds,1);Expired=$expired}
+            }finally{$child.Dispose()}
+        }
+        $deadlineSavedRoot=$env:ORVION_DATA_ROOT;$deadlineSavedTemp=$env:TEMP;$deadlineSavedTmp=$env:TMP
+        try{
+            $env:ORVION_DATA_ROOT=$deadlineStore;$env:TEMP=$deadlineTemp;$env:TMP=$deadlineTemp
+            [IO.File]::WriteAllText((Join-Path $deadlineStore 'mode'),'healthy')
+            $healthyTimes=@();$baselineTimes=@()
+            foreach($sample in 1..3){$healthy=Invoke-DeadlineEvent;$healthyTimes+=,$healthy.Ms}
+            Assert-That 'healthy deadline caller passes spaced Root, stays stderr-silent and exits 0' ($healthy.Exit-eq0-and!$healthy.Expired-and!$healthy.Error-and$healthy.Text-match'FIXTURE-PULSE'-and[IO.File]::ReadAllText((Join-Path $deadlineStore 'received-root'))-ceq$deadlineStore)
+            if($BaselineHook){
+                $baselinePath=Join-Path $deadlineLib 'hooks/baseline.ps1';Copy-Item -LiteralPath $BaselineHook -Destination $baselinePath
+                foreach($sample in 1..3){$baseline=Invoke-DeadlineEvent $baselinePath;$baselineTimes+=,$baseline.Ms}
+                Assert-That 'healthy SessionStart context is identical to the supplied baseline' ($baseline.Exit-eq0-and$healthy.Text-ceq$baseline.Text)
+            }
+            "LATENCY SessionStartMs=$($healthyTimes-join',') BaselineMs=$($baselineTimes-join',')"
+            [IO.File]::WriteAllText((Join-Path $deadlineStore 'mode'),'hang')
+            $hung=Invoke-DeadlineEvent
+            $pulseId=[int][IO.File]::ReadAllText((Join-Path $deadlineStore 'pulse.pid'));$leafId=[int][IO.File]::ReadAllText((Join-Path $deadlineStore 'leaf.pid'))
+            $ownedAlive=@(Get-Process -Id $pulseId,$leafId -ErrorAction SilentlyContinue)
+            Assert-That 'Pulse deadline reports honest timeout, exit 0 and kills the owned descendant tree' ($hung.Exit-eq0-and!$hung.Expired-and$hung.Ms-lt9500-and$hung.Text.Contains('Pulse did not answer in 6 s; live state UNREADABLE.')-and!$ownedAlive.Count-and!$hung.Error)
+            foreach($ownedChild in $ownedAlive){$ownedChild.Kill($true);$null=$ownedChild.WaitForExit(2000);$ownedChild.Dispose()}
+            "LATENCY TimeoutMs=$($hung.Ms)"
+            Assert-That 'archiving stays detached through the Pulse deadline' (@(Get-Content (Join-Path $deadlineCheckout 'archive.calls')).Count-ge4)
+            foreach($pulseMode in 'nonzero','flood'){
+                [IO.File]::WriteAllText((Join-Path $deadlineStore 'mode'),$pulseMode)
+                $observed=Invoke-DeadlineEvent
+                Assert-That "Pulse $pulseMode preserves honest unreadability without pipe deadlock or oversized context" ($observed.Exit-eq0-and!$observed.Expired-and$observed.Text-match'UNREADABLE'-and$observed.Text.Length-le8192-and!$observed.Error)
+            }
+            [IO.File]::WriteAllText((Join-Path $deadlineLib 'README.md'),("## Always`n"+('GUIDANCE'*3000)+"`n## Next`n"))
+            [IO.File]::WriteAllText((Join-Path $deadlineStore 'mode'),'nonzero')
+            $bounded=Invoke-DeadlineEvent
+            Assert-That 'complete SessionStart bounds README guidance while preserving Pulse diagnostics and index pointer' ($bounded.Exit-eq0-and$bounded.Text.Length-le8192-and$bounded.Text-match'Pulse UNREADABLE fixture'-and$bounded.Text.Contains("$deadlineStore\sessions\INDEX.md")-and$bounded.Text-match'README.md')
+            $end=Invoke-DeadlineEvent $deadlineHook 'SessionEnd'
+            $unrelated=Invoke-DeadlineEvent $deadlineHook 'SessionStart' (Join-Path $t 'unrelated')
+            Assert-That 'deadline leaves silent SessionEnd and unrelated branches silent with exit 0' ($end.Exit-eq0-and$unrelated.Exit-eq0-and!$end.Text-and!$end.Error-and!$unrelated.Text-and!$unrelated.Error)
+            Assert-That 'Pulse stdout and stderr temporary files are deleted after healthy, failed and timed-out calls' (@(Get-ChildItem -LiteralPath $deadlineTemp -Filter 'orvion-pulse-*').Count-eq0)
+        }finally{$env:ORVION_DATA_ROOT=$deadlineSavedRoot;$env:TEMP=$deadlineSavedTemp;$env:TMP=$deadlineSavedTmp}
+        if($DeadlineProbeOnly){if($fail){throw 'HOOK_DEADLINE_PROBE_FAILED'};'HOOK_DEADLINE_PROBE PASS';return}
+    }
 
     # Real hook + real preservation/index code, bounded at the process-discovery boundary.
     $savedDataRoot=$env:ORVION_DATA_ROOT

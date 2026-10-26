@@ -51,8 +51,38 @@ try{
         if(!$workbenchEntry){exit 0} # archival preserves knowledge; it never enrolls a native session in Workbench
         $md=[IO.File]::ReadAllText((Join-Path $lib 'README.md'))
         $always=[regex]::Match($md,'(?s)## Always.*?(?=\n## )').Value
-        $events=(& (Join-Path $lib 'Pulse.ps1') -Root $dataRoot)-join"`n"  # one voice: Pulse owns live state, owner decisions and the newest lessons
-        Send-Context ("ORVION AGENT TOOLS exist at $lib (index: README.md). Use them; never hand-write an alarm loop.`n"+$always.Replace('<lib>',$lib)+"`n"+$events+"`nBefore a task: pwsh -NoProfile -File `"$lib\Events.ps1`" -Find '<task in a few words>'. Record a failure, discovery or decision worth keeping with Events.ps1 -Add. Past sessions (task, size, tools, errors, SPECs, raw path): $dataRoot\sessions\INDEX.md.")
+        # File redirection avoids a full pipe blocking Pulse before its deadline. Only this child tree is owned here.
+        $pulseTemp=Join-Path ([IO.Path]::GetTempPath()) ('orvion-pulse-'+[guid]::NewGuid().ToString('N'))
+        $pulseOut=$pulseTemp+'.out';$pulseErr=$pulseTemp+'.err';$pulseChild=$null
+        try{
+            $pulseChild=Start-Process pwsh -ArgumentList "-NoProfile -NonInteractive -File `"$lib\Pulse.ps1`" -Root `"$dataRoot`"" -RedirectStandardOutput $pulseOut -RedirectStandardError $pulseErr -WindowStyle Hidden -PassThru
+            if(!$pulseChild.WaitForExit(6000)){
+                $pulseChild.Kill($true)
+                if(!$pulseChild.WaitForExit(1000)){throw 'pulse cleanup incomplete'}
+                $events='Pulse did not answer in 6 s; live state UNREADABLE.'
+            }else{
+                $events=([IO.File]::ReadAllText($pulseOut)-replace'\r?\n',"`n").TrimEnd([char]10)
+                $pulseError=[IO.File]::ReadAllText($pulseErr)
+                if($pulseError-or($pulseChild.ExitCode-ne0-and$events-notmatch'UNREADABLE')){$events='Pulse UNREADABLE (reporter failed; run Pulse.ps1 directly).'}
+                if($events.Length-gt4096){$events='Pulse UNREADABLE (reporter output exceeded 4096 characters; run Pulse.ps1 directly).'}
+            }
+        }catch{
+            if($pulseChild-and!$pulseChild.HasExited){try{$pulseChild.Kill($true);$null=$pulseChild.WaitForExit(1000)}catch{$null=$_}}
+            $events='Pulse UNREADABLE (reporter could not run).'
+        }finally{
+            if($pulseChild){$pulseChild.Dispose()}
+            foreach($pulseFile in $pulseOut,$pulseErr){if(Test-Path -LiteralPath $pulseFile){Remove-Item -LiteralPath $pulseFile -Force}}
+        }
+        $contextPrefix="ORVION AGENT TOOLS exist at $lib (index: README.md). Use them; never hand-write an alarm loop.`n"
+        $contextSuffix="`nBefore a task: pwsh -NoProfile -File `"$lib\Events.ps1`" -Find '<task in a few words>'. Record a failure, discovery or decision worth keeping with Events.ps1 -Add. Past sessions (task, size, tools, errors, SPECs, raw path): $dataRoot\sessions\INDEX.md."
+        $guidance=$always.Replace('<lib>',$lib)
+        $contextLimit=8192-[Environment]::NewLine.Length
+        if($contextPrefix.Length+$guidance.Length+1+$events.Length+$contextSuffix.Length-gt$contextLimit){
+            $guidance="Tool guidance abbreviated; see $lib\README.md."
+        }
+        $context=$contextPrefix+$guidance+"`n"+$events+$contextSuffix
+        if($context.Length-gt$contextLimit){$context="ORVION AGENT TOOLS: see lib\README.md.`n$events`nPast sessions: sessions\INDEX.md under the selected data root."}
+        Send-Context $context
         exit 0
     }
     if(!$workbenchEntry-and!$explicitTool){exit 0}

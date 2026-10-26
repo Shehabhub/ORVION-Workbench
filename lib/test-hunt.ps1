@@ -1,12 +1,52 @@
 # Self-check for Hunt.ps1: a planted bug its self-check catches is NOT reported, a harmless change the check cannot
 # see IS reported as a surviving mutant, a stale mutant is reported, and nothing is recorded with -NoRecord.
-param([switch]$RootProbeOnly,[switch]$EvidenceProbeOnly)
+param([switch]$RootProbeOnly,[switch]$EvidenceProbeOnly,[switch]$IndexProbeOnly)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'remove-owned.ps1')
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-huntcheck-$([guid]::NewGuid().ToString('N').Substring(0,6))";New-Item -ItemType Directory $t|Out-Null
 $savedProfile=$env:USERPROFILE;$env:USERPROFILE=Join-Path $t 'profile'
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 try{
+    if(!$RootProbeOnly-and!$EvidenceProbeOnly){
+        $indexStore=Join-Path $t 'index-probe'
+        foreach($part in 'sessions','events','work'){[void][IO.Directory]::CreateDirectory((Join-Path $indexStore $part))}
+        $indexLauncher=Join-Path $t 'index-probe.ps1'
+        [IO.File]::WriteAllText($indexLauncher,@'
+param([string]$Hunt,[string]$Store,[switch]$Record)
+function Get-Process { @() }
+function Get-CimInstance { @() }
+& $Hunt -Root $Store -DataRoot $Store -Quick -NoRecord:(!$Record)
+exit $LASTEXITCODE
+'@)
+        $indexFile=Join-Path $indexStore 'sessions/index.jsonl'
+        $indexJournal=Join-Path $indexStore 'events/events.jsonl'
+        $oldIndexEvents=@(foreach($pattern in 'hunt-index-consistency','hunt-lesson-raw-missing','hunt-unrelated-old'){
+            @{at='2000-01-01T00:00:00Z';pattern=$pattern;status='open';category='observation';summary='old fixture';session='hunter-fixture'}|ConvertTo-Json -Compress
+        })
+        [IO.File]::WriteAllLines($indexJournal,[string[]]$oldIndexEvents)
+        [IO.File]::WriteAllText((Join-Path $indexStore 'work/sync-errors.log'),'INDEPENDENT-SENTINEL')
+        $marker=Join-Path $indexStore 'sessions/marker.jsonl'
+        [IO.File]::WriteAllText($marker,'x');(Get-Item $marker).LastWriteTimeUtc=[DateTime]::UtcNow.AddHours(-1)
+        $indexRow=@{id='before';raw='sessions\marker.jsonl';bytes=0;metaBytes=0}
+        $indexAfter=@{id='after';raw='sessions\marker.jsonl';bytes=0;metaBytes=0}
+        [IO.File]::WriteAllLines($indexFile,[string[]]@(($indexRow|ConvertTo-Json -Compress),'{torn','null',($indexAfter|ConvertTo-Json -Compress),'  '))
+        $indexHash=(Get-FileHash $indexJournal).Hash
+        $indexOutput=@(& pwsh -NoProfile -File $indexLauncher -Hunt (Join-Path $PSScriptRoot 'Hunt.ps1') -Store $indexStore 2>&1)-join"`n";$indexCode=$LASTEXITCODE
+        Assert-That 'index corruption counts two rows, checks valid rows on both sides and continues other hounds' ($indexCode-eq1-and$indexOutput-match'BUG index-unreadable: 2 malformed row\(s\)'-and$indexOutput-match'BUG index-consistency: 2 '-and$indexOutput-match'BUG sync-errors:.*INDEPENDENT-SENTINEL'-and$indexOutput-match'^HUNT ')
+        Assert-That 'partial index saves its result and NoRecord preserves the journal' ((Test-Path (Join-Path $indexStore 'work/hunt-last.txt'))-and(Get-FileHash $indexJournal).Hash-ceq$indexHash)
+        $indexRow.bytes=1;$indexRow.metaBytes=1
+        [IO.File]::WriteAllText((Join-Path $indexStore 'work/sync-errors.log'),'')
+        [IO.File]::WriteAllLines($indexFile,[string[]]@(($indexRow|ConvertTo-Json -Compress),'{torn'))
+        $null=& pwsh -NoProfile -File $indexLauncher -Hunt (Join-Path $PSScriptRoot 'Hunt.ps1') -Store $indexStore -Record
+        $recordIndexCode=$LASTEXITCODE
+        $indexEvents=@([IO.File]::ReadAllLines($indexJournal)|ForEach-Object{$_|ConvertFrom-Json})
+        Assert-That 'incomplete index retains old index and lesson findings while unrelated findings can resolve' (@($indexEvents|Where-Object pattern -eq 'hunt-index-consistency')[-1].status-eq'open'-and@($indexEvents|Where-Object pattern -eq 'hunt-lesson-raw-missing')[-1].status-eq'open'-and@($indexEvents|Where-Object pattern -eq 'hunt-unrelated-old')[-1].status-eq'resolved')
+        Assert-That 'index corruption alone exits 1 and recording names index unreadability in the journal' ($recordIndexCode-eq1-and@($indexEvents|Where-Object pattern -eq 'hunt-index-unreadable').Count-eq1)
+        $indexLock=[IO.File]::Open($indexFile,'Open','ReadWrite','None')
+        try{$lockedOutput=@(& pwsh -NoProfile -File $indexLauncher -Hunt (Join-Path $PSScriptRoot 'Hunt.ps1') -Store $indexStore 2>&1)-join"`n";$lockedCode=$LASTEXITCODE}finally{$indexLock.Dispose()}
+        Assert-That 'unreadable index file reports unknown count and continues to the summary' ($lockedCode-eq1-and$lockedOutput-match'BUG index-unreadable: row count unknown'-and$lockedOutput-match'^HUNT ')
+        if($IndexProbeOnly){if($fail){throw 'HUNT_INDEX_PROBE_FAILED'};'HUNT_INDEX_PROBE PASS';return}
+    }
     if(!$RootProbeOnly){
         $evidenceRoot=Join-Path $t 'evidence';[void][IO.Directory]::CreateDirectory((Join-Path $evidenceRoot 'events'))
         [void][IO.Directory]::CreateDirectory((Join-Path $evidenceRoot 'work'))

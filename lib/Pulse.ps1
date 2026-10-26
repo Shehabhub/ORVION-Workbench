@@ -11,6 +11,8 @@ param([string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualif
 $ErrorActionPreference='Stop'
 $pulseUnreadable=$false
 function Get-GitLine{param([string]$Repo)$o=& git -C $Repo @args 2>$null;if($LASTEXITCODE){throw "git $($args-join' ')"};"$o".Trim()}
+$pulseOwnerLines=@()
+$pulseLines=@(. {
 "ORVION PULSE $([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm')) UTC"
 foreach($r in $Repos){
     $name=Split-Path $r -Leaf
@@ -36,14 +38,17 @@ foreach($r in $Repos){
         "repo     $name $branch@$head $(if($dirty){"DIRTY($dirty)"}else{'clean'}), $state$(if($pending){"; pending: $($pending-join', ')"})"
     }catch{$pulseUnreadable=$true;"repo     $name UNREADABLE ($($_.Exception.Message))"}
 }
-$procs=@(Get-CimInstance Win32_Process -Filter "Name='pwsh.exe'"|Where-Object{$_.CommandLine})
+try{
+$procs=@(Get-CimInstance Win32_Process -Filter "Name='pwsh.exe'" -ErrorAction Stop|Where-Object{$_.CommandLine})
 $follow=@($procs|Where-Object{$_.CommandLine-match'Sync-Sessions\.ps1.*-Follow'})
 $timed=@($procs|Where-Object{$_.CommandLine-match'run_timed\.ps1'}|ForEach-Object{
     $log=[regex]::Match($_.CommandLine,'-Log\s+"?([^"]+?)"?(\s+-|\s*$)').Groups[1].Value
     $last=if($log-and(Test-Path -LiteralPath $log)){@(Get-Content -LiteralPath $log -Tail 1)[0]}else{''}
     "pid $($_.ProcessId)$(if($log){" $log"})$(if($last){": $($last.Substring(0,[Math]::Min(80,$last.Length)))"})"})
-$os=Get-CimInstance Win32_OperatingSystem
+$os=Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
+if(!$os-or$null-eq$os.FreePhysicalMemory-or$null-eq$os.FreeVirtualMemory){throw 'host evidence unavailable'}
 "running  archiver $(if($follow){"following (pid $($follow[0].ProcessId))"}else{'NOT running (start a session or: Sync-Sessions.ps1 -Follow)'}); timed runs: $(if($timed){$timed-join' | '}else{'none'}); host: $([math]::Round($os.FreePhysicalMemory/1MB,1)) GB free, commit headroom $([math]::Round($os.FreeVirtualMemory/1MB,1)) GB"
+}catch{$pulseUnreadable=$true;'running  UNREADABLE (process/host discovery failed)'}
 # One journal read/classifier: inherited assignment and unreadable evidence are Coordinator-owned.
 $pulseSnapshot=$null
 try{
@@ -53,7 +58,8 @@ try{
     if(!$pulseSnapshot.Readable){throw 'required journal incomplete'}
     $waiting=@($pulseSnapshot.Items|Where-Object state -eq 'OWNER')
     "waiting  on the owner: $($waiting.Count)"
-    foreach($w in $waiting){"         - $($w.pattern): $($w.summary.Substring(0,[Math]::Min(150,$w.summary.Length)))$(if($w.summary.Length-gt150){'...'})"}
+    $pulseOwnerLines=@(foreach($w in $waiting){"         - $($w.pattern): $($w.summary.Substring(0,[Math]::Min(150,$w.summary.Length)))$(if($w.summary.Length-gt150){'...'})"})
+    $pulseOwnerLines
 }catch{$pulseUnreadable=$true;'waiting  UNREADABLE (required Coordinator evidence unavailable/incomplete)'}
 $ixPath=Join-Path $Root 'sessions\index.jsonl'
 $prev=@(if(Test-Path $ixPath){[IO.File]::ReadAllLines($ixPath)|Where-Object{$_}|ForEach-Object{try{$_|ConvertFrom-Json}catch{$script:indexBadRows++}}|Where-Object{$_}|Where-Object{$_.id-ne$Session-and$_.prompts}|Sort-Object end})|Select-Object -Last 1
@@ -77,4 +83,50 @@ if(Test-Path $hl){
     "hunt     $($h[0]) ($age h ago$(if($age-ge24){'; stale: run Hunt.ps1'}))"
 }else{'hunt     never run: pwsh -NoProfile -File lib\Hunt.ps1'}
 "tools    Coordinator.ps1 | Spider.ps1 '<anything>' (all sources) | Events.ps1 -Find '<task>' | Delegate.ps1 -List | Hunt.ps1 | sessions\INDEX.md | lib\README.md"
+})
+if($pulseUnreadable){$pulseLines=@($pulseLines[0],'state    UNREADABLE (required live evidence incomplete)')+@($pulseLines|Select-Object -Skip 1)}
+# Select before rendering: keep diagnostics/counts/pointers, then the snapshot's urgent detail order.
+# Mask complete lines before any new abbreviation; the library is isolated from Pulse's variables.
+$pulseSafeLines=@(& {
+    param($Lines,$Library,$Data)
+    . (Join-Path $Library 'Sync-Sessions.ps1') -Library -Root $Data
+    foreach($line in $Lines){Hide-Secret $line}
+} $pulseLines $PSScriptRoot $Root)
+$pulseOwnerSet=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+foreach($line in $pulseOwnerLines){[void]$pulseOwnerSet.Add($line)}
+$pulseRows=@();$pulseAbbreviated=$false
+for($lineIndex=0;$lineIndex-lt$pulseLines.Count;$lineIndex++){
+    $text=[string]$pulseSafeLines[$lineIndex];$ownerDetail=$pulseOwnerSet.Contains([string]$pulseLines[$lineIndex])
+    $priority=if($text-match'^ORVION PULSE|^state\s'){0}elseif($text-match'^(waiting|cases|tools)\s'){1}elseif(!$ownerDetail-and$text-match'^(repo|running|last|queue)\s.*UNREADABLE'){2}
+        elseif($text-match'^last\s|^         in flight:'){3}elseif($text-match'^(repo|running|hunt)\s'){4}elseif($ownerDetail){6}else{5}
+    if($text.Length-gt1024){
+        $pulseAbbreviated=$true
+        $archiveOffset=$text.IndexOf('; archive: ',[StringComparison]::Ordinal)
+        if($text-match'^last\s'-and$archiveOffset-ge0){
+            $archiveTail=$text.Substring($archiveOffset)
+            $text='last     session detail abbreviated'+$(if($archiveTail.Length-lt700){$archiveTail}else{'; archive: sessions\INDEX.md under the selected data root'})
+        }else{$text=$text.Substring(0,250)+'... (detail abbreviated)'+$(if($text-match'UNREADABLE'){' UNREADABLE'})}
+    }
+    $pulseRows+=,[pscustomobject]@{Index=$lineIndex;Text=$text;Priority=$priority;Owner=$ownerDetail}
+}
+$pulseLimit=4096-[Environment]::NewLine.Length
+$pulseText=$pulseRows.Text-join"`n"
+if($pulseText.Length-gt$pulseLimit-or$pulseAbbreviated){
+    $coordinatorCommand="pwsh -NoProfile -File '"+(Join-Path $PSScriptRoot 'Coordinator.ps1').Replace("'","''")+"' -Root '"+$Root.Replace("'","''")+"'"
+    # Extremely long caller paths get an explicit same-Root template rather than a cut, misleading command.
+    if($coordinatorCommand.Length-gt1000){$coordinatorCommand='Coordinator.ps1 -Root <same Root supplied to Pulse>'}
+    $footerReserve="more     $($pulseOwnerLines.Count) more owner wait(s); $($pulseRows.Count) more entries total; $coordinatorCommand"
+    $available=$pulseLimit-$footerReserve.Length-1;$used=0;$ownerFull=$false
+    $selected=[Collections.Generic.HashSet[int]]::new()
+    foreach($row in $pulseRows|Sort-Object Priority,Index){
+        if($row.Owner-and$ownerFull){continue}
+        if($used+$row.Text.Length+1-le$available){[void]$selected.Add($row.Index);$used+=$row.Text.Length+1}
+        elseif($row.Owner){$ownerFull=$true}
+    }
+    $shown=@($pulseRows|Where-Object{$selected.Contains($_.Index)})
+    $omittedOwners=$pulseOwnerLines.Count-@($shown|Where-Object Owner).Count
+    $footer="more     $omittedOwners more owner wait(s); $($pulseRows.Count-$shown.Count) more entries total; $coordinatorCommand"
+    $pulseText=(@($shown.Text)+@($footer))-join"`n"
+}
+$pulseText
 exit $(if($pulseUnreadable){2}else{0})

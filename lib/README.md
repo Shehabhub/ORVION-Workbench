@@ -14,6 +14,10 @@ reports that code on stderr, exits 0, and logs to the next fully qualified fallb
 Readers report `EVENTS_UNAVAILABLE` (exit 3), `EVENTS_INCOMPLETE` (exit 2), or `SPIDER_COVERAGE: incomplete` (exit 3).
 Pulse reports a damaged session index as `last UNREADABLE` with exit 2. A missing index prints `last none: no session
 index`; it does not itself make Pulse fail when the journal and selected repositories are readable.
+Failed process/host discovery prints `running  UNREADABLE` (exit 2). Pulse output is capped at 4096 characters: diagnostics,
+counts and pointers first, then owner waits in urgency order, ending with an exact `more` line and a same-root Coordinator command.
+SessionStart waits at most 6 s for Pulse (then kills its process tree and says live state is UNREADABLE) and caps its context at 8192.
+Hunt reports malformed or unreadable `sessions\index.jsonl` rows as `BUG index-unreadable` with a count and keeps going.
 Hunt's `-Root` stays this checkout (its source and lint scope).
 
 Codex archival reads the compact first session-metadata line. Its cwd selector accepts a `Documents\GitHub\CRM`

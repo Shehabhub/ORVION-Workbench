@@ -1,12 +1,32 @@
 # Self-check for Events.ps1 in a temp root: add, duplicate refusal, recurrence across sessions, ranking by rare words,
 # the brief's open-first order, and the link from an event to its session's raw record through sessions\index.jsonl.
-param([switch]$RootProbeOnly,[string]$RelativeTool,[switch]$EvidenceProbeOnly)
+param([switch]$RootProbeOnly,[string]$RelativeTool,[switch]$EvidenceProbeOnly,[switch]$HazardProbeOnly)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'remove-owned.ps1')
 $ev=Join-Path $PSScriptRoot 'Events.ps1'
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-evcheck-$([guid]::NewGuid().ToString('N').Substring(0,6))";New-Item -ItemType Directory "$t\sessions" -Force|Out-Null
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 try{
+    if(!$RootProbeOnly-and!$EvidenceProbeOnly){
+        # The reserved-name lesson below owns the real scanner caller; strings keep planted hazards out of this script's AST.
+        $hazardCases=@(
+            @{name='separate functions';code='function Read-First { $Token=1 }; function Read-Second { $token=2 }';count=0},
+            @{name='nested functions';code='function Read-First { $Token=1; function Read-Second { $token=2 } }';count=0},
+            @{name='root and function';code='$Token=1; function Read-First { $token=2 }';count=0},
+            @{name='same function parameter and loop';code='function Read-First { param($Token) foreach($token in 1..2){ $token } }';count=1},
+            @{name='conditional block';code='function Read-First { $Token=1; if($true){$token=2} }';count=1},
+            @{name='dot sourced block';code='function Read-First { $Token=1; . { $token=2 } }';count=1},
+            @{name='automatic variable';code='function Read-First { $Pid=1 }';count=1}
+        )
+        foreach($hazardCase in $hazardCases){
+            $hazardPath=Join-Path $t ('hazard-'+$hazardCase.name.Replace(' ','-')+'.ps1')
+            [IO.File]::WriteAllText($hazardPath,$hazardCase.code)
+            $hazardOutput=@(& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'Test-ScriptHazards.ps1') $hazardPath 2>&1)-join"`n"
+            $hazardExit=$LASTEXITCODE
+            Assert-That "scanner $($hazardCase.name) has $($hazardCase.count) hazard(s)" ($hazardExit-eq[int]($hazardCase.count-gt0)-and$hazardOutput-match("(?m)^hazards: "+$hazardCase.count+'\s*$'))
+        }
+        if($HazardProbeOnly){if($fail){throw 'HAZARD_PROBE_FAILED'};'HAZARD_PROBE PASS';return}
+    }
     if(!$RootProbeOnly){
         $evidenceStore=Join-Path $t 'evidence-correction'
         $null=& $ev -Root $evidenceStore -Add -Pattern evidence-correction -Session same-session -Summary 'suite completed' -Evidence 'work\wrong.log'

@@ -14,7 +14,12 @@ foreach($p in $Path){
     }
     # Every variable spelling per scope block: one name written in two letter cases is one variable.
     $vars=$ast.FindAll({$args[0]-is[Management.Automation.Language.VariableExpressionAst]},$true)|Where-Object{$_.VariablePath.IsUnqualified-and$_.VariablePath.UserPath-notmatch'^(_|args|true|false|null|PSItem|this|input|matches|LASTEXITCODE|PID|env:.*)$'}
-    foreach($g in ($vars|Group-Object{$_.VariablePath.UserPath.ToLowerInvariant()})){
+    foreach($g in ($vars|Group-Object{
+        $variableScope=$_.Parent
+        while($variableScope-and$variableScope-isnot[Management.Automation.Language.FunctionDefinitionAst]){$variableScope=$variableScope.Parent}
+        $scopeOffset=if($variableScope){$variableScope.Extent.StartOffset}else{-1}
+        "$scopeOffset`:$($_.VariablePath.UserPath.ToLowerInvariant())"
+    })){
         $spell=@($g.Group|ForEach-Object{$_.VariablePath.UserPath}|Sort-Object -Unique -CaseSensitive)
         if($spell.Count-gt1){"$p`:$($g.Group[0].Extent.StartLineNumber) VARIABLE spelled $($spell -join ' / ') - PowerShell treats these as ONE variable";$found++}
     }

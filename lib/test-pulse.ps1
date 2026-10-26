@@ -1,6 +1,6 @@
 # Real Pulse caller on owned Git/journal fixtures. No product, real journal or credential writes.
 # An explicit library permits causal mutants; it never changes production tool selection.
-param([string]$Library=$PSScriptRoot,[switch]$OutputProbeOnly)
+param([string]$Library=$PSScriptRoot,[switch]$OutputProbeOnly,[switch]$BoundProbeOnly,[switch]$RuntimeProbeOnly)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'remove-owned.ps1')
 $pulseFailures=0
@@ -19,8 +19,12 @@ $pulseJournal=Join-Path $pulseFixture 'events/events.jsonl'
 # Keep process/log discovery synthetic as well as the journal and repositories.
 $pulseLauncher=Join-Path $pulseFixture 'invoke-pulse.ps1'
 $pulseLaunchText=@'
-param([string]$Pulse,[string]$Data,[string]$Repository)
-function Get-CimInstance{param([string]$ClassName,[string]$Filter) if($ClassName-eq'Win32_OperatingSystem'){[pscustomobject]@{FreePhysicalMemory=1000000;FreeVirtualMemory=2000000}}}
+param([string]$Pulse,[string]$Data,[string]$Repository,[string]$DiscoveryFault,[int]$RuntimeRows)
+function Get-CimInstance{param([string]$ClassName,[string]$Filter)
+    if(($DiscoveryFault-eq'process'-and$ClassName-eq'Win32_Process')-or($DiscoveryFault-eq'host'-and$ClassName-eq'Win32_OperatingSystem')){throw 'FIXTURE_DISCOVERY_FAILURE'}
+    if($ClassName-eq'Win32_OperatingSystem'){[pscustomobject]@{FreePhysicalMemory=1000000;FreeVirtualMemory=2000000}}
+    if($ClassName-eq'Win32_Process'){foreach($runIndex in 1..$RuntimeRows|Where-Object{$_-gt0-and$RuntimeRows-gt0}){[pscustomobject]@{ProcessId=$runIndex;CommandLine=('pwsh run_timed.ps1 -Log "'+(Join-Path $Data ('fixture-log-'+$runIndex+('-long'*15)))+'"')}}}
+}
 if($Repository){& $Pulse -Root $Data -Repos $Repository}else{& $Pulse -Root $Data -Repos @()};exit $LASTEXITCODE
 '@
 [IO.File]::WriteAllText($pulseLauncher,$pulseLaunchText)
@@ -32,8 +36,8 @@ function Read-PulseFixtureGit([string[]]$gitArguments){
     if($LASTEXITCODE-ne0){throw 'PULSE_FIXTURE_GIT_FAILED'}
     $gitLines
 }
-function Invoke-PulseCheck([string]$selectedRepository=$pulseRepository){
-    $pulseLines=@(& pwsh -NoProfile -File $pulseLauncher -Pulse $pulsePath -Data $pulseFixture -Repository $selectedRepository 2>&1)
+function Invoke-PulseCheck([string]$selectedRepository=$pulseRepository,[string]$discoveryFault='',[int]$runtimeRows=0){
+    $pulseLines=@(& pwsh -NoProfile -File $pulseLauncher -Pulse $pulsePath -Data $pulseFixture -Repository $selectedRepository -DiscoveryFault $discoveryFault -RuntimeRows $runtimeRows 2>&1)
     [pscustomobject]@{Exit=$LASTEXITCODE;Text=$pulseLines-join"`n"}
 }
 function Set-PulseFixtureEvents([object[]]$eventRows){
@@ -52,6 +56,33 @@ try{
     Assert-PulseCheck 'bounded session display retains its absolute archive pointer' ($largeObserved.Exit-eq0-and$largeObserved.Text.Contains('; archive: '+(Join-Path $pulseFixture $largeRow.raw)))
     [IO.File]::Delete((Join-Path $pulseFixture 'sessions/index.jsonl'))
     if($OutputProbeOnly){if($pulseFailures){throw 'PULSE_OUTPUT_PROBE_FAILED'};$pulseCompleted=$true;'PULSE_OUTPUT_PROBE PASS';return}
+    if(!$RuntimeProbeOnly){
+        $boundedRows=@(foreach($ownerIndex in 0..999){@{pattern=('owner-{0:D4}' -f $ownerIndex);at='2026-10-20T00:00:00Z';category='decision';status='open';owner='owner';summary=('S'*150)}})
+        # Appended last, oldest first in the classifier: arrival order cannot decide selection.
+        $boundedRows+=@{pattern='urgent-owner';at='2000-01-01T00:00:00Z';category='decision';status='open';owner='owner';summary='MOST-URGENT-OWNER'}
+        $boundedRows+=@{pattern='critical-agent';at='2000-01-01T00:00:00Z';category='failure';severity='high';status='open';summary='UNOWNED-SENTINEL'}
+        $boundedRows+=@{pattern='resumable';at='2026-10-20T00:00:00Z';category='observation';owner='agent';action='resume at fixture/RESUME.md';status='open';summary='in flight'}
+        Set-PulseFixtureEvents $boundedRows
+        $boundedIndex=Join-Path $pulseFixture 'sessions/index.jsonl'
+        [IO.File]::WriteAllLines($boundedIndex,[string[]]@(($largeRow|ConvertTo-Json -Compress),'{torn'))
+        $bounded=Invoke-PulseCheck '' '' 200
+        $ownerMatches=[regex]::Matches($bounded.Text,'(?m)^         - (?:owner-[0-9]+|urgent-owner):')
+        $moreMatch=[regex]::Match($bounded.Text,'(?m)^more\s+(?<count>[0-9]+) more owner wait\(s\)')
+        Assert-PulseCheck 'total Pulse cap preserves unreadability, actual counts and exact omitted owner count' ($bounded.Exit-eq2-and$bounded.Text.Length+[Environment]::NewLine.Length-le4096-and$bounded.Text-match'last     UNREADABLE: 1 damaged'-and$bounded.Text-match'waiting  on the owner: 1001'-and$moreMatch.Success-and[int]$moreMatch.Groups['count'].Value-eq(1001-$ownerMatches.Count)) $bounded.Text
+        Assert-PulseCheck 'bounded details retain snapshot urgency, escalation, continuation and same-root Coordinator pointer' ($ownerMatches.Count-gt0-and$ownerMatches[0].Value.EndsWith('urgent-owner:')-and$bounded.Text-match'UNOWNED-SENTINEL'-and$bounded.Text-match'fixture/RESUME.md'-and$bounded.Text.Contains("; archive: "+(Join-Path $pulseFixture $largeRow.raw))-and$bounded.Text.Contains("-Root '"+$pulseFixture.Replace("'","''")+"'")) $bounded.Text
+        Set-PulseFixtureEvents @(@{pattern=('p'*10000);at='2026-10-20T00:00:00Z';category='decision';status='open';owner='owner';summary='wide identifier'})
+        [IO.File]::WriteAllText($boundedIndex,'')
+        $wide=Invoke-PulseCheck ''
+        Assert-PulseCheck 'one oversized identifier remains bounded with readable status and a detail pointer' ($wide.Exit-eq0-and$wide.Text.Length+[Environment]::NewLine.Length-le4096-and$wide.Text-match'waiting  on the owner: 1'-and$wide.Text-match'detail abbreviated'-and$wide.Text.Contains("-Root '"+$pulseFixture.Replace("'","''")+"'")) $wide.Text
+        $wideSession=$largeRow.Clone();$wideSession.repo='R'*12000
+        [IO.File]::WriteAllText($boundedIndex,($wideSession|ConvertTo-Json -Compress))
+        Set-PulseFixtureEvents @()
+        $wide=Invoke-PulseCheck '' '' 200
+        Assert-PulseCheck 'oversized runtime and session fields share the total cap and retain archive continuity' ($wide.Exit-eq0-and$wide.Text.Length+[Environment]::NewLine.Length-le4096-and$wide.Text.Contains('; archive: '+(Join-Path $pulseFixture $largeRow.raw))) $wide.Text
+        [IO.File]::Delete($boundedIndex)
+        Set-PulseFixtureEvents @()
+        if($BoundProbeOnly){if($pulseFailures){throw 'PULSE_BOUND_PROBE_FAILED'};$pulseCompleted=$true;'PULSE_BOUND_PROBE PASS';return}
+    }
     $null=Read-PulseFixtureGit @('init','--quiet','-b','main')
     $null=Read-PulseFixtureGit @('config','user.name','Pulse Fixture')
     $null=Read-PulseFixtureGit @('config','user.email','fixture@invalid.local')
@@ -77,6 +108,11 @@ try{
     $pulseOwnerEntries=$pulseOwnerSection.Groups['entries'].Value
     Assert-PulseCheck 'owner list itself contains commercial and inherited only; queue matches cannot satisfy it' ($pulseObserved.Exit-eq0-and$pulseOwnerSection.Success-and$pulseOwnerSection.Groups['count'].Value-ceq'2'-and$pulseOwnerEntries-match'commercial'-and$pulseOwnerEntries-match'inherited'-and$pulseOwnerEntries-notmatch'technical') $pulseObserved.Text
     Assert-PulseCheck 'read-only observation preserves journal and Git HEAD' ((Get-FileHash -LiteralPath $pulseJournal).Hash-ceq$pulseBefore-and@(Read-PulseFixtureGit @('rev-parse','HEAD'))[0]-ceq$pulseHead)
+    foreach($discoveryFailure in 'process','host'){
+        $pulseObserved=Invoke-PulseCheck $pulseRepository $discoveryFailure
+        Assert-PulseCheck "$discoveryFailure discovery failure stays UNREADABLE with exit 2 and retains owner information" ($pulseObserved.Exit-eq2-and$pulseObserved.Text-match'(?m)^running  UNREADABLE \('-and$pulseObserved.Text-match'waiting  on the owner: 2'-and$pulseObserved.Text-notmatch'archiver .*NOT running|host: 0|FIXTURE_DISCOVERY_FAILURE') $pulseObserved.Text
+    }
+    if($RuntimeProbeOnly){if($pulseFailures){throw 'PULSE_RUNTIME_PROBE_FAILED'};$pulseCompleted=$true;'PULSE_RUNTIME_PROBE PASS';return}
     Set-PulseFixtureEvents @()
     $pulseObserved=Invoke-PulseCheck
     Assert-PulseCheck 'explicit empty journal and readable synchronized repository are valid' ($pulseObserved.Exit-eq0-and$pulseObserved.Text-match'waiting  on the owner: 0'-and$pulseObserved.Text-match'clean, 0 ahead / 0 behind') $pulseObserved.Text

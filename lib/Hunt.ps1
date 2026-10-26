@@ -31,20 +31,36 @@ if(Test-Path "$raw\claude"){foreach($a in Get-ChildItem "$raw\claude" -Recurse -
     $checked++;$in=[IO.File]::Open($src,'Open','Read','ReadWrite,Delete');try{if(!(Test-Prefix $in $a.FullName $a.Length)){$diverged++}}finally{$in.Close()}
 }}
 if($diverged){Add-Finding BUG archive-prefix "$diverged of $checked archived files are no longer a prefix of their source (the next pass sets them aside; find out what rewrote them)" 'archive prefix source rewritten'}
-$ix=Join-Path $DataRoot 'sessions\index.jsonl';$bad=@()
-if(Test-Path $ix){foreach($l in [IO.File]::ReadAllLines($ix)|Where-Object{$_}){
-    $r=$l|ConvertFrom-Json;$p=Join-Path $DataRoot $r.raw
-    if(!(Test-Path -LiteralPath $p)){$bad+="$($r.id): raw file missing";continue}
-    $f=Get-Item -LiteralPath $p;$idle=([DateTime]::UtcNow-$f.LastWriteTimeUtc).TotalMinutes-ge20
-    if($idle-and($r.bytes-ne$f.Length-or$r.metaBytes-ne$f.Length)){$bad+="$($r.id): index says $($r.bytes)/$($r.metaBytes) bytes, file has $($f.Length)"}
-}}else{Add-Finding GAP index-missing 'sessions\index.jsonl does not exist (run Sync-Sessions.ps1)'}
+$ix=Join-Path $DataRoot 'sessions\index.jsonl';$bad=@();$ids=@{}
+$indexIncomplete=$false;$indexMalformed=0;$indexReadFault=$false;$indexCheckFaults=0
+try{$indexExists=Test-Path -LiteralPath $ix -ErrorAction Stop}catch{$indexExists=$true;$indexReadFault=$true}
+if($indexExists){
+    try{if($indexReadFault){throw 'index path unreadable'};$indexLines=[IO.File]::ReadAllLines($ix)}catch{$indexReadFault=$true;$indexIncomplete=$true;$indexLines=@()}
+    foreach($l in $indexLines){
+        if([string]::IsNullOrWhiteSpace($l)){continue}
+        try{
+            $r=$l|ConvertFrom-Json -DateKind String -NoEnumerate
+            if($r-isnot[pscustomobject]-or$r.id-isnot[string]-or[string]::IsNullOrWhiteSpace($r.id)-or$r.raw-isnot[string]-or[string]::IsNullOrWhiteSpace($r.raw)){throw 'invalid index row'}
+            $p=Join-Path $DataRoot $r.raw
+        }catch{$indexMalformed++;$indexIncomplete=$true;continue}
+        $ids[$r.id]=1
+        try{
+            if(!(Test-Path -LiteralPath $p -PathType Leaf)){$bad+="$($r.id): raw file missing";continue}
+            $f=Get-Item -LiteralPath $p;$idle=([DateTime]::UtcNow-$f.LastWriteTimeUtc).TotalMinutes-ge20
+            if($idle-and($r.bytes-ne$f.Length-or$r.metaBytes-ne$f.Length)){$bad+="$($r.id): index says $($r.bytes)/$($r.metaBytes) bytes, file has $($f.Length)"}
+        }catch{$indexCheckFaults++;$indexIncomplete=$true}
+    }
+    if($indexIncomplete){
+        $indexDiagnostic=if($indexReadFault){'row count unknown (index file read failed)'}else{"$indexMalformed malformed row(s)$(if($indexCheckFaults){"; $indexCheckFaults raw file check(s) unreadable"})"}
+        Add-Finding BUG index-unreadable $indexDiagnostic 'index session unreadable malformed'
+    }
+}else{$indexIncomplete=$true;Add-Finding GAP index-missing 'sessions\index.jsonl does not exist (run Sync-Sessions.ps1)'}
 if($bad){Add-Finding BUG index-consistency "$($bad.Count) idle index rows disagree with their files, first: $($bad[0])" 'index session bytes stale'}
 $evLog=Join-Path $DataRoot 'events\events.jsonl'
 $events=@(if(Test-Path $evLog){[IO.File]::ReadAllLines($evLog)|Where-Object{$_}|ForEach-Object{try{$_|ConvertFrom-Json}catch{$null=$_}}|Where-Object{$_}})
 $torn=@(if(Test-Path $evLog){[IO.File]::ReadAllLines($evLog)|Where-Object{$_}|Where-Object{try{$o=$_|ConvertFrom-Json;!($o.pattern-and$o.at)}catch{$true}}}).Count
 if($torn){Add-Finding BUG events-corrupt "$torn line(s) of events\events.jsonl are not valid events (skipped by every reader; repair or remove them)" 'events log corrupt torn line'}
 foreach($lg in 'sync-errors.log'){$p=Join-Path $DataRoot "work\$lg";if((Test-Path $p)-and(Get-Item $p).Length){Add-Finding BUG $lg.Replace('.log','') "the session archiver logged $(@(Get-Content $p).Count) failure(s); last: $(@(Get-Content $p -Tail 1)[0])" 'archive sync error file failed'}}
-$ids=@{};if(Test-Path $ix){foreach($l in [IO.File]::ReadAllLines($ix)|Where-Object{$_}){$ids[($l|ConvertFrom-Json).id]=1}}
 # Current evidence follows the latest nonempty citation, even when later assignment metadata has none.
 # Stable timestamp ordering makes the last appended record win ties without rewriting journal history.
 $currentEvidence=@($events|Where-Object{![string]::IsNullOrWhiteSpace($_.evidence)}|Group-Object pattern|ForEach-Object{@($_.Group|Sort-Object at -Stable)[-1]})
@@ -53,7 +69,7 @@ $missingEv=@($currentEvidence|Where-Object{$_.evidence-match'^(?:[A-Za-z]:\\|wor
 if($missingEv){Add-Finding GAP event-evidence "evidence path missing for: $($missingEv-join', ')" 'event evidence path missing'}
 # a session already recorded as lost to the 30-day cleanup is a known, accepted loss, not a new gap
 $lost=@($events|Where-Object{"$($_.evidence) $($_.summary)"-match'deleted by (the )?30-day cleanup'}|ForEach-Object session)
-$orphan=@($events|Where-Object{$_.session-and$_.session-notlike'hunter-*'-and!$ids[$_.session]-and$_.session-notin$lost}|ForEach-Object session|Select-Object -Unique)
+$orphan=@(if(!$indexIncomplete){$events|Where-Object{$_.session-and$_.session-notlike'hunter-*'-and!$ids[$_.session]-and$_.session-notin$lost}|ForEach-Object session|Select-Object -Unique})
 if($orphan){Add-Finding GAP lesson-raw-missing "$($orphan.Count) session(s) behind recorded lessons are not in the archive (deleted before it existed or not yet synced): $(($orphan|ForEach-Object{$_.Substring(0,[Math]::Min(8,$_.Length))})-join', ')" 'lesson session raw missing archive'}
 
 # live
@@ -166,6 +182,7 @@ if(!$NoRecord){foreach($x in $findings){
     $skipped=if($Quick){'^hunt-(mutant-|lint-|mcp-|docs-|hook-candidates)'}else{'^$'}
     $now=@($findings|ForEach-Object{"hunt-$($_.hound)"})
     foreach($g in @($events|Where-Object{$_.pattern-like'hunt-*'}|Group-Object pattern)){
+        if($indexIncomplete-and$g.Name-match'^hunt-(index-|lesson-raw-missing$)'){continue}
         $z=@($g.Group|Sort-Object at)[-1]
         if($z.status-eq'open'-and$g.Name-notin$now-and$g.Name-notmatch$skipped){
             $null=& (Join-Path $PSScriptRoot 'Events.ps1') -Root $DataRoot -Add -Pattern $g.Name -Source hunter -Session "hunter-$([DateTime]::UtcNow.ToString('yyyy-MM-dd'))" -Category $z.category -Cause confirmed -Status resolved -Summary "no longer found by Hunt.ps1 ($([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm')) UTC)" -Tool 'Hunt.ps1' -Tags $z.tags
