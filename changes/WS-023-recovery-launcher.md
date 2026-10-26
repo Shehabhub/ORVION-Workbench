@@ -793,22 +793,22 @@ Minimum Commit GB: 3
 
 ## Acceptance Criteria
 
-- [ ] Exact approved scoped output. check: blob:HANDOFF.md=985962343c449af088ac2096293b520b01e946d7
-- [ ] Exact approved scoped output. check: blob:docs/RECOVERY.md=bb3526d7e4ed93c34fd9875b7e1930eba449fb67
-- [ ] Exact approved scoped output. check: blob:lib/Backup-Workspace.ps1=3d9a1fed2671bcffa937933c915e3905f99e0408
-- [ ] Exact approved scoped output. check: blob:lib/README.md=33bfe6174cc6ded0476fa55144d555fbdcedf7ec
-- [ ] Exact approved scoped output. check: blob:lib/Restore-ORVION.cmd=93e49bf74c0f452063fa5acf9b47540702df0ec5
-- [ ] Exact approved scoped output. check: blob:lib/Restore-ORVION.ps1=e1d38ccc31df912dab36f9d2abc570a162605d57
-- [ ] Exact approved scoped output. check: blob:lib/Restore-Workspace.ps1=2710d93e8ab2b83cdde782d5f597d221b44af31d
-- [ ] Exact approved scoped output. check: blob:lib/test-backup-restore.ps1=e7e01f42bf65464a9ec86dcaf8158f99e64c2d4a
-- [ ] Exact approved scoped output. check: blob:lib/test-restore-orvion.ps1=ff4fd8c8cd5780ee3976d53942530a313214359f
-- [ ] The owning tests prove: the package records sourceUserProfile, the packaged Codex config has URL passwords masked before hashing and is never a recovery input, and the sidecar and both launchers appear only after a verified archive (a failed 7z add/test leaves none); Restore-Workspace restores the Codex config copy-once; the launcher parses in Windows PowerShell 5.1, refuses a missing/invalid/mismatched sidecar without falling back, refuses existing staging and a profile mismatch unless -AllowNewProfile, installs only missing prerequisites, keeps staging on failure and removes it on success, propagates child exit codes and always prints the checklist.
-- [ ] Mandatory V1/V2/V3, focused proof (with Codex's 20 in-test mutants), independent planted mutants, accepted literal replay controls and the real PS 5.1 measurement are preserved. One isolated native timed/watched Finish owns the grown full schedule (one new suite, one new launcher script) with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
+- [x] Exact approved scoped output. check: blob:HANDOFF.md=985962343c449af088ac2096293b520b01e946d7
+- [x] Exact approved scoped output. check: blob:docs/RECOVERY.md=bb3526d7e4ed93c34fd9875b7e1930eba449fb67
+- [x] Exact approved scoped output. check: blob:lib/Backup-Workspace.ps1=3d9a1fed2671bcffa937933c915e3905f99e0408
+- [x] Exact approved scoped output. check: blob:lib/README.md=33bfe6174cc6ded0476fa55144d555fbdcedf7ec
+- [x] Exact approved scoped output. check: blob:lib/Restore-ORVION.cmd=93e49bf74c0f452063fa5acf9b47540702df0ec5
+- [x] Exact approved scoped output. check: blob:lib/Restore-ORVION.ps1=e1d38ccc31df912dab36f9d2abc570a162605d57
+- [x] Exact approved scoped output. check: blob:lib/Restore-Workspace.ps1=2710d93e8ab2b83cdde782d5f597d221b44af31d
+- [x] Exact approved scoped output. check: blob:lib/test-backup-restore.ps1=e7e01f42bf65464a9ec86dcaf8158f99e64c2d4a
+- [x] Exact approved scoped output. check: blob:lib/test-restore-orvion.ps1=ff4fd8c8cd5780ee3976d53942530a313214359f
+- [x] The owning tests prove: the package records sourceUserProfile, the packaged Codex config has URL passwords masked before hashing and is never a recovery input, and the sidecar and both launchers appear only after a verified archive (a failed 7z add/test leaves none); Restore-Workspace restores the Codex config copy-once; the launcher parses in Windows PowerShell 5.1, refuses a missing/invalid/mismatched sidecar without falling back, refuses existing staging and a profile mismatch unless -AllowNewProfile, installs only missing prerequisites, keeps staging on failure and removes it on success, propagates child exit codes and always prints the checklist.
+- [x] Mandatory V1/V2/V3, focused proof (with Codex's 20 in-test mutants), independent planted mutants, accepted literal replay controls and the real PS 5.1 measurement are preserved. One isolated native timed/watched Finish owns the grown full schedule (one new suite, one new launcher script) with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
 
 ## Review Gate
 
-- [ ] Inspect the nine scoped files, the focused/mutant/literal evidence and the real PS 5.1 measurement; preserve all frozen prior evidence.
-- [ ] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
+- [x] Inspect the nine scoped files, the focused/mutant/literal evidence and the real PS 5.1 measurement; preserve all frozen prior evidence.
+- [x] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
 
 ## Runtime Checkpoint
 
@@ -832,6 +832,10 @@ Original exact literal implementation applied by accepted native Workbench Execu
 ## Verification Notes
 
 Profiles RECOVERY+REPOSITORY, never WORKSTATION (Codex rebuttal R2 confirmed). Codex's 20 mutants are executed inside test-restore-orvion.ps1 on every run; the orchestrator's four independent planted regressions (hash check, staging refusal, profile refusal, Codex password masking) are detected (mutants.log); hazard scan 0; both owning self-checks PASS with an isolated ORVION_DATA_ROOT (focused-selected.log). Real measurement (real-measurement.json): Windows PowerShell 5.1 parse errors 0 and non-ASCII bytes 0 for the launcher. The real launcher run against a fresh package is lift criterion 5, after release; it is not claimed here.
+Verdict: Confirmed Complete
+Reviewed Fingerprint: 8C93C3F67843CBBD080AE0148DB91587D42B0DA7D775C2C11E53C4407FDDFAAE
+Reviewed Receipt: 2CCFCAA3924DE5A084D8BE577ED663C8A2F54B101F0D6B144B83EDC21E852B46
+Evidence: fresh ORIGINAL root-bound timed/watched Finish, actual ordered-suite schedule/exits, approved exact outputs and independently pinned accepted-code live review. Runtime: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\ws023-package\runtime\original. No sandbox receipt transplant, remote parity, offsite recovery or equal-OS isolation claim.
 
 ## Selection reasons and sources
 
