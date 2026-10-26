@@ -832,26 +832,26 @@ Minimum Commit GB: 3
 
 ## Acceptance Criteria
 
-- [ ] Exact approved scoped output. check: blob:lib/Sync-Sessions.ps1=59b642453909281d141cfb1389f11658963524b5
-- [ ] Exact approved scoped output. check: blob:lib/Events.ps1=f1ca005f9dee8e656cb160d25250d243ab7f769d
-- [ ] Exact approved scoped output. check: blob:lib/Hunt.ps1=eb776d907e9699d249d778585aba7f94a1dfdc27
-- [ ] Exact approved scoped output. check: blob:lib/test-sync-sessions-ack.ps1=02510fabab291f9cdf1354009b1c005003e4a820
-- [ ] Exact approved scoped output. check: blob:lib/test-sync-sessions-survival.ps1=52106cd3d7dfda97f1dc55cab146ae6493acb440
-- [ ] Exact approved scoped output. check: blob:lib/test-events.ps1=019d5867d8971ea05d18d23c5779b0ff0046e43a
-- [ ] Exact approved scoped output. check: blob:lib/test-hunt.ps1=d96dae2a14d445b41c72ebca0eb63c6cb4e688ad
-- [ ] Exact approved scoped output. check: blob:lib/test-events-retrieval.ps1=8000e1c77ed09992f98cb2de82168f7b91b7d6d7
-- [ ] Exact approved scoped output. check: blob:lib/test-sync-sessions-append.ps1=c0d15b8b388ee2c6aa3866341dc58dc247d411cc
-- [ ] Exact approved scoped output. check: blob:lib/test-sync-sessions-rewrite.ps1=b7c2e4b06c0ad48d44fe832e8da8c9f44cf9aa8c
-- [ ] Exact approved scoped output. check: blob:lib/test-watch-reminder.ps1=eee48da7f3b09199b9e76cc532f9fdb8a5a49fc3
-- [ ] Exact approved scoped output. check: blob:lib/README.md=3c7261eaad321621289f03fa67909bb6180c3a37
-- [ ] Exact approved scoped output. check: blob:docs/RECOVERY.md=fa981110dc9f340ad61b3bd780ae79fad828566e
-- [ ] The owning tests prove: a 17-file archive whose cached index start is a DateTime and whose new rows are strings survives two index passes with every row kept and string start/end, no sync error; an evidence-only correction is recorded and its exact repeat is a duplicate; Hunt reports a GAP only for the latest nonempty evidence per pattern (empty updates inherit, resolved status alone clears nothing, the later appended record wins equal timestamps); -AcknowledgeErrors refuses a stale hash or blank reason, keeps the blocking log on any archive or event failure, verifies the immutable archive and the recorded event before retiring the log, and a concurrent new error blocks again.
-- [ ] Mandatory V1/V2/V3, focused proof, planted-regression mutants, accepted literal replay controls and the real read-only measurement are preserved. One isolated native timed/watched Finish owns the full schedule (growing by exactly lib/test-sync-sessions-ack.ps1) with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
+- [x] Exact approved scoped output. check: blob:lib/Sync-Sessions.ps1=59b642453909281d141cfb1389f11658963524b5
+- [x] Exact approved scoped output. check: blob:lib/Events.ps1=f1ca005f9dee8e656cb160d25250d243ab7f769d
+- [x] Exact approved scoped output. check: blob:lib/Hunt.ps1=eb776d907e9699d249d778585aba7f94a1dfdc27
+- [x] Exact approved scoped output. check: blob:lib/test-sync-sessions-ack.ps1=02510fabab291f9cdf1354009b1c005003e4a820
+- [x] Exact approved scoped output. check: blob:lib/test-sync-sessions-survival.ps1=52106cd3d7dfda97f1dc55cab146ae6493acb440
+- [x] Exact approved scoped output. check: blob:lib/test-events.ps1=019d5867d8971ea05d18d23c5779b0ff0046e43a
+- [x] Exact approved scoped output. check: blob:lib/test-hunt.ps1=d96dae2a14d445b41c72ebca0eb63c6cb4e688ad
+- [x] Exact approved scoped output. check: blob:lib/test-events-retrieval.ps1=8000e1c77ed09992f98cb2de82168f7b91b7d6d7
+- [x] Exact approved scoped output. check: blob:lib/test-sync-sessions-append.ps1=c0d15b8b388ee2c6aa3866341dc58dc247d411cc
+- [x] Exact approved scoped output. check: blob:lib/test-sync-sessions-rewrite.ps1=b7c2e4b06c0ad48d44fe832e8da8c9f44cf9aa8c
+- [x] Exact approved scoped output. check: blob:lib/test-watch-reminder.ps1=eee48da7f3b09199b9e76cc532f9fdb8a5a49fc3
+- [x] Exact approved scoped output. check: blob:lib/README.md=3c7261eaad321621289f03fa67909bb6180c3a37
+- [x] Exact approved scoped output. check: blob:docs/RECOVERY.md=fa981110dc9f340ad61b3bd780ae79fad828566e
+- [x] The owning tests prove: a 17-file archive whose cached index start is a DateTime and whose new rows are strings survives two index passes with every row kept and string start/end, no sync error; an evidence-only correction is recorded and its exact repeat is a duplicate; Hunt reports a GAP only for the latest nonempty evidence per pattern (empty updates inherit, resolved status alone clears nothing, the later appended record wins equal timestamps); -AcknowledgeErrors refuses a stale hash or blank reason, keeps the blocking log on any archive or event failure, verifies the immutable archive and the recorded event before retiring the log, and a concurrent new error blocks again.
+- [x] Mandatory V1/V2/V3, focused proof, planted-regression mutants, accepted literal replay controls and the real read-only measurement are preserved. One isolated native timed/watched Finish owns the full schedule (growing by exactly lib/test-sync-sessions-ack.ps1) with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
 
 ## Review Gate
 
-- [ ] Inspect the thirteen scoped files, the focused/mutant/literal evidence and the real read-only measurement; preserve all frozen prior evidence.
-- [ ] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
+- [x] Inspect the thirteen scoped files, the focused/mutant/literal evidence and the real read-only measurement; preserve all frozen prior evidence.
+- [x] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
 
 ## Runtime Checkpoint
 
@@ -875,6 +875,10 @@ Original exact literal implementation applied by accepted native Workbench Execu
 ## Verification Notes
 
 Exposed by WS-019: the original Finish preflight Hunt, now reading the real store, blocked on a real archiver failure (D22). Codex proved its cause with a deterministic 17-row reproducer (DateTime and string start values; comparer antisymmetry violated) and the real Update-Index on a synthetic archive; the orchestrator reproduced it on this en-US machine. Codex's direct runner kills 20 mutants (codex-mutants.log, run from a copy of the prototype lib; kept out of the repository so it does not grow every Finish); the orchestrator's independent planted regressions are detected (mutants.log); hazard scan 0; thirteen owning self-checks PASS with an isolated ORVION_DATA_ROOT. Real read-only measurement (real-measurement.json, types and counts only): the real index read with -DateKind String yields only string start values and sorts; the new evidence rule versus the old one on the real journal.
+Verdict: Confirmed Complete
+Reviewed Fingerprint: 6FDFEE612F6C9B3DB10A59F9D60DDD44DF69EA314A16BCB49E1C7AE709D14967
+Reviewed Receipt: CA17A6A53C6DECE6F868273FFC698C7A611AF1B2F1B5C8AA97D643F7EF05DE54
+Evidence: fresh ORIGINAL root-bound timed/watched Finish, actual ordered-suite schedule/exits, approved exact outputs and independently pinned accepted-code live review. Runtime: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\ws020-package\runtime\original. No sandbox receipt transplant, remote parity, offsite recovery or equal-OS isolation claim.
 
 ## Selection reasons and sources
 
