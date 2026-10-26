@@ -763,31 +763,31 @@ Minimum Commit GB: 3
 
 ## Acceptance Criteria
 
-- [ ] Exact approved scoped output. check: blob:lib/Sync-Sessions.ps1=7efe44b2ffcdec6895a69b850e8689874064e63a
-- [ ] Exact approved scoped output. check: blob:lib/Restore-Workspace.ps1=2bab89142b0321b4991b0a80628b4afcea53338d
-- [ ] Exact approved scoped output. check: blob:lib/Backup-Workspace.ps1=3f0119853d1fe5ea011a255edb7b9da57a918842
-- [ ] Exact approved scoped output. check: blob:lib/test-sync-sessions-rewrite.ps1=066bf262fad8f3beb89476bcc042a93246273c67
-- [ ] Exact approved scoped output. check: blob:lib/test-sync-sessions-survival.ps1=b90ad1179f29d5e4b01e9eaec2866e87e80bde7b
-- [ ] Exact approved scoped output. check: blob:lib/test-backup-restore.ps1=22a5ee0d1fb62cb6c0f661b13771f6dc603976e5
-- [ ] Exact approved scoped output. check: blob:lib/Events.ps1=2b9c06cd10182dfd9d701322ab474ba0eccf2983
-- [ ] Exact approved scoped output. check: blob:lib/Delegate.ps1=ff8efac7dc5b7b5cf5b4ae8fb55a0236704983a1
-- [ ] Exact approved scoped output. check: blob:lib/test-coordinator.ps1=70186bf860bf1cdc053e2c6f884460cc3e981c7e
-- [ ] Exact approved scoped output. check: blob:lib/test-events.ps1=ca0334a38216ea0b77bbc493630ac7480a197a7d
-- [ ] Exact approved scoped output. check: blob:lib/test-owner-dual.ps1=a0744d625ab74f68613d73e770ad78321f88798a
-- [ ] Exact approved scoped output. check: blob:lib/test-draft-steps.ps1=d2f4f3913d55fdb8e184a5222c50af77fe708ca0
-- [ ] Exact approved scoped output. check: blob:lib/test-map-repos.ps1=31525e94b249832b00af12ab7ab71682fd7497e5
-- [ ] Exact approved scoped output. check: blob:lib/test-native-stage.ps1=dfa482496f381442328efe512d1cd827a82ab983
-- [ ] Exact approved scoped output. check: blob:lib/test-pulse.ps1=7995b7df033279f69cfc03476ba5a38c083799d2
-- [ ] Exact approved scoped output. check: blob:lib/test-spider.ps1=06bc8b6e8b61ad9bc7eb3707c684279f589135c9
-- [ ] Exact approved scoped output. check: blob:lib/test-hunt.ps1=9c0c911150d02925eff6823cdfdcdbabcf1658c4
-- [ ] Exact approved scoped output. check: blob:lib/README.md=1ff6392a15f1c82ae192cfc31aaf76c060ae75cb
-- [ ] The owning tests prove: a rewritten transcript with unchanged ends keeps both whole versions; a quiet failed pass or follower exits 3 with a visible line while success stays silent with exit 0; Restore refuses an empty, partial, absolute or parent-path manifest before any write; Backup strips userinfo (username or token) from every URL value and key and the stripped text appears in no backup file, keeps an empty reset plus a gh shell-function helper in order through backup and restore, accepts helpers only by exact whole-value grammar (same login twice in the gh shell-function shape), and refuses literal tokens in any kept value, passwords and auth headers by key name without storing the value; Events and Delegate write invariant Gregorian timestamps; the git-fixture checks (backup-restore, draft-steps, map-repos, native-stage, owner-dual, pulse, spider) set and restore GIT_CONFIG_GLOBAL/GIT_CONFIG_NOSYSTEM and the Hunt check isolates its profile.
-- [ ] Mandatory V1/V2/V3, focused proof, planted-regression mutants, accepted literal replay controls and the real before/after measurement are preserved. One isolated native timed/watched Finish owns the full schedule with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
+- [x] Exact approved scoped output. check: blob:lib/Sync-Sessions.ps1=7efe44b2ffcdec6895a69b850e8689874064e63a
+- [x] Exact approved scoped output. check: blob:lib/Restore-Workspace.ps1=2bab89142b0321b4991b0a80628b4afcea53338d
+- [x] Exact approved scoped output. check: blob:lib/Backup-Workspace.ps1=3f0119853d1fe5ea011a255edb7b9da57a918842
+- [x] Exact approved scoped output. check: blob:lib/test-sync-sessions-rewrite.ps1=066bf262fad8f3beb89476bcc042a93246273c67
+- [x] Exact approved scoped output. check: blob:lib/test-sync-sessions-survival.ps1=b90ad1179f29d5e4b01e9eaec2866e87e80bde7b
+- [x] Exact approved scoped output. check: blob:lib/test-backup-restore.ps1=22a5ee0d1fb62cb6c0f661b13771f6dc603976e5
+- [x] Exact approved scoped output. check: blob:lib/Events.ps1=2b9c06cd10182dfd9d701322ab474ba0eccf2983
+- [x] Exact approved scoped output. check: blob:lib/Delegate.ps1=ff8efac7dc5b7b5cf5b4ae8fb55a0236704983a1
+- [x] Exact approved scoped output. check: blob:lib/test-coordinator.ps1=70186bf860bf1cdc053e2c6f884460cc3e981c7e
+- [x] Exact approved scoped output. check: blob:lib/test-events.ps1=ca0334a38216ea0b77bbc493630ac7480a197a7d
+- [x] Exact approved scoped output. check: blob:lib/test-owner-dual.ps1=a0744d625ab74f68613d73e770ad78321f88798a
+- [x] Exact approved scoped output. check: blob:lib/test-draft-steps.ps1=d2f4f3913d55fdb8e184a5222c50af77fe708ca0
+- [x] Exact approved scoped output. check: blob:lib/test-map-repos.ps1=31525e94b249832b00af12ab7ab71682fd7497e5
+- [x] Exact approved scoped output. check: blob:lib/test-native-stage.ps1=dfa482496f381442328efe512d1cd827a82ab983
+- [x] Exact approved scoped output. check: blob:lib/test-pulse.ps1=7995b7df033279f69cfc03476ba5a38c083799d2
+- [x] Exact approved scoped output. check: blob:lib/test-spider.ps1=06bc8b6e8b61ad9bc7eb3707c684279f589135c9
+- [x] Exact approved scoped output. check: blob:lib/test-hunt.ps1=9c0c911150d02925eff6823cdfdcdbabcf1658c4
+- [x] Exact approved scoped output. check: blob:lib/README.md=1ff6392a15f1c82ae192cfc31aaf76c060ae75cb
+- [x] The owning tests prove: a rewritten transcript with unchanged ends keeps both whole versions; a quiet failed pass or follower exits 3 with a visible line while success stays silent with exit 0; Restore refuses an empty, partial, absolute or parent-path manifest before any write; Backup strips userinfo (username or token) from every URL value and key and the stripped text appears in no backup file, keeps an empty reset plus a gh shell-function helper in order through backup and restore, accepts helpers only by exact whole-value grammar (same login twice in the gh shell-function shape), and refuses literal tokens in any kept value, passwords and auth headers by key name without storing the value; Events and Delegate write invariant Gregorian timestamps; the git-fixture checks (backup-restore, draft-steps, map-repos, native-stage, owner-dual, pulse, spider) set and restore GIT_CONFIG_GLOBAL/GIT_CONFIG_NOSYSTEM and the Hunt check isolates its profile.
+- [x] Mandatory V1/V2/V3, focused proof, planted-regression mutants, accepted literal replay controls and the real before/after measurement are preserved. One isolated native timed/watched Finish owns the full schedule with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
 
 ## Review Gate
 
-- [ ] Inspect the eighteen scoped files, the focused/mutant/literal evidence and the real read-only measurement; preserve all frozen prior evidence.
-- [ ] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
+- [x] Inspect the eighteen scoped files, the focused/mutant/literal evidence and the real read-only measurement; preserve all frozen prior evidence.
+- [x] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
 
 ## Runtime Checkpoint
 
@@ -811,6 +811,10 @@ Original exact literal implementation applied by accepted native Workbench Execu
 ## Verification Notes
 
 Measured before freeze on the real workstation, read-only (real-measurement.json; key names and outcomes only, never a value): before, Backup wrote the four product repositories' local git config verbatim (CRM origin carried username userinfo); after, all six repositories are KEPT with no userinfo left, both gh shell-function helpers kept after the empty reset, editor metadata keys omitted. The whole-prefix proof reads the largest real archived transcript (168.7 MB) in 208 ms. Codex fixtures missed three real shapes found by the orchestrator: the shell-function helper (would refuse), username userinfo (would refuse) and a test reading global git config (fails on this workstation); all fixed and pinned. A Codex evidence review (codex\review1-report.txt) then PROVED: an arbitrary command containing "gh auth token" and a token in credential.*.username were saved (fixed in round 3 by an exact whole-value helper grammar and a secret veto on every kept value, codex\fix3-report.txt); ar-SA culture wrote year 1448 timestamps (fixed, invariant culture); seven git-fixture checks and Hunt changed outcome under a hostile global/system config or profile (fixed, hermetic); its final hostile-config run passed 389 assertions with zero failures. Eight planted regressions are each detected (mutants.log), including an orchestrator-added ar-SA timestamp assertion that pins the locale fix; hazard scan 0; fifteen owning self-checks PASS. Codex tools-report findings #3, #4, #6, #7 are closed by this contract.
+Verdict: Confirmed Complete
+Reviewed Fingerprint: 175AE708EE7B9B81AAD5E15FB066C5F2D99B34979FE8AA7DF1603A55F3B1B351
+Reviewed Receipt: D32484A1CE11EEE60AD6D266C0A97630BD879612B7F74D3F4182D1BE8EFC9674
+Evidence: fresh ORIGINAL root-bound timed/watched Finish, actual ordered-suite schedule/exits, approved exact outputs and independently pinned accepted-code live review. Runtime: C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\ws018-package\runtime\original. No sandbox receipt transplant, remote parity, offsite recovery or equal-OS isolation claim.
 
 ## Selection reasons and sources
 
