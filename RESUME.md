@@ -22,7 +22,8 @@ each product's own Boot remains its authority. This is not a second programme st
      receipts, CI, credentials and release. Coordination never merges them: one candidate SHA, one Finish, one exact-SHA
      certification per repository.
 4. **Boundaries.** Nothing is approved until the owner approves an exact SHA-256 (Gate 1); Drafts are committed only then.
-   Publish and promote are the owner's (`CR_LIFECYCLE.md` §9). Batch 6 is ON HOLD; CTRL-19 is OPEN.
+   Publish and promote are the owner's (`CR_LIFECYCLE.md` §9). Batch 6 is ON HOLD until the lift record that HANDOFF.md §12 requires; CTRL-19 is OPEN.
+   Reinstalling Windows or recovering this workstation: [`docs/RECOVERY.md`](docs/RECOVERY.md) (one unencrypted package in OneDrive, exact steps).
 5. **Before any task.** `lib\Events.ps1 -Root 'C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools' -Find '<task in a few words>'`: what earlier agents learned, with the session that holds it.
 
 Source/data transition: this checkout is the selected source, with the existing local accepted hook. The old ORVION-Owner-Tools root remains the ONE event/session data store until separately tested migration. Explicit Root arguments above select it; no journal/working receipt is transplanted here. HANDOFF.md is dated history. This routing does not authorize a native operation or certify restored state.

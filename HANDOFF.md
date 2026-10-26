@@ -81,9 +81,11 @@ PREPARED, NOT APPROVED: contract A (§4). Workspace tools: implemented and teste
    reads remainder (`Git-State` treats a failed `rev-list --count` as 0; `Base-HasId` failures read as "free"), and
    contract A's recorded follow-ups (its Notes): a total deadline for `Wait-OrvionPublicSlot` pauses, a permanent
    `origin` misconfiguration reading `UNREADABLE`. Not drafted.
-3. **Shared Evidence + Independent Native Finish optimization** — only if earned; owner to earn or waive.
-4. **Contract C** — final recovery proof (clean Windows machine or Windows Sandbox; needs BitLocker) + written
-   programme closure criteria (none exist yet). Not drafted.
+3. **Shared Evidence + Independent Native Finish optimization** — not earned; waived by the owner as a closure
+   prerequisite on 2026-10-26 (a future CR may still earn it).
+4. **Contract C** — split on 2026-10-26 (§12): C1 written closure criteria + selective package + same-machine
+   isolated restore (WS-015); C2 clean-Windows recovery, performed by the owner's planned reinstallation
+   (`docs/RECOVERY.md`).
 5. Infrastructure closure (§12), then unchanged Phase 8 / Batch 6 and the commercial programme, each under its own CR.
 
 ## 7. Immediate next actions (in order)
@@ -150,8 +152,9 @@ PREPARED, NOT APPROVED: contract A (§4). Workspace tools: implemented and teste
   (background agents STALLED/FINISHED).
 - **Journal**: `events\events.jsonl` via `Events.ps1 -Add/-Find/-Brief`; **delegation**: `Delegate.ps1` (brief ->
   report -> verdict event). **Sessions**: `sessions\raw\` verbatim (Claude + Codex; sensitive: one live local token
-  noted in README), `sessions\INDEX.md`, kept by `Sync-Sessions.ps1`. **Backup**: `Backup-Workspace.ps1` (needs an
-  encrypted drive). Recover the latest verified state: Pulse -> its `in flight` line -> that task's RESUME.md.
+  noted in README), `sessions\INDEX.md`, kept by `Sync-Sessions.ps1`. **Backup**: `Backup-Workspace.ps1 -Package`
+  (one selective archive in OneDrive, unencrypted by owner decision; reinstall and restore steps: `docs\RECOVERY.md`).
+  Recover the latest verified state: Pulse -> its `in flight` line -> that task's RESUME.md.
 - Codex does not read Claude hooks or memory: it starts from §3 and this file. Claude memory
   (`C:\Users\My Lab\.claude\projects\C--Users-My-Lab-Documents-GitHub-CRM\memory\MEMORY.md`) is a convenience copy.
 
@@ -159,10 +162,13 @@ PREPARED, NOT APPROVED: contract A (§4). Workspace tools: implemented and teste
 - **Approved and used**: everything in §5; the one-time publish/promote approval for SPEC-290/292 ("only this time").
 - **Requires the owner**: Gate 1 for each frozen Draft (exact SHA-256; both digests may come in one message); publish;
   promote; any GitHub setting; any credential; deleting anything outside disposable preparation; restarting a heavy
-  run the host killed; the open decisions: BitLocker on C: and for the backup USB, a private remote for this workspace,
-  earn-or-waive Shared Evidence optimization, MCP prune / GitHub MCP, CTRL-19.
-- **ON HOLD**: Batch 6 (both repositories) and the Phase 8 remainder. **OPEN**: CTRL-19 (both `gh` tokens are reachable
-  by this OS user; `main` protection depends on GitHub configuration the repositories cannot set).
+  run the host killed; what to do with secret-scan findings in the recovery package (`docs\RECOVERY.md`); the open
+  decisions: BitLocker on C:,
+  MCP prune / GitHub MCP. Decided 2026-10-26: Shared Evidence waived as a closure prerequisite; CTRL-19 dispositioned
+  OPEN with its residual risk accepted (below).
+- **ON HOLD**: Batch 6 (both repositories) and the Phase 8 remainder, until the §12 lift record. **OPEN**: CTRL-19 (both
+  `gh` tokens are reachable by this OS user; `main` protection depends on GitHub configuration the repositories cannot
+  set); residual risk accepted by the owner, not closed.
 - **Forbidden without authorization**: production/hosted writes, credential exposure, history rewriting, publishing,
   promoting, modifying protected repository files outside an approved contract, cross-repository references.
 - Owner working rules: verify every request is sound and worth it, state the verdict in one line; learn before
@@ -180,7 +186,18 @@ worth doing and state that verdict in one line.
 ```
 
 ## 12. Success criteria before the programme closes and Batch 6 resumes
-Contracts A, B and C each RELEASED (published, promoted, `REMOTE_CERTIFY: READY` in both repositories); a cold-start
-agent in each repository reaches the right next action from its README/Boot alone (no workspace needed); recovery
-proven on a clean machine from an encrypted backup; written closure criteria (contract C) met and recorded; Shared
-Evidence earned or waived by the owner; CTRL-19 dispositioned by the owner. Then the owner lifts the Batch 6 hold.
+Amended 2026-10-26 under the owner's exceptional delegation (its text and SHA-256 are recorded in WS-015). These are the
+written closure criteria (contract C1); each needs recorded evidence, none is inferred:
+1. Contracts A and B RELEASED in both repositories (published, promoted, `REMOTE_CERTIFY: READY`). Done before WS-015.
+2. C1: WS-015 released (`Backup-Workspace -Package`/`Restore-Workspace -Package`), one real package made and its
+   OneDrive copy verified by a cloud re-download, and its same-machine isolated restore into new empty roots verified (SHA256SUMS, exact refs/HEAD, and each restored
+   repository's Boot printing its expected READY result). C1 is not a clean-machine proof. The package is NOT
+   encrypted: the owner decided on 2026-10-26 that an unencrypted compressed archive in OneDrive replaces the earlier
+   "encrypted backup" condition; secrets are reported by name (rule, file, line) by the package's scan, never claimed absent.
+3. Founder ADR-0033 amended through a native Founder CR and released, so Founder's Boot routes to Batch 6 like Platinum's;
+   a cold-start agent in each repository reaches that next action from its README/Boot alone.
+4. Shared Evidence: waived as a closure prerequisite (not earned). CTRL-19: OPEN, residual risk accepted by the owner.
+   Workbench Stages 2-7 / P3 management are not Batch 6 prerequisites.
+5. C2: the owner's planned Windows reinstallation is the clean-machine recovery proof; it is performed by
+   `docs/RECOVERY.md` and is UNPROVEN until its restore and Boots succeed there.
+The hold is lifted by one recorded lift decision that cites the evidence of 1-5; each product's Boot then owns Batch 6.

@@ -1,6 +1,6 @@
 # ORVION Workbench - independent management source
 
-Private source repository: https://github.com/Shehabhub/ORVION-Workbench . Current selected checkout: `C:\Users\My Lab\Documents\GitHub\ORVION-Workbench`, an actual Git root. Local `.githooks` must be configured; cloning alone does not install hooks or recover journals/receipts. Existing native repositories remain independent siblings. Managed sandbox/test/temp/runtime stay outside this checkout under the accepted context.
+Source repository: https://github.com/Shehabhub/ORVION-Workbench (PUBLIC, measured 2026-10-26: never commit owner records, sessions, approvals or anything secret). Current selected checkout: `C:\Users\My Lab\Documents\GitHub\ORVION-Workbench`, an actual Git root. Local `.githooks` must be configured; cloning alone does not install hooks or recover journals/receipts. Existing native repositories remain independent siblings. Managed sandbox/test/temp/runtime stay outside this checkout under the accepted context.
 
 What belongs in Git: reviewed code/tests/governance, contracts, selected portable plans and minimum safe unique authority/assurance knowledge required for reproducibility or continuation. An essential generated lock can be important; disposable handwritten scratch can be excluded. Secrets, sensitive transcripts and unique ignored working evidence need protected external recovery; Gitignore is not backup. This source-only clone does not restore the whole workstation. Generated local search views and disposable runtime are excluded; native tracked projections retain native authority.
 
@@ -13,6 +13,36 @@ The remaining dated inventory below is historical context. Prefer the current so
 
 **For Workbench's own changes:** run `pwsh -NoProfile -File lib/Workbench.ps1 -Boot` from this root and follow [WORKFLOW.md](WORKFLOW.md). This initial local kernel supplies own admission/Finish/Review; full product supervision and workstation recovery remain separately governed. A product-only entry continues to use that product's own tools.
 
+## Agent orientation (start here after a reinstall or a new session)
+
+You may be a new Claude Code or Codex session with no memory of earlier work. Everything you need is in these files,
+the event journal and the session archive; do not ask the owner to re-explain the project.
+
+1. Where things stand: `RESUME.md` (active contract pointer, Pulse command, boundaries), then `HANDOFF.md` once.
+2. Who decides: each repository's own README, AGENTS.md and Boot. Platinum = `..\CRM`, Founder = `..\ORVION`, this
+   repository = its own changes only (`lib/Workbench.ps1 -Boot`, `WORKFLOW.md`). Gate 1, publish and promote are the
+   owner's unless a recorded owner delegation says otherwise; a delegated decision is labelled delegated.
+3. Learn before acting (enforced: own Finish runs `Events -Find` and `Hunt -Quick` itself; do the same by hand first).
+   The ONE journal and session archive live in `C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools`: pass it as
+   `-Root` (below: `<data>`), or the tools read and write an empty store inside this checkout.
+   - `lib\Events.ps1 -Root <data> -Find '<task>'` returns what earlier agents learned, with the session that holds it.
+   - `lib\Spider.ps1 -Root <data> '<SPEC, error, script or phrase>'` finds the original evidence across sessions, both products'
+     files and commits, memory and owner packets.
+   - Find a comparable executed contract in the owning repository (`changes/` here, the product's own contract folder
+     there) and copy its proven shape, not its repository-specific rules.
+   - `lib\Hunt.ps1 -Quick -NoRecord` (from this checkout) for gaps before a change; the full Hunt only when the change is risky. Bounded, not routine.
+   - Label each claim PROVEN (cited evidence), HYPOTHESIS (reasoned, unchecked) or UNVERIFIED (assumed).
+4. Get help: `lib\Delegate.ps1 -Root <data>` writes a bounded brief for a cold agent. A Codex second opinion is advisory only and
+   follows `C:\Users\My Lab\Documents\ORVION-Owner-Review\engineering-continuation-20261025\exceptional-delegation-20261026\delegate-review\codex-delegate@3aa72d6\ORVION-USAGE.md`
+   (`--ignore-user-config`, a disposable push-disabled clone, no commit, network or gh; you verify every claim). It
+   never certifies.
+5. Watch, do not poll: `run_timed.ps1` + `watch_run.ps1`, one `Watch-Host.ps1 -ExitWhenPidsGone` for heavy runs,
+   `Watch-Subagents.ps1` for background agents (table in `lib\README.md`). Pulse shows the arrival state.
+6. Leave knowledge behind: a confirmed lesson becomes an event (`Events.ps1 -Root <data> -Add`), then graduates to its repository
+   home through a contract. Long work writes a dated checkpoint that names the next step, and adds a `RESUME HERE`
+   event pointing at it.
+7. Recovery after reinstalling Windows: [docs/RECOVERY.md](docs/RECOVERY.md).
+
 Not repository authority. Platinum (`..\CRM`, PlatPlusHub/CRM) and Founder (`..\ORVION`, Shehabhub/ORVION) each decide
 through their own Boot, contracts and certification; everything here only drives, observes or preserves them.
 **Never put work inside a repository tree**: an ignored sandbox copy there hid 32 broken references from
@@ -21,7 +51,7 @@ through their own Boot, contracts and certification; everything here only drives
 | Folder | What | Git | Backup | Sensitive |
 |---|---|---|---|---|
 | `lib\`, `tests.ps1` | agent tools (index: `lib\README.md`) and their checks | local Git repo (no remote yet) | yes | no |
-| `sessions\raw\` | every ORVION agent session, verbatim (Claude Code + Codex) | never | yes, encrypted | **yes** |
+| `sessions\raw\` | every ORVION agent session, verbatim (Claude Code + Codex) | never | yes (package, unencrypted by owner decision) | **yes** |
 | `sessions\index.jsonl` | one line per session: id, title, repo cwd, branch, start/end, size, SPECs, raw path, sha256 | never | yes | low |
 | `events\events.jsonl` | improvement memory: what happened, how often, current disposition, evidence pointer | never | yes | low |
 | `work\` | evidence, runs, drafts scratch; `work\sandboxes\` = disposable clones | never | yes (not sandboxes) | low |
@@ -44,8 +74,8 @@ through their own Boot, contracts and certification; everything here only drives
 - `secretHits` / `secretNames` in the index flag credential-shaped strings by name (values never printed or stored).
   Measured 2026-10-20 across 49 sessions: one real secret, `CLAUDE_CODE_MESSAGING_TOKEN` in session 84ee17dc (a
   per-session local pipe token, live only while that session runs); every other hit is the local Supabase stack's
-  published defaults or code. The raw history stays verbatim (integrity); protection is: never in Git, encrypted
-  backup only, BitLocker on C: (owner action).
+  published defaults or code. The raw history stays verbatim (integrity); protection is: never in Git, and the
+  recovery package reports secret findings by name (`docs/RECOVERY.md`); BitLocker on C: stays an owner action.
 
 ## Improvement memory
 `lib\Events.ps1 -Brief` (printed at session start) lists open or recurring patterns; `-Find '<task>'` returns the few
@@ -72,6 +102,8 @@ Legacy folders move here only after what depends on them is released (owner scri
 copy, verify hashes, update references, then retire the old path with the owner's OK.
 
 ## Backup to USB, and recovery
+Reinstalling Windows: use [docs/RECOVERY.md](docs/RECOVERY.md) (one selective package in OneDrive). The USB folder
+backup below remains available:
 1. Turn on BitLocker To Go for the stick (the system drive C: was measured unencrypted, 2026-10-20).
 2. `pwsh -NoProfile -File "<this folder>\lib\Backup-Workspace.ps1" -Destination E:\` → `orvion-backup-<UTC>\` with `SHA256SUMS.txt`.
    Refuses an unencrypted drive; reports a dirty checkout (uncommitted work is not in a bundle).

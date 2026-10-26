@@ -66,6 +66,9 @@ try{
     Assert-That 'malformed present projects root is fatal without success' ($LASTEXITCODE-ne0-and($malformed-join' ')-match'BACKUP_CLAUDE_PROJECTS_NOT_DIRECTORY'-and($malformed-join' ')-notmatch'BACKUP:')
     $env:USERPROFILE=Join-Path $t 'profile'
     # Workbench recovery coverage v1: independent source/trusted, exact historical receipts and declared proof bytes.
+    # Selective package v1: a present Workbench requires the one journal and sessions archive under GitHub\ORVION-Owner-Tools.
+    $journal=Join-Path $gh 'ORVION-Owner-Tools\events\events.jsonl';[void][IO.Directory]::CreateDirectory((Split-Path $journal -Parent));[IO.File]::WriteAllText($journal,"{`"fixture`":`"journal`"}`n")
+    $session=Join-Path $gh 'ORVION-Owner-Tools\sessions\raw\s.jsonl';[void][IO.Directory]::CreateDirectory((Split-Path $session -Parent));[IO.File]::WriteAllText($session,'fixture session')
     $wb=Join-Path $gh 'ORVION-Workbench';$trusted=Join-Path $gh 'ORVION-Workbench-trusted-main'
     foreach($repo in $wb,$trusted){
         & git clone -q $remote $repo 2>&1|Out-Null;if($LASTEXITCODE){throw 'WB_FIXTURE_CLONE_FAILED'}
@@ -165,5 +168,92 @@ try{
     [IO.File]::WriteAllText((Join-Path $wbb 'SHA256SUMS.txt'),$withoutProof);[IO.File]::Delete($rp)
     $omitted=@(& pwsh -NoProfile -File "$lib/Restore-Workspace.ps1" -From $wbb -Target (Join-Path $t 'wb-omitted') -ClaudeHome (Join-Path $t 'wb-omitted-ch') 2>&1)
     Assert-That 'required input omitted together with manifest entry still refuses before writes' ($LASTEXITCODE-ne0-and($omitted-join' ')-match'RESTORE_WORKBENCH_INPUT_REQUIRED'-and!(Test-Path (Join-Path $t 'wb-omitted')))
+    # Selective package v1: run from a production-shaped checkout (lib not under ORVION-Owner-Tools), as the real tool does.
+    $probeLib=Join-Path $gh 'Workbench-checkout\lib';[void][IO.Directory]::CreateDirectory($probeLib)
+    Copy-Item (Join-Path $lib 'Backup-Workspace.ps1'),(Join-Path $lib 'Restore-Workspace.ps1') $probeLib
+    $journalBytes=[IO.File]::ReadAllBytes($journal);[IO.File]::Delete($journal)
+    $noJournal=@(& pwsh -NoProfile -File "$probeLib\Backup-Workspace.ps1" -Destination (Join-Path $t 'no-journal') -RecoveryInputs $inputs -AllowUnencrypted 2>&1)
+    Assert-That 'missing journal blocks a Workbench backup without success' ($LASTEXITCODE-ne0-and($noJournal-join' ')-match'BACKUP_JOURNAL_REQUIRED'-and($noJournal-join' ')-notmatch'BACKUP:')
+    [IO.File]::WriteAllBytes($journal,$journalBytes)
+    $nested=Join-Path $t 'ORVION-Sandbox\evidence\c1';& git clone -q $remote $nested 2>&1|Out-Null;if($LASTEXITCODE){throw 'NESTED_FIXTURE_CLONE_FAILED'}
+    Set-Content "$nested\a.txt" 'unique';Invoke-Quiet $nested commit -q -am unique|Out-Null;$uniqueHead=(Invoke-Quiet $nested rev-parse HEAD).Trim()
+    # Index and worktree differ (staged B, worktree C); an ignored non-receipt evidence file must survive too.
+    Set-Content "$nested\a.txt" 'staged';Invoke-Quiet $nested add a.txt|Out-Null;Set-Content "$nested\a.txt" 'dirty';Set-Content "$nested\new.txt" 'untracked'
+    Add-Content "$nested\.git\info\exclude" ".workbench-certifications/`nevidence-out/";[void][IO.Directory]::CreateDirectory("$nested\evidence-out");[IO.File]::WriteAllText("$nested\evidence-out\approval.txt",'ignored evidence')
+    $detached=Join-Path $t 'ORVION-Sandbox\evidence\c2';& git clone -q $remote $detached 2>&1|Out-Null;Invoke-Quiet $detached checkout -q --detach|Out-Null
+    Set-Content "$detached\a.txt" 'detached work';Invoke-Quiet $detached commit -q -am detached|Out-Null;$detachedHead=(Invoke-Quiet $detached rev-parse HEAD).Trim()
+    # A linked worktree (.git file) is a work tree of its own: its uncommitted change must be captured, not skipped.
+    $linked=Join-Path $t 'ORVION-Sandbox\evidence\wt';Invoke-Quiet $detached worktree add -q --detach $linked|Out-Null;Set-Content "$linked\a.txt" 'worktree change'
+    [IO.Directory]::CreateDirectory("$nested\node_modules")|Out-Null;[IO.File]::WriteAllText("$nested\node_modules\m.js",'regenerable inside a clone')
+    # Selective package v1: a package needs both products and their trusted clones; omission refuses.
+    foreach($n in 'ORVION','CRM-trusted-main'){& git clone -q $remote (Join-Path $gh $n) 2>&1|Out-Null;if($LASTEXITCODE){throw "PRODUCT_FIXTURE_FAILED $n"}}
+    # Selective package v1: git's line-ending warnings go to stderr; on real data they were counted as unmerged entries.
+    $crlf=Join-Path $t 'ORVION-Sandbox\evidence\c7';& git clone -q $remote $crlf 2>&1|Out-Null;Invoke-Quiet $crlf config core.autocrlf true|Out-Null;[IO.File]::WriteAllText("$crlf\a.txt","lf only`n")
+    $crlfWarned=("$(& git -C $crlf diff --name-only --diff-filter=U 2>&1)")-match'CRLF'
+    # A package refuses state a bundle cannot carry; the earlier stash-warning fixture is cleared for the package cases.
+    Invoke-Quiet $crm stash clear|Out-Null
+    [void][IO.Directory]::CreateDirectory("$nested\.workbench-certifications");[IO.File]::WriteAllText("$nested\.workbench-certifications\r.json",'{"nested":"receipt"}')
+    $broken=Join-Path $t 'ORVION-Sandbox\evidence\broken';[void][IO.Directory]::CreateDirectory("$broken\.git");[IO.File]::WriteAllText("$broken\.git\HEAD",'not a repository');[IO.File]::WriteAllText("$broken\data.txt",'kept')
+    $modules=Join-Path $t 'ORVION-Sandbox\evidence\node_modules\pkg';[void][IO.Directory]::CreateDirectory($modules);[IO.File]::WriteAllText("$modules\x.js",'regenerable')
+    # The real trusted clone is detached with no refs at all; its bundle and restore must still round trip.
+    foreach($ref in @(Invoke-Quiet $trusted for-each-ref --format='%(refname)')){& git -C $trusted update-ref --no-deref -d $ref;if($LASTEXITCODE){throw 'TRUSTED_REF_FIXTURE_FAILED'}}
+    $zip=(Get-Command 7z -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1).Source;if(!$zip){$zip=Join-Path $env:ProgramFiles '7-Zip\7z.exe'}
+    $cloud=Join-Path $t 'cloud';$pkgTemp=Join-Path $t 'pkg-temp';[void][IO.Directory]::CreateDirectory($pkgTemp)
+    # A token-shaped value built at run time, so this file never holds one: the scan must name it without its value.
+    $planted='ghp_'+-join((48..57)+(65..90)+(97..122)|Get-Random -Count 36|ForEach-Object{[char]$_});[IO.File]::WriteAllText((Join-Path $t 'ORVION-Sandbox\evidence\leak.txt'),"token=$planted")
+    $savedTemp=$env:TEMP;$savedTmp=$env:TMP;$env:TEMP=$pkgTemp;$env:TMP=$pkgTemp
+    try{
+        $missing=@(& pwsh -NoProfile -File "$probeLib\Backup-Workspace.ps1" -Destination $cloud -RecoveryInputs $inputs -Package 2>&1)
+        Assert-That 'a package without a product repository refuses before any archive' ($LASTEXITCODE-ne0-and($missing-join' ')-match'PACKAGE_REPO_REQUIRED: ORVION-trusted-main'-and!(Test-Path $cloud))
+        & git clone -q $remote (Join-Path $gh 'ORVION-trusted-main') 2>&1|Out-Null;if($LASTEXITCODE){throw 'PRODUCT_FIXTURE_FAILED ORVION-trusted-main'}
+        $pkg=@(& pwsh -NoProfile -File "$probeLib\Backup-Workspace.ps1" -Destination $cloud -RecoveryInputs $inputs -Package 2>&1)
+        if($LASTEXITCODE){throw ('PACKAGE_FIXTURE_FAILED: '+($pkg-join' '))}
+        $archive=@(Get-ChildItem $cloud -Filter *.7z -Force)[0].FullName;$scan="$archive.secret-scan.txt"
+        Assert-That 'package destination holds one archive plus its scan report and staging is removed' (@(Get-ChildItem $cloud -Force).Count-eq2-and(Test-Path $scan)-and$archive-and@(Get-ChildItem $pkgTemp -Force).Count-eq0-and($pkg-join' ')-match'PACKAGE: .*unencrypted')
+        if(Get-Command gitleaks -CommandType Application -ErrorAction SilentlyContinue){
+            Assert-That 'secret scan names the planted token by rule and path, never its value' ([IO.File]::ReadAllText($scan)-match'github-pat  legacy/ORVION-Sandbox/evidence/leak\.txt:1'-and[IO.File]::ReadAllText($scan)-notmatch$planted-and($pkg-join' ')-notmatch$planted-and($pkg-join' ')-match'SECRET SCAN: [1-9]')
+        }else{Assert-That 'without gitleaks the scan is reported as skipped' (($pkg-join' ')-match'SECRET SCAN: SKIPPED'-and[IO.File]::ReadAllText($scan)-match'SKIPPED')}
+        $stashy=Join-Path $t 'ORVION-Sandbox\evidence\c3';& git clone -q $remote $stashy 2>&1|Out-Null;foreach($i in 1,2){Set-Content "$stashy\a.txt" "stash $i";Invoke-Quiet $stashy stash -q|Out-Null}
+        $stashed=@(& pwsh -NoProfile -File "$probeLib\Backup-Workspace.ps1" -Destination (Join-Path $t 'cloud4') -RecoveryInputs $inputs -Package 2>&1)
+        Assert-That 'a nested clone with older stash entries refuses instead of losing them' ($LASTEXITCODE-ne0-and($stashed-join' ')-match'BACKUP_NESTED_STASHES_NOT_PRESERVABLE'-and!(Test-Path (Join-Path $t 'cloud4')))
+        Get-ChildItem $stashy -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($stashy,$true)
+        $collide=Join-Path $t 'ORVION-Sandbox\evidence\c4';& git clone -q $remote $collide 2>&1|Out-Null;Add-Content "$collide\.git\info\exclude" '.clone-state/';[void][IO.Directory]::CreateDirectory("$collide\.clone-state");[IO.File]::WriteAllText("$collide\.clone-state\state.json",'original evidence')
+        $collided=@(& pwsh -NoProfile -File "$probeLib\Backup-Workspace.ps1" -Destination (Join-Path $t 'cloud5') -RecoveryInputs $inputs -Package 2>&1)
+        Assert-That 'a source .clone-state name refuses instead of being overwritten by metadata' ($LASTEXITCODE-ne0-and($collided-join' ')-match'BACKUP_CLONE_STATE_NAME_COLLISION'-and!(Test-Path (Join-Path $t 'cloud5')))
+        Get-ChildItem $collide -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($collide,$true)
+        $merge=Join-Path $t 'ORVION-Sandbox\evidence\c5';& git clone -q $remote $merge 2>&1|Out-Null
+        Invoke-Quiet $merge checkout -q -b side|Out-Null;Set-Content "$merge\a.txt" 'side';Invoke-Quiet $merge commit -q -am side|Out-Null;Invoke-Quiet $merge checkout -q main|Out-Null;Set-Content "$merge\a.txt" 'main';Invoke-Quiet $merge commit -q -am main|Out-Null
+        & git -C $merge -c user.name=t -c user.email=t@t merge -q side 2>&1|Out-Null
+        $unmerged=@(& pwsh -NoProfile -File "$probeLib\Backup-Workspace.ps1" -Destination (Join-Path $t 'cloud6') -RecoveryInputs $inputs -Package 2>&1)
+        Assert-That 'an unresolved nested merge refuses instead of saving an unappliable patch' ($LASTEXITCODE-ne0-and($unmerged-join' ')-match'BACKUP_NESTED_UNMERGED_NOT_PRESERVABLE'-and!(Test-Path (Join-Path $t 'cloud6')))
+        Get-ChildItem $merge -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($merge,$true)
+        [IO.File]::WriteAllText((Join-Path $wb 'uncommitted.txt'),'work in progress')
+        $dirtyMain=@(& pwsh -NoProfile -File "$probeLib\Backup-Workspace.ps1" -Destination (Join-Path $t 'cloud3') -RecoveryInputs $inputs -Package 2>&1)
+        Assert-That 'a package refuses uncommitted main-repository work instead of warning' ($LASTEXITCODE-ne0-and($dirtyMain-join' ')-match'PACKAGE_MAIN_REPO_STATE_NOT_PRESERVABLE'-and!(Test-Path (Join-Path $t 'cloud3')))
+        [IO.File]::Delete((Join-Path $wb 'uncommitted.txt'))
+        $listing=@(& $zip l -slt $archive 2>&1)
+        Assert-That 'archive headers and every entry are unencrypted (owner decision)' ($LASTEXITCODE-eq0-and($listing-join' ')-match'SHA256SUMS\.txt'-and($listing-join' ')-match'Encrypted = -'-and($listing-join' ')-notmatch'Encrypted = \+')
+        $damaged=Join-Path $t 'damaged.7z';$bytes=[IO.File]::ReadAllBytes($archive);[IO.File]::WriteAllBytes($damaged,$bytes[0..([int]($bytes.Length/2))])
+        $wrong=@(& pwsh -NoProfile -File "$probeLib\Restore-Workspace.ps1" -Package $damaged -Target (Join-Path $t 'pkg-wrong') -ClaudeHome (Join-Path $t 'pkg-wrong-ch') -LegacyTarget (Join-Path $t 'pkg-wrong-docs') 2>&1)
+        Assert-That 'a damaged archive refuses before any restore target and leaves no staging' ($LASTEXITCODE-ne0-and($wrong-join' ')-match'PACKAGE_EXTRACT_FAILED'-and!(Test-Path (Join-Path $t 'pkg-wrong'))-and@(Get-ChildItem $pkgTemp -Force).Count-eq0)
+        $both=@(& pwsh -NoProfile -File "$probeLib\Restore-Workspace.ps1" -Package $archive -From $wbb -Target (Join-Path $t 'pkg-both') 2>&1)
+        Assert-That 'exactly one restore source is required' ($LASTEXITCODE-ne0-and($both-join' ')-match'RESTORE_SOURCE_REQUIRED'-and!(Test-Path (Join-Path $t 'pkg-both')))
+        $pkgTarget=Join-Path $t 'pkg-restored';$pkgDocs=Join-Path $t 'pkg-docs'
+        $restoredPkg=@(& pwsh -NoProfile -File "$probeLib\Restore-Workspace.ps1" -Package $archive -Target $pkgTarget -ClaudeHome (Join-Path $t 'pkg-ch') -LegacyTarget $pkgDocs 2>&1)
+        if($LASTEXITCODE){throw ('PACKAGE_RESTORE_FIXTURE_FAILED: '+($restoredPkg-join' '))}
+        Assert-That 'package restore leaves no plaintext staging and rebuilds the exact source HEAD' (@(Get-ChildItem $pkgTemp -Force).Count-eq0-and(& git -C "$pkgTarget/ORVION-Workbench" rev-parse HEAD)-ceq(& git -C $wb rev-parse HEAD))
+        Assert-That 'a ref-less detached trusted clone round trips at its exact HEAD' ((& git -C "$pkgTarget/ORVION-Workbench-trusted-main" rev-parse HEAD)-ceq(& git -C $trusted rev-parse HEAD)-and(& git -C "$pkgTarget/ORVION-Workbench-trusted-main" rev-parse --abbrev-ref HEAD)-ceq'HEAD'-and@(& git -C "$pkgTarget/ORVION-Workbench-trusted-main" for-each-ref).Count-eq0)
+        Assert-That 'journal and sessions come from GitHub\ORVION-Owner-Tools, not the running checkout' ([IO.File]::ReadAllText("$pkgTarget/ORVION-Owner-Tools/events/events.jsonl")-ceq[Text.Encoding]::UTF8.GetString($journalBytes)-and[IO.File]::ReadAllText("$pkgTarget/ORVION-Owner-Tools/sessions/raw/s.jsonl")-ceq'fixture session')
+        $restoredClone=Join-Path $pkgDocs 'ORVION-Sandbox\evidence\c1';$state=Join-Path $restoredClone '.clone-state'
+        Assert-That 'nested clone keeps ignored receipt and evidence, staged and worktree changes apart, untracked file, but not node_modules' ([IO.File]::ReadAllText("$restoredClone\.workbench-certifications\r.json")-ceq'{"nested":"receipt"}'-and[IO.File]::ReadAllText("$restoredClone\evidence-out\approval.txt")-ceq'ignored evidence'-and[IO.File]::ReadAllText("$state\staged.diff")-match'\+staged'-and[IO.File]::ReadAllText("$state\worktree.diff")-match'\+dirty'-and(Test-Path "$state\untracked\new.txt")-and!(Test-Path (Join-Path $pkgDocs 'ORVION-Sandbox\evidence\node_modules'))-and!(Test-Path "$restoredClone\node_modules")-and!(Test-Path "$state\untracked\node_modules"))
+        Assert-That 'git stderr warnings (CRLF) are not counted as unmerged or dirty entries' ($crlfWarned-and(Test-Path (Join-Path $pkgDocs 'ORVION-Sandbox\evidence\c7\.clone-state\worktree.diff')))
+        Assert-That 'a broken .git folder is not a clone: its files are kept, not skipped' ([IO.File]::ReadAllText((Join-Path $pkgDocs 'ORVION-Sandbox\evidence\broken\data.txt'))-ceq'kept'-and[IO.File]::ReadAllText((Join-Path $pkgDocs 'ORVION-Sandbox\evidence\broken\.git\HEAD'))-ceq'not a repository')
+        $rebuilt=Join-Path $t 'rebuilt-c1';& git clone -q $remote $rebuilt 2>&1|Out-Null
+        Invoke-Quiet $rebuilt fetch -q "$state\unique.bundle" 'refs/heads/*:refs/restored/*'|Out-Null
+        Assert-That 'unique commit absent from every main repository is recoverable from its bundle on top of a main repository' ((Invoke-Quiet $rebuilt rev-parse refs/restored/main).Trim()-ceq$uniqueHead)
+        Invoke-Quiet $rebuilt fetch -q (Join-Path $pkgDocs 'ORVION-Sandbox\evidence\c2\.clone-state\unique.bundle') HEAD|Out-Null
+        Assert-That 'a linked worktree inside the evidence tree keeps its own uncommitted change' ([IO.File]::ReadAllText((Join-Path $pkgDocs 'ORVION-Sandbox\evidence\wt\.clone-state\worktree.diff'))-match'\+worktree change')
+        Assert-That 'a unique commit on a detached HEAD is bundled and recoverable' ((Invoke-Quiet $rebuilt rev-parse FETCH_HEAD).Trim()-ceq$detachedHead)
+    }finally{$env:TEMP=$savedTemp;$env:TMP=$savedTmp}
 }finally{$env:USERPROFILE=$previousProfile;Get-ChildItem $t -Recurse -Force -File -ErrorAction SilentlyContinue|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}
 if($fail){throw "BACKUP_RESTORE_SELFCHECK_FAILED $fail"};'BACKUP_RESTORE_SELFCHECK PASS'

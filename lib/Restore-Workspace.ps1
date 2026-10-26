@@ -3,12 +3,24 @@
 # (identity, remote, credential pin, hooks path, branch upstreams: Boot refuses GIT_UPSTREAM_MISSING without them) and ignored receipts; then the workspace, Claude memory and legacy folders.
 # Afterwards (manual, credentials are never backed up): gh auth login for PlatPlusHub and Shehabhub, then
 # `pwsh -NoProfile -File <repo>\scripts\check_agent_continuity.ps1 -Boot` in each repository.
-param([Parameter(Mandatory)][string]$From,[string]$Target=(Join-Path $env:USERPROFILE 'Documents\GitHub'),
-      [string]$ClaudeHome=(Join-Path $env:USERPROFILE '.claude'),[string]$LegacyTarget=(Join-Path $env:USERPROFILE 'Documents'),[switch]$SkipLegacy)
+# Selective package v1: -Package <file.7z> extracts a Backup-Workspace -Package archive into TEMP first (removed afterwards).
+param([string]$From,[string]$Target=(Join-Path $env:USERPROFILE 'Documents\GitHub'),
+      [string]$ClaudeHome=(Join-Path $env:USERPROFILE '.claude'),[string]$LegacyTarget=(Join-Path $env:USERPROFILE 'Documents'),[switch]$SkipLegacy,
+      [string]$Package)
 $ErrorActionPreference='Stop'
-function Invoke-Git{param([string]$Repo)$o=& git -C $Repo @args 2>&1;if($LASTEXITCODE){throw "GIT_FAILED $Repo git $args`n$o"};$o}
+# stdout only on success; a failure names the subcommand and masks URL credentials (config values pass through here)
+function Invoke-Git{param([string]$Repo)$o=& git -C $Repo @args 2>&1;if($LASTEXITCODE){throw "GIT_FAILED $Repo git $($args[0]) (exit $LASTEXITCODE)`n$("$o"-replace'://[^/@\s]+@','://***@')"};$o|Where-Object{$_-isnot[Management.Automation.ErrorRecord]}}
 function Assert-Absent([string]$Path){if(Test-Path -LiteralPath $Path){throw "RESTORE_TARGET_EXISTS: $Path (restore never overwrites)"}}
 
+if(!$From-eq!$Package){throw 'RESTORE_SOURCE_REQUIRED: pass exactly one of -From or -Package'}
+try{
+if($Package){
+    $zip=(Get-Command 7z -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1).Source;if(!$zip){$zip=Join-Path $env:ProgramFiles '7-Zip\7z.exe'}
+    if(!(Test-Path -LiteralPath $zip)){throw 'PACKAGE_7ZIP_REQUIRED'}
+    $staging=Join-Path ([IO.Path]::GetTempPath()) ("orvion-restore-"+[guid]::NewGuid().ToString('N'))
+    $o=& $zip x "-o$staging" $Package 2>&1;if($LASTEXITCODE){throw "PACKAGE_EXTRACT_FAILED ($LASTEXITCODE): damaged package: $(@($o|Where-Object{"$_"-match'ERROR|Cannot'})-join' ')"}
+    $From=@(Get-ChildItem -LiteralPath $staging -Directory)[0].FullName
+}
 $From=(Resolve-Path $From).Path
 $bad=@(foreach($l in [IO.File]::ReadAllLines((Join-Path $From 'SHA256SUMS.txt'))){
     $h,$rel=$l-split'  ',2;$f=Join-Path $From $rel
@@ -52,6 +64,7 @@ $created=[Collections.Generic.List[string]]::new()
 try{foreach($r in $plan.repos){
     $dest=Join-Path $Target $r.name;$src=Join-Path $From "repos\$($r.name)";$created.Add($dest)
     & git clone --quiet --no-checkout (Join-Path $From "repos\$($r.name).bundle") $dest 2>&1|Out-Null;if($LASTEXITCODE){throw "CLONE_FAILED $($r.name)"}
+    Invoke-Git $dest config --local core.longpaths true|Out-Null  # a fresh Windows has no long-path default; set before checkout
     $want=@([IO.File]::ReadAllLines((Join-Path $src 'refs.txt')))
     # --no-deref: origin/HEAD is symbolic; deleting or writing through it would move the branch it names.
     foreach($ref in @(Invoke-Git $dest for-each-ref --format='%(refname)')){Invoke-Git $dest update-ref --no-deref -d $ref|Out-Null}  # the bundle clone's own origin/* names
@@ -87,7 +100,7 @@ foreach($m in Get-ChildItem (Join-Path $From 'claude\projects') -Directory -Erro
 }
 foreach($f in 'settings.json','statusline.ps1'){
     $s=Join-Path $From "claude\$f";if(!(Test-Path $s)){continue};$d=Join-Path $ClaudeHome $f
-    if(Test-Path $d){Copy-Item $s "$d.restored";"KEPT existing $d (backup copy: $f.restored, merge by hand)"}else{New-Item -ItemType Directory $ClaudeHome -Force|Out-Null;Copy-Item $s $d;"RESTORED $d"}
+    if(Test-Path $d){if(Test-Path "$d.restored"){"KEPT existing $d and $f.restored (nothing copied)"}else{Copy-Item $s "$d.restored";"KEPT existing $d (backup copy: $f.restored, merge by hand)"}}else{New-Item -ItemType Directory $ClaudeHome -Force|Out-Null;Copy-Item $s $d;"RESTORED $d"}
 }
 if(!$SkipLegacy){foreach($l in Get-ChildItem (Join-Path $From 'legacy') -Directory -ErrorAction SilentlyContinue){
     $d=Join-Path $LegacyTarget $l.Name;if(Test-Path $d){"SKIPPED legacy $($l.Name) (exists)"}else{Copy-Item $l.FullName $d -Recurse;"RESTORED legacy $($l.Name)"}
@@ -98,3 +111,4 @@ if($plan.workbenchRecovery){
     'RESTORED Workbench proof inputs; source-map.json retains original paths. Historical receipts retain their original physical roots; no new-machine certification or trust advancement is implied.'
 }
 "NEXT: gh auth login (PlatPlusHub and Shehabhub), then Boot in each repository."
+}finally{if($staging-and(Test-Path -LiteralPath $staging)){Get-ChildItem $staging -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($staging,$true)}}
