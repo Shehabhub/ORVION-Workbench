@@ -2,8 +2,8 @@
 
 ## Status
 
-[x] Draft
-[ ] Approved
+[ ] Draft
+[x] Approved
 [ ] In Progress
 [ ] Complete
 [ ] Cancelled
@@ -306,6 +306,14 @@ Recovery Attempt: 0
 ## Execution Log
 
 Decision D28 in C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools\records\delegation-20261026\DECISIONS.md (under D19-D27, the owner's standing order and the owner's approval of records\LEARNING-20261027.md). The orchestrator built the prototype; Codex (Sol, medium, fresh session, run through this very launcher) reviewed it adversarially and its three findings were fixed (records\WS-025\review1-disposition.md). Under the owner's exceptional delegation this one Workbench contract is authorized. Gate 1 for this Draft is DELEGATED: the owner did not type its digest. Sandbox approval is synthetic and grants no original authority.
+Approved Draft: C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools\records\WS-025\package\assurance\V3\DRAFT.md
+Approved SHA256: C667A55C52259BA61B922C1436288EE7E2110D0697B91E9BA8098EA51ADB3687
+Owner Evidence: C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools\records\delegation-20261026\GATE1-WS025-DELEGATED.md
+Owner Evidence SHA256: 6A2FE41F88F378D8F984929F94AC5010483FF06F4907D523B126D15E945FD9AD
+Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
+Sandbox Receipt: C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools\records\WS-025\package\runtime\sandbox\own-finish-receipt.json
+Sandbox Receipt SHA256: FCE4BD18F6A4BAC7935B4573403E988DC758C438B1AE4EFF35D709228CF7C93B
+Original admission: DELEGATED exact Gate 1 under the owner's exceptional delegation of 2026-10-26 (OWNER-DELEGATION.md SHA-256 94631C14708B783C584D0867AD4AD11221D5394F5FDEDAA48F64FA0BF9788217; decisions D1-D28; D28 is the delegated decision for this contract). The owner did not type this digest. Bound to this literal root, the exact V3 digest and the fresh sandbox receipt; no sandbox receipt transplant as original certification.
 
 ## Verification Notes
 
