@@ -4789,57 +4789,57 @@ Minimum Commit GB: 3
 
 ## Acceptance Criteria
 
-- [ ] Exact approved scoped output. check: blob:.githooks/pre-commit=eaf7682a43493279eeb786b2ef746e669eec3191
-- [ ] Exact approved scoped output. check: blob:AGENTS.md=ea8fdf7acef489dbcddb870b0670679baa4d51ed
-- [ ] Exact approved scoped output. check: blob:changes/TEMPLATE.md=8daa5a6d81a5921a074cbf01e9f187b3b34af3c2
-- [ ] Exact approved scoped output. check: blob:docs/EXECUTION-PLAN.md=55ebfa5da39752c74010083a0825547e75b59de5
-- [ ] Exact approved scoped output. check: blob:docs/RECOVERY.md=66f998d97231e5e8e48c7b44f1963b15f3ebf590
-- [ ] Exact approved scoped output. check: blob:docs/WORKSPACE-LAYOUT.md=d77fe0c40c9a7b04a961d3162ae38976c55e3da9
-- [ ] Exact approved scoped output. check: blob:HANDOFF.md=786c8c6ac5e21fbda63dc0df45fbca7fa5faa6c9
-- [ ] Exact approved scoped output. check: blob:lib/Backup-Workspace.ps1=02400ebb0d2a78f81472bac65104ee32c891a552
-- [ ] Exact approved scoped output. check: blob:lib/Coordinator.ps1=0dbb346bbcb7d9e70941dd701e2ea5415f6603fb
-- [ ] Exact approved scoped output. check: blob:lib/Delegate.ps1=0ed83ab1c36c924274c3209e9e382beef0d98826
-- [ ] Exact approved scoped output. check: blob:lib/Events.ps1=c378107bf82bc1fc9b8466c2f90b9045420ea685
-- [ ] Exact approved scoped output. check: blob:lib/hooks/Watch-Reminder.ps1=c818b92fbb424777a81eb0d6a4baa034ad89630f
-- [ ] Exact approved scoped output. check: blob:lib/Hunt.ps1=2b6e7209ebec580edd0c1919d4d52e18dc6bf43d
-- [ ] Exact approved scoped output. check: blob:lib/Invoke-DraftRehearsal.ps1=a862e2530992dfec0d9ee01fbed3d9229c13244f
-- [ ] Exact approved scoped output. check: blob:lib/Map-Repos.ps1=72d8ae37e3ddf915aadc0e4f2b1b03ba1c409005
-- [ ] Exact approved scoped output. check: blob:lib/Pulse.ps1=1be958f0d7a55969d82f00593a0f0b4d495aa286
-- [ ] Exact approved scoped output. check: blob:lib/README.md=7cf9dc0bbc327fda396e0aefb6dd18c830dff227
-- [ ] Exact approved scoped output. check: blob:lib/Restore-ORVION.ps1=2b4b43e1087aa4040c48f622716ba44266b73d33
-- [ ] Exact approved scoped output. check: blob:lib/Restore-Workspace.ps1=6918d2f702c4fea8ad0b43a759582a17bac9d886
-- [ ] Exact approved scoped output. check: blob:lib/Spider.ps1=e2f7076d7aaada2eddf5a7f539676f7a07b1b3ca
-- [ ] Exact approved scoped output. check: blob:lib/Sync-Sessions.ps1=6e665874eb1483fdf091b7535f800b35b3f221aa
-- [ ] Exact approved scoped output. check: blob:lib/test-backup-restore.ps1=754b870715c378cec0efc0b6d5371764029ea9d3
-- [ ] Exact approved scoped output. check: blob:lib/test-coordinator.ps1=6a25f6c3482ec46be317b14e299dfb9e3114e0b4
-- [ ] Exact approved scoped output. check: blob:lib/test-events.ps1=079e1c877aedb16298c250b6ddcec1c18b607128
-- [ ] Exact approved scoped output. check: blob:lib/test-hunt.ps1=5432ff2270dd81af62a1e4eb481567d4817d8a41
-- [ ] Exact approved scoped output. check: blob:lib/test-map-repos.ps1=0a9f5f1ba28abb883a131f78c2920bc8fdea009b
-- [ ] Exact approved scoped output. check: blob:lib/test-markdown-consistency.ps1=9ddde5f1184eae7b1ae270c88bf081e29a8a1a7d
-- [ ] Exact approved scoped output. check: blob:lib/Test-MarkdownConsistency.ps1=668c26bc7af50c374901711179c2a58b77f8a795
-- [ ] Exact approved scoped output. check: blob:lib/test-pulse.ps1=64ef04898b3af58d5fca07079e850dbe18c268f0
-- [ ] Exact approved scoped output. check: blob:lib/test-restore-orvion.ps1=893ace7c23be8e74ff76554110a7cbc664addafc
-- [ ] Exact approved scoped output. check: blob:lib/Test-ScriptHazards.ps1=968a8f7f57ee92ca827fe1ce7185e3ea19f0e320
-- [ ] Exact approved scoped output. check: blob:lib/test-spider.ps1=65bf2e351ce12a9a7deac97a91ba241680af9fa8
-- [ ] Exact approved scoped output. check: blob:lib/test-sync-sessions-ack.ps1=5ddb06d697cafd49348c625c14d77bcf3663b3ab
-- [ ] Exact approved scoped output. check: blob:lib/test-sync-sessions-survival.ps1=e31e9416ff1e4107e557ce61de8239c7e9e4862b
-- [ ] Exact approved scoped output. check: blob:lib/test-watch-reminder.ps1=024a376875d84aae42934d391093b33b06390cdf
-- [ ] Exact approved scoped output. check: blob:lib/test-workbench-governance.ps1=4125825db2f267ef809fa3498a88fa8cb692032d
-- [ ] Exact approved scoped output. check: blob:lib/test-workspace-layout.ps1=a971316a96027c780a898c5493d26fa8697794fc
-- [ ] Exact approved scoped output. check: blob:lib/Watch-Subagents.ps1=0ddabdec89ff10d8e675965a17e46eb7a8162de8
-- [ ] Exact approved scoped output. check: blob:lib/Workbench.ps1=6b086b44fc6a9d4315f1b263fd7fdb1473e82712
-- [ ] Exact approved scoped output. check: blob:lib/workspace-layout.ps1=a27fa4dbf9a8e7a7280c2ee11b661ff2e888a2d1
-- [ ] Exact approved scoped output. check: blob:README.md=c71ce73075fb06f6e4aa6280b30d77fccbacd83e
-- [ ] Exact approved scoped output. check: blob:tests.ps1=352230d5ca925ad96f2e6b8a68a34e3b1c59ff3b
-- [ ] Exact approved scoped output. check: blob:WORKFLOW.md=0f914d375a76dde94ceeeed254d7c765cd4ec3aa
-- [ ] RESUME is the active pointer plus one line to the private live state. check: normalized-resume:RESUME.md=80E4319AB22909E36CDBDCEE4E0910835A6837D23B0C3E544E0FCAB0017B4AEE
-- [ ] The owning tests prove every slice: exact clone-home temp binding and Finish-environment fixtures; data-root refusal without checkout writes; restore staging containment, credential-word masking, fixed diagnostics, lazy winget, final-only READY; records-based package/restore, memory junctions, .git refusal; -Temporary skeleton and pinned actionlint identity; sidecar lock alias contention and survival; Events current-row dedupe, repo auto-fill and alias filter; Pulse masked footer and map freshness; Hunt map-task guard; scanner dot-invoke fallback; Spider default repositories; Markdown guard rules on fixtures and on this repository.
-- [ ] Mandatory V1/V2/V3, focused proof on all 27 suites with the orchestrator's independent planted mutants, accepted literal replay controls and Test B (temporary deleted and rebuilt) are preserved. One isolated native timed/watched Finish owns the grown full schedule (two new suites, two new scripts) with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
+- [x] Exact approved scoped output. check: blob:.githooks/pre-commit=eaf7682a43493279eeb786b2ef746e669eec3191
+- [x] Exact approved scoped output. check: blob:AGENTS.md=ea8fdf7acef489dbcddb870b0670679baa4d51ed
+- [x] Exact approved scoped output. check: blob:changes/TEMPLATE.md=8daa5a6d81a5921a074cbf01e9f187b3b34af3c2
+- [x] Exact approved scoped output. check: blob:docs/EXECUTION-PLAN.md=55ebfa5da39752c74010083a0825547e75b59de5
+- [x] Exact approved scoped output. check: blob:docs/RECOVERY.md=66f998d97231e5e8e48c7b44f1963b15f3ebf590
+- [x] Exact approved scoped output. check: blob:docs/WORKSPACE-LAYOUT.md=d77fe0c40c9a7b04a961d3162ae38976c55e3da9
+- [x] Exact approved scoped output. check: blob:HANDOFF.md=786c8c6ac5e21fbda63dc0df45fbca7fa5faa6c9
+- [x] Exact approved scoped output. check: blob:lib/Backup-Workspace.ps1=02400ebb0d2a78f81472bac65104ee32c891a552
+- [x] Exact approved scoped output. check: blob:lib/Coordinator.ps1=0dbb346bbcb7d9e70941dd701e2ea5415f6603fb
+- [x] Exact approved scoped output. check: blob:lib/Delegate.ps1=0ed83ab1c36c924274c3209e9e382beef0d98826
+- [x] Exact approved scoped output. check: blob:lib/Events.ps1=c378107bf82bc1fc9b8466c2f90b9045420ea685
+- [x] Exact approved scoped output. check: blob:lib/hooks/Watch-Reminder.ps1=c818b92fbb424777a81eb0d6a4baa034ad89630f
+- [x] Exact approved scoped output. check: blob:lib/Hunt.ps1=2b6e7209ebec580edd0c1919d4d52e18dc6bf43d
+- [x] Exact approved scoped output. check: blob:lib/Invoke-DraftRehearsal.ps1=a862e2530992dfec0d9ee01fbed3d9229c13244f
+- [x] Exact approved scoped output. check: blob:lib/Map-Repos.ps1=72d8ae37e3ddf915aadc0e4f2b1b03ba1c409005
+- [x] Exact approved scoped output. check: blob:lib/Pulse.ps1=1be958f0d7a55969d82f00593a0f0b4d495aa286
+- [x] Exact approved scoped output. check: blob:lib/README.md=7cf9dc0bbc327fda396e0aefb6dd18c830dff227
+- [x] Exact approved scoped output. check: blob:lib/Restore-ORVION.ps1=2b4b43e1087aa4040c48f622716ba44266b73d33
+- [x] Exact approved scoped output. check: blob:lib/Restore-Workspace.ps1=6918d2f702c4fea8ad0b43a759582a17bac9d886
+- [x] Exact approved scoped output. check: blob:lib/Spider.ps1=e2f7076d7aaada2eddf5a7f539676f7a07b1b3ca
+- [x] Exact approved scoped output. check: blob:lib/Sync-Sessions.ps1=6e665874eb1483fdf091b7535f800b35b3f221aa
+- [x] Exact approved scoped output. check: blob:lib/test-backup-restore.ps1=754b870715c378cec0efc0b6d5371764029ea9d3
+- [x] Exact approved scoped output. check: blob:lib/test-coordinator.ps1=6a25f6c3482ec46be317b14e299dfb9e3114e0b4
+- [x] Exact approved scoped output. check: blob:lib/test-events.ps1=079e1c877aedb16298c250b6ddcec1c18b607128
+- [x] Exact approved scoped output. check: blob:lib/test-hunt.ps1=5432ff2270dd81af62a1e4eb481567d4817d8a41
+- [x] Exact approved scoped output. check: blob:lib/test-map-repos.ps1=0a9f5f1ba28abb883a131f78c2920bc8fdea009b
+- [x] Exact approved scoped output. check: blob:lib/test-markdown-consistency.ps1=9ddde5f1184eae7b1ae270c88bf081e29a8a1a7d
+- [x] Exact approved scoped output. check: blob:lib/Test-MarkdownConsistency.ps1=668c26bc7af50c374901711179c2a58b77f8a795
+- [x] Exact approved scoped output. check: blob:lib/test-pulse.ps1=64ef04898b3af58d5fca07079e850dbe18c268f0
+- [x] Exact approved scoped output. check: blob:lib/test-restore-orvion.ps1=893ace7c23be8e74ff76554110a7cbc664addafc
+- [x] Exact approved scoped output. check: blob:lib/Test-ScriptHazards.ps1=968a8f7f57ee92ca827fe1ce7185e3ea19f0e320
+- [x] Exact approved scoped output. check: blob:lib/test-spider.ps1=65bf2e351ce12a9a7deac97a91ba241680af9fa8
+- [x] Exact approved scoped output. check: blob:lib/test-sync-sessions-ack.ps1=5ddb06d697cafd49348c625c14d77bcf3663b3ab
+- [x] Exact approved scoped output. check: blob:lib/test-sync-sessions-survival.ps1=e31e9416ff1e4107e557ce61de8239c7e9e4862b
+- [x] Exact approved scoped output. check: blob:lib/test-watch-reminder.ps1=024a376875d84aae42934d391093b33b06390cdf
+- [x] Exact approved scoped output. check: blob:lib/test-workbench-governance.ps1=4125825db2f267ef809fa3498a88fa8cb692032d
+- [x] Exact approved scoped output. check: blob:lib/test-workspace-layout.ps1=a971316a96027c780a898c5493d26fa8697794fc
+- [x] Exact approved scoped output. check: blob:lib/Watch-Subagents.ps1=0ddabdec89ff10d8e675965a17e46eb7a8162de8
+- [x] Exact approved scoped output. check: blob:lib/Workbench.ps1=6b086b44fc6a9d4315f1b263fd7fdb1473e82712
+- [x] Exact approved scoped output. check: blob:lib/workspace-layout.ps1=a27fa4dbf9a8e7a7280c2ee11b661ff2e888a2d1
+- [x] Exact approved scoped output. check: blob:README.md=c71ce73075fb06f6e4aa6280b30d77fccbacd83e
+- [x] Exact approved scoped output. check: blob:tests.ps1=352230d5ca925ad96f2e6b8a68a34e3b1c59ff3b
+- [x] Exact approved scoped output. check: blob:WORKFLOW.md=0f914d375a76dde94ceeeed254d7c765cd4ec3aa
+- [x] RESUME is the active pointer plus one line to the private live state. check: normalized-resume:RESUME.md=80E4319AB22909E36CDBDCEE4E0910835A6837D23B0C3E544E0FCAB0017B4AEE
+- [x] The owning tests prove every slice: exact clone-home temp binding and Finish-environment fixtures; data-root refusal without checkout writes; restore staging containment, credential-word masking, fixed diagnostics, lazy winget, final-only READY; records-based package/restore, memory junctions, .git refusal; -Temporary skeleton and pinned actionlint identity; sidecar lock alias contention and survival; Events current-row dedupe, repo auto-fill and alias filter; Pulse masked footer and map freshness; Hunt map-task guard; scanner dot-invoke fallback; Spider default repositories; Markdown guard rules on fixtures and on this repository.
+- [x] Mandatory V1/V2/V3, focused proof on all 27 suites with the orchestrator's independent planted mutants, accepted literal replay controls and Test B (temporary deleted and rebuilt) are preserved. One isolated native timed/watched Finish owns the grown full schedule (two new suites, two new scripts) with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
 
 ## Review Gate
 
-- [ ] Inspect the scoped files, the focused/mutant/literal evidence, the meaning-preservation audit and Test B; preserve all frozen prior evidence.
-- [ ] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
+- [x] Inspect the scoped files, the focused/mutant/literal evidence, the meaning-preservation audit and Test B; preserve all frozen prior evidence.
+- [x] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
 
 ## Runtime Checkpoint
 
@@ -4863,6 +4863,10 @@ Original exact literal implementation applied by accepted native Workbench Execu
 ## Verification Notes
 
 Profiles RECOVERY+CONTROL+COORDINATION+REPOSITORY, never WORKSTATION. The orchestrator's planted mutants (package\Run-Evidence.ps1) are each killed by their own named assertion; hazard scan 0; all 27 suites PASS with an isolated ORVION_DATA_ROOT in the Finish environment (focused-selected.log). Test B and the real launcher run against a fresh package follow; they are not claimed here.
+Verdict: Confirmed Complete
+Reviewed Fingerprint: D7C37E1AD960B4639CCDA60721E4C82135B860937FDCBEDC320AEAAEE11B7FBB
+Reviewed Receipt: 2DAA76F11D1B0CE6C35C261CE874CCB135F9B923780C80D287F91A9DACD5DC7C
+Evidence: fresh ORIGINAL root-bound timed/watched Finish, actual ordered-suite schedule/exits, approved exact outputs and independently pinned accepted-code live review. Runtime: C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools\records\WS-022\package\runtime\original. No sandbox receipt transplant, remote parity, offsite recovery or equal-OS isolation claim.
 
 ## Selection reasons and sources
 
