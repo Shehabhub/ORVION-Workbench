@@ -283,19 +283,19 @@ Minimum Commit GB: 3
 
 ## Acceptance Criteria
 
-- [ ] Exact approved scoped output. check: blob:lib/Delegate.ps1=b57d74d74511c6df1627aa90c22cba807b44d563
-- [ ] Exact approved scoped output. check: blob:lib/Hunt.ps1=5eac8c001a0c7dd290c8da33885cfc5dcf4e34b6
-- [ ] Exact approved scoped output. check: blob:lib/README.md=5789ef3b82b1777b4f2bc71982d7cd0b49d02326
-- [ ] Exact approved scoped output. check: blob:lib/test-delegate.ps1=fba9c29b53e7b3d2766df5187173b0251b6d2bad
-- [ ] Exact approved scoped output. check: blob:lib/test-hunt.ps1=b380f9399619f629c388b0c948b366c03cd68969
-- [ ] Exact approved scoped output. check: blob:WORKFLOW.md=c791b3710c0eb4b363abf4cc0853ca4463d4be97
-- [ ] The owning tests prove every behaviour: Hunt counts only diverged transcripts (a diverged MEMORY.md is not a BUG); the Codex launcher passes the relay exit through with TEMP in its own scratch and the fixed flags, trips exit 4 with a failure event on a new entry beside the checkouts and on a rewrite of an already untracked file in a sibling checkout, refuses effort max and a clone outside temporary\cx, and watches the GitHub folder beside the temporary root by default; -ReadRoots narrows file and git reads.
-- [ ] Mandatory V1/V2/V3, focused proof on all 27 suites with the orchestrator's independent planted mutants, and accepted literal replay controls are preserved. One isolated native timed/watched Finish owns the unchanged full schedule with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
+- [x] Exact approved scoped output. check: blob:lib/Delegate.ps1=b57d74d74511c6df1627aa90c22cba807b44d563
+- [x] Exact approved scoped output. check: blob:lib/Hunt.ps1=5eac8c001a0c7dd290c8da33885cfc5dcf4e34b6
+- [x] Exact approved scoped output. check: blob:lib/README.md=5789ef3b82b1777b4f2bc71982d7cd0b49d02326
+- [x] Exact approved scoped output. check: blob:lib/test-delegate.ps1=fba9c29b53e7b3d2766df5187173b0251b6d2bad
+- [x] Exact approved scoped output. check: blob:lib/test-hunt.ps1=b380f9399619f629c388b0c948b366c03cd68969
+- [x] Exact approved scoped output. check: blob:WORKFLOW.md=c791b3710c0eb4b363abf4cc0853ca4463d4be97
+- [x] The owning tests prove every behaviour: Hunt counts only diverged transcripts (a diverged MEMORY.md is not a BUG); the Codex launcher passes the relay exit through with TEMP in its own scratch and the fixed flags, trips exit 4 with a failure event on a new entry beside the checkouts and on a rewrite of an already untracked file in a sibling checkout, refuses effort max and a clone outside temporary\cx, and watches the GitHub folder beside the temporary root by default; -ReadRoots narrows file and git reads.
+- [x] Mandatory V1/V2/V3, focused proof on all 27 suites with the orchestrator's independent planted mutants, and accepted literal replay controls are preserved. One isolated native timed/watched Finish owns the unchanged full schedule with a fresh SANDBOX receipt before original approval; the original needs its own fresh Finish, live Review, native Complete and an independent carrying-range READY.
 
 ## Review Gate
 
-- [ ] Inspect the scoped files, the focused/mutant/literal evidence and the Codex after-pass disposition; preserve all frozen prior evidence.
-- [ ] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
+- [x] Inspect the scoped files, the focused/mutant/literal evidence and the Codex after-pass disposition; preserve all frozen prior evidence.
+- [x] Independently check the native receipt root/Draft/recipe/evaluator/fingerprint, ordered tests and timed/watcher/host exits; normal native Review/Complete and every new carrying transition must pass. No second-agent or provider certification is claimed.
 
 ## Runtime Checkpoint
 
@@ -319,6 +319,10 @@ Original exact literal implementation applied by accepted native Workbench Execu
 ## Verification Notes
 
 The orchestrator's nine planted mutants (package\Run-Evidence.ps1) are each killed by their own named assertion; hazard scan 0; all 27 suites PASS with an isolated ORVION_DATA_ROOT in the Finish environment (focused-selected.log); the Markdown guard passes on the prototype.
+Verdict: Confirmed Complete
+Reviewed Fingerprint: 2F028B2A2169BD1413E8E3D5DAB89ADB18EE4F5895C529276EBA0216089C63D6
+Reviewed Receipt: 5BBFB115C2D9737554F18139DEB2E665CA01BCD0C7B12463CF3D0C9330E78FB6
+Evidence: fresh ORIGINAL root-bound timed/watched Finish, actual ordered-suite schedule/exits, approved exact outputs and independently pinned accepted-code live review. Runtime: C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools\records\WS-025\package\runtime\original. No sandbox receipt transplant, remote parity, offsite recovery or equal-OS isolation claim.
 
 ## Selection reasons and sources
 
