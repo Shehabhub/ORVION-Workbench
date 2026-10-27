@@ -27,9 +27,10 @@ function Add-Finding([string]$Kind,[string]$Hound,[string]$Text,[string]$Tags=''
 try{$mapTaskInfo=& $GetMapTask;if(!$mapTaskInfo-or$null-eq$mapTaskInfo.LastTaskResult-or$mapTaskInfo.LastTaskResult-ne0){throw 'missing or nonzero result'}}catch{Add-Finding GAP map-task 'ORVION Repository Map task missing or last result non-zero/unreadable' 'repository map scheduled task'}
 $sw=[Diagnostics.Stopwatch]::StartNew()
 
-# invariants: the archive never diverges from a source it copies (the prefix rule Copy-Grown relies on).
+# invariants: an archived transcript never diverges from its source (the prefix rule Copy-Grown relies on). Only
+# append-only *.jsonl transcripts: edited files (memory, meta) legitimately change and Copy-Grown sets them aside.
 $raw=Join-Path $DataRoot 'sessions\raw';$cp=Join-Path $env:USERPROFILE '.claude\projects';$diverged=0;$checked=0
-if(Test-Path "$raw\claude"){foreach($a in Get-ChildItem "$raw\claude" -Recurse -File){
+if(Test-Path "$raw\claude"){foreach($a in Get-ChildItem "$raw\claude" -Recurse -File -Filter *.jsonl){
     if($a.BaseName-match'\.(replaced-)?\d{14}$'){continue}
     $src=Join-Path $cp $a.FullName.Substring("$raw\claude\".Length)
     if(!(Test-Path -LiteralPath $src)){continue};$s=Get-Item -LiteralPath $src;if($s.Length-lt$a.Length){continue}

@@ -118,9 +118,10 @@ exit $LASTEXITCODE
             $archived=Join-Path $expected 'sessions\raw\claude\C--Fixture-ORVION';$source=Join-Path $env:USERPROFILE '.claude\projects\C--Fixture-ORVION'
             [void][IO.Directory]::CreateDirectory($archived);[void][IO.Directory]::CreateDirectory($source)
             Set-Content (Join-Path $archived 'prefix.jsonl') 'old';Set-Content (Join-Path $source 'prefix.jsonl') 'rewritten'
+            Set-Content (Join-Path $archived 'MEMORY.md') 'old';Set-Content (Join-Path $source 'MEMORY.md') 'edited in place'  # not a transcript: never a prefix BUG
             $extra=if($case-eq'explicit'){@('-DataRoot',$explicit)}else{@()}
             $result=@(& pwsh -NoProfile -File (Join-Path $copy 'Hunt.ps1') -Quick @extra)-join"`n";$huntCode=$LASTEXITCODE
-            Assert-That "hunt $case reads sessions, events and sync errors from data root with BUG exit 1" ($huntCode-eq1-and$result-match"BUG sync-errors:.*fixture-$case"-and$result-match'BUG index-consistency:.*index says'-and$result-match'BUG events-corrupt:'-and$result-match'BUG archive-prefix:'-and$result-match"BUG hook-errors:.*fixture-hook-$case"-and$result-notmatch'GAP event-evidence:')
+            Assert-That "hunt $case reads sessions, events and sync errors from data root with BUG exit 1" ($huntCode-eq1-and$result-match"BUG sync-errors:.*fixture-$case"-and$result-match'BUG index-consistency:.*index says'-and$result-match'BUG events-corrupt:'-and$result-match'BUG archive-prefix: 1 of 1 archived'-and$result-match"BUG hook-errors:.*fixture-hook-$case"-and$result-notmatch'GAP event-evidence:')
             $rootEvents=@(Get-Content (Join-Path $expected 'events\events.jsonl')|ForEach-Object{try{$_|ConvertFrom-Json}catch{$null=$_}})
             $closed=@($rootEvents|Where-Object pattern -eq 'hunt-old-root-problem')[-1]
             Assert-That "hunt $case records findings and last result only in data root" ((Test-Path (Join-Path $expected 'work\hunt-last.txt'))-and@($rootEvents|Where-Object pattern -eq 'hunt-sync-errors').Count-gt0-and$closed.status-eq'resolved'-and!(Test-Path (Join-Path $checkout 'work')))

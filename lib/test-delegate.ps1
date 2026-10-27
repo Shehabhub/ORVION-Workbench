@@ -32,5 +32,38 @@ try{
     $out=@(& pwsh -NoProfile -File $de -Root (Join-Path $t 'absent') -Pattern absent-case -Question 'ABSENT-97');$code=$LASTEXITCODE
     $path=([regex]::Match(($out-join"`n"),'DELEGATED absent-case -> (.+BRIEF\.md)')).Groups[1].Value;$text=[IO.File]::ReadAllText($path)
     Assert-That 'unavailable history and related lookup remain visible in the brief with exit 3' ($code-eq3-and$text-match'(?s)What is already known.+EVENTS_UNAVAILABLE: no history journal'-and$text-match'(?s)Related past events.+EVENTS_UNAVAILABLE:'-and$text-notmatch'none recorded|nothing recorded yet')
-}finally{[IO.Directory]::Delete($t,$true)}
+    $out=@(& $de -Root $t -Pattern narrow-case -Question 'NARROW-1' -ReadRoots 'C:\only\here')
+    $text=[IO.File]::ReadAllText(([regex]::Match(($out-join"`n"),'DELEGATED narrow-case -> (.+BRIEF\.md)')).Groups[1].Value)
+    Assert-That 'ReadRoots narrows file and git reads of the brief' ($text.Contains('read only these roots: `C:\only\here`, and run read-only git commands (show, log, grep, rev-parse, cat-file, ls-tree, status) inside those roots only')-and!$text.Contains('every file of the workspace')-and!$text.Contains('status) in the real checkouts'))
+
+    # Codex launcher with a fake relay in a fake GitHub folder (its temporary root beside one checkout), default watch
+    # list: TEMP in its own scratch, the effort ceiling, and the outside-write tripwire.
+    $savedTempRoot=$env:WORKBENCH_TEMP_ROOT;$gh=Join-Path $t 'gh';$env:WORKBENCH_TEMP_ROOT=Join-Path $gh 'ORVION-Workbench-temporary'
+    try{
+        . (Join-Path $PSScriptRoot 'workspace-layout.ps1');$tempRoot=Initialize-OrvionTemporaryRoot -Checkout (Split-Path $PSScriptRoot -Parent)
+        $clone=Join-Path $tempRoot 'cx\ORVION-selfcheck';$null=& git init -q $clone
+        $relay=Join-Path $t 'relay.mjs';$codexBrief=Join-Path $t 'selfcheck.md';Set-Content $codexBrief 'fixture brief'
+        Set-Content $relay "import fs from 'fs';const a=process.argv;const o=a[a.indexOf('--out-dir')+1];fs.mkdirSync(o,{recursive:true});fs.writeFileSync(o+'/seen.txt',process.env.TEMP+'\n'+a.slice(2).join(' '));if(process.env.FAKE_ESCAPE){fs.writeFileSync(process.env.FAKE_ESCAPE,'stray '+Date.now())};process.exit(Number(process.env.FAKE_EXIT||0))"
+        $repo=Join-Path $gh 'PRODUCT';$null=& git init -q $repo;$null=& git -C $repo -c user.name=fixture -c user.email=fixture@invalid commit -q --allow-empty -m fixture
+        Set-Content (Join-Path $repo 'notes.txt') 'already untracked before the run'
+        function Invoke-Codex([string]$Escape,[string]$ExitCode='0',[string[]]$More=@()){
+            $env:FAKE_ESCAPE=$Escape;$env:FAKE_EXIT=$ExitCode
+            try{$script:codexOut=@(& pwsh -NoProfile -File $de -Root $t -CodexBrief $codexBrief -Clone $clone -Relay $relay @More 2>&1)-join"`n";$LASTEXITCODE}finally{$env:FAKE_ESCAPE=$null;$env:FAKE_EXIT=$null}
+        }
+        $code=Invoke-Codex '' '7'
+        $seen=@(Get-ChildItem (Join-Path $tempRoot 'codex-relay-logs') -Directory -Filter '*-selfcheck'|ForEach-Object{Get-Content (Join-Path $_.FullName 'seen.txt')})
+        Assert-That 'a clean Codex run passes the relay exit through, with TEMP in its own scratch and the fixed flags' ($code-eq7-and$codexOut-match'CODEX_DONE relay exit 7'-and$seen[0]-like(Join-Path $tempRoot 'scratch\*-selfcheck')-and$seen[1]-match'--sandbox danger-full-access --ignore-user-config --model gpt-6.1-sol --effort medium --timeout 20m')
+        $code=Invoke-Codex (Join-Path $gh 'stray.txt')
+        $journal=@([IO.File]::ReadAllLines((Join-Path $t 'events\events.jsonl'))|ForEach-Object{$_|ConvertFrom-Json}|Where-Object pattern -eq 'codex-outside-write')
+        Assert-That 'a new entry beside the checkouts trips exit 4 and records a failure event' ($code-eq4-and$codexOut-match'CODEX_TRIPWIRE: 1 change'-and$journal.Count-eq1-and$journal[0].category-eq'failure')
+        Remove-Item -LiteralPath (Join-Path $gh 'stray.txt')
+        $code=Invoke-Codex (Join-Path $repo 'notes.txt')
+        Assert-That 'rewriting an already untracked file in a sibling checkout trips exit 4' ($code-eq4-and$codexOut-match'CODEX_TRIPWIRE')
+        $code=Invoke-Codex '' '0' @('-Effort','max')
+        Assert-That 'effort above the owner ceiling is refused' ($code-ne0-and$codexOut-notmatch'CODEX_DONE')
+        $outside=Join-Path $t 'not-cx';$null=& git init -q $outside
+        $refused=@(& pwsh -NoProfile -File $de -Root $t -CodexBrief $codexBrief -Clone $outside -Relay $relay 2>&1)-join"`n"
+        Assert-That 'a clone outside temporary\cx is refused' ($LASTEXITCODE-ne0-and$refused-match'CODEX_CLONE_REFUSED')
+    }finally{$env:WORKBENCH_TEMP_ROOT=$savedTempRoot}
+}finally{Get-ChildItem $t -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}
 if($fail){throw "DELEGATE_SELFCHECK_FAILED $fail"};'DELEGATE_SELFCHECK PASS'

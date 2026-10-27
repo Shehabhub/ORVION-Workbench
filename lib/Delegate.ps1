@@ -7,15 +7,27 @@
 #       the return road: saves the reply as REPORT.md (never overwrites), reads its VERDICT line and records the
 #       verdict as the pattern's next event, owned again by the delegating agent (Coordinator.ps1 then holds it)
 #   Delegate.ps1 -List   every delegation, newest first, with its verdict once REPORT.md exists
+#   Delegate.ps1 -CodexBrief <brief> -Clone <temporary\cx\...> [-Effort medium] [-Model gpt-6.1-sol]
+#       runs one fresh Codex relay session in a clone under temporary\cx with TEMP/TMP in its own scratch folder, and
+#       compares the watched places before and after (exit 4 + a failure event on any change or unreadable snapshot)
 # Authority never grows by delegation: readonly = read the repositories, write only the delegation folder; sandbox =
 # also experiment in disposable copies under the system temp folder. Never a commit, push, release, credential or
-# Owner-Review edit. The verdict is evidence for the delegating agent to verify, not a decision.
+# Owner-Review edit. The verdict is evidence for the delegating agent to verify, not a decision. -ReadRoots narrows the
+# brief's read authority to the task; that is guidance to the delegate, not OS enforcement.
 [CmdletBinding(DefaultParameterSetName='brief')]
 param([Parameter(ParameterSetName='brief',Mandatory)][ValidatePattern('^[a-z0-9]+(-[a-z0-9]+)*$')][string]$Pattern,
       [Parameter(ParameterSetName='brief',Mandatory)][string]$Question,
       [Parameter(ParameterSetName='brief')][string]$Query='',
       [Parameter(ParameterSetName='brief')][ValidateSet('readonly','sandbox')][string]$Mode='readonly',
       [Parameter(ParameterSetName='brief')][int]$Minutes=30,
+      [Parameter(ParameterSetName='brief')][string[]]$ReadRoots,
+      [Parameter(ParameterSetName='codex',Mandatory)][string]$CodexBrief,
+      [Parameter(ParameterSetName='codex',Mandatory)][string]$Clone,
+      [Parameter(ParameterSetName='codex')][ValidateSet('low','medium','high','xhigh')][string]$Effort='medium',  # owner ceiling: xhigh, never max
+      [Parameter(ParameterSetName='codex')][ValidateSet('gpt-6.1-sol','gpt-6.1-terra')][string]$Model='gpt-6.1-sol',
+      [Parameter(ParameterSetName='codex')][ValidateRange(1,120)][int]$TimeoutMinutes=20,
+      [Parameter(ParameterSetName='codex')][string]$Relay,
+      [Parameter(ParameterSetName='codex')][string[]]$Watch,
       [Parameter(ParameterSetName='list',Mandatory)][switch]$List,
       [Parameter(ParameterSetName='report',Mandatory)][string]$Report,
       [Parameter(ParameterSetName='report',Mandatory)][string]$Reply,
@@ -27,6 +39,41 @@ if(!$PSBoundParameters.ContainsKey('Root')-and!$env:ORVION_DATA_ROOT-and!(Test-P
 . (Join-Path $PSScriptRoot 'workspace-layout.ps1')
 $temporaryRoot=Initialize-OrvionTemporaryRoot -Checkout (Split-Path $PSScriptRoot -Parent)
 $base=Join-Path $Root 'work\delegations';$ev=Join-Path $PSScriptRoot 'Events.ps1'
+
+if($CodexBrief){
+    # Codex runs unrestricted (owner decision: its Windows sandbox is blocked), so this launcher, not the brief, checks
+    # what changed outside the clone and scratch. A tripwire, not confinement: it sees new or removed entries in watched
+    # folders and any change to a watched git checkout (dirty file content included), not nested edits elsewhere or
+    # create-then-delete.
+    $briefFile=(Resolve-Path -LiteralPath $CodexBrief).Path;$cloneDir=(Resolve-Path -LiteralPath $Clone).Path
+    $cxRoot=Join-Path $temporaryRoot 'cx'
+    if(!$cloneDir.StartsWith("$cxRoot\",[StringComparison]::OrdinalIgnoreCase)-or!(Test-Path -LiteralPath (Join-Path $cloneDir '.git'))){throw "CODEX_CLONE_REFUSED: $cloneDir is not a git clone under $cxRoot"}
+    if(!$Relay){$Relay=Join-Path $Root 'records\delegation-20261026\delegate-review\codex-delegate@3aa72d6\scripts\relay.mjs'}
+    if(!(Test-Path -LiteralPath $Relay -PathType Leaf)){throw "CODEX_RELAY_MISSING: $Relay"}
+    $run="$([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))-$([IO.Path]::GetFileNameWithoutExtension($briefFile))"
+    $scratch=Join-Path $temporaryRoot "scratch\$run";$logs=Join-Path $temporaryRoot "codex-relay-logs\$run";[void][IO.Directory]::CreateDirectory($scratch)
+    # the temporary root always sits beside the checkouts, wherever this script runs from
+    if(!$Watch){$gitHub=Split-Path $temporaryRoot -Parent;$Watch=@("$env:SystemDrive\",$env:USERPROFILE,$gitHub)+@(Get-ChildItem -LiteralPath $gitHub -Directory|Where-Object{Test-Path -LiteralPath (Join-Path $_.FullName '.git')}|ForEach-Object FullName)}
+    function Get-CodexWorld{foreach($place in $Watch){
+        if(Test-Path -LiteralPath (Join-Path $place '.git')){
+            $head=@(& git -C $place rev-parse HEAD 2>$null);$headCode=$LASTEXITCODE;$state=@(& git -C $place status --porcelain --untracked-files=all 2>$null)
+            if($headCode-or$LASTEXITCODE){throw "CODEX_WATCH_UNREADABLE: $place"};"$place|git|$head"
+            foreach($line in $state){$file=Join-Path $place $line.Substring(3).Trim('"')  # status names the path; the hash sees a rewrite of an already dirty file
+                "$place|$line|$(if(Test-Path -LiteralPath $file -PathType Leaf){(Get-FileHash -LiteralPath $file).Hash})"}
+        }else{"$place|.";Get-ChildItem -LiteralPath $place -Force -Name -ErrorAction Stop|ForEach-Object{"$place|$_"}}  # the marker keeps an empty folder comparable
+    }}
+    $before=@(Get-CodexWorld)
+    $savedTemp=$env:TEMP;$savedTmp=$env:TMP;$env:TEMP=$scratch;$env:TMP=$scratch
+    try{& node $Relay --brief $briefFile --cd $cloneDir --sandbox danger-full-access --ignore-user-config --model $Model --effort $Effort --timeout "${TimeoutMinutes}m" --out-dir $logs;$relayCode=$LASTEXITCODE}
+    finally{$env:TEMP=$savedTemp;$env:TMP=$savedTmp}
+    $after=try{@(Get-CodexWorld)}catch{@("UNREADABLE|$($_.Exception.Message)")}
+    $changed=@(Compare-Object $before $after|ForEach-Object{"$($_.SideIndicator) $($_.InputObject)"})
+    if($changed){
+        $null=& $ev -Root $Root -Add -Pattern codex-outside-write -Source delegate-codex -Category failure -Status open -Summary "Codex run $run changed watched places: $(($changed|Select-Object -First 5)-join'; ')" -Evidence $logs -Owner agent -Action 'inspect what wrote it before any further Codex run; remove only after inspection'
+        "CODEX_TRIPWIRE: $($changed.Count) change(s) outside the clone and scratch";$changed;exit 4
+    }
+    "CODEX_DONE relay exit $relayCode; scratch $scratch; logs $logs";exit $relayCode
+}
 
 if($Report){
     $dir=(Resolve-Path -LiteralPath $Report).Path;$name=Split-Path $dir -Leaf
@@ -66,11 +113,13 @@ if($historyBad-and$lookupCode-eq0){$lookupCode=2}
 $spider=if($Query){@(& (Join-Path $PSScriptRoot 'Spider.ps1') $Query -Top 3 -Root $Root)}else{@()}
 $dir=Join-Path $base "$([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))-$Pattern";New-Item -ItemType Directory $dir -Force|Out-Null
 $reportPath=Join-Path $dir 'REPORT.md'
+$readable=if($ReadRoots){'only these roots: '+(($ReadRoots|ForEach-Object{'`'+$_+'`'})-join', ')}else{'every file of the workspace and both repositories'}
+$gitScope=if($ReadRoots){'inside those roots only'}else{'in the real checkouts'}
 $authority=if($Mode-eq'sandbox'){
 "- You MAY create disposable copies (clones, worktrees, files) under ``$(Join-Path $temporaryRoot 'cx\ORVION-<task>')`` and run experiments there, including deliberate failure injection. Delete them when done.
-- You MAY read every file of the workspace and both repositories, and run read-only git commands in the real checkouts."
+- You MAY read $readable, and run read-only git commands $gitScope."
 }else{
-"- You MAY read every file of the workspace and both repositories, and run read-only git commands (show, log, grep, rev-parse, cat-file, ls-tree, status) in the real checkouts."
+"- You MAY read $readable, and run read-only git commands (show, log, grep, rev-parse, cat-file, ls-tree, status) $gitScope."
 }
 $brief=@"
 # Delegated investigation: $Pattern
