@@ -25,7 +25,8 @@ function Get-CimInstance{param([string]$ClassName,[string]$Filter)
     if($ClassName-eq'Win32_OperatingSystem'){[pscustomobject]@{FreePhysicalMemory=1000000;FreeVirtualMemory=2000000}}
     if($ClassName-eq'Win32_Process'){foreach($runIndex in 1..$RuntimeRows|Where-Object{$_-gt0-and$RuntimeRows-gt0}){[pscustomobject]@{ProcessId=$runIndex;CommandLine=('pwsh run_timed.ps1 -Log "'+(Join-Path $Data ('fixture-log-'+$runIndex+('-long'*15)))+'"')}}}
 }
-if($Repository){& $Pulse -Root $Data -Repos $Repository}else{& $Pulse -Root $Data -Repos @()};exit $LASTEXITCODE
+$noMap=Join-Path $Data 'no-ai-map.json'  # never the checkout's real map, which could start the real refresh task
+if($Repository){& $Pulse -Root $Data -Repos $Repository -MapPath $noMap}else{& $Pulse -Root $Data -Repos @() -MapPath $noMap};exit $LASTEXITCODE
 '@
 [IO.File]::WriteAllText($pulseLauncher,$pulseLaunchText)
 function Assert-PulseCheck([string]$label,[bool]$condition,[string]$detail=''){
@@ -57,7 +58,8 @@ try{
     [IO.File]::Delete((Join-Path $pulseFixture 'sessions/index.jsonl'))
     if($OutputProbeOnly){if($pulseFailures){throw 'PULSE_OUTPUT_PROBE_FAILED'};$pulseCompleted=$true;'PULSE_OUTPUT_PROBE PASS';return}
     if(!$RuntimeProbeOnly){
-        $boundedRows=@(foreach($ownerIndex in 0..999){@{pattern=('owner-{0:D4}' -f $ownerIndex);at='2026-10-20T00:00:00Z';category='decision';status='open';owner='owner';summary=('S'*150)}})
+        # Owner summaries that merely mention "UNOWNED" must not outrank the real escalated item below.
+        $boundedRows=@(foreach($ownerIndex in 0..999){@{pattern=('owner-{0:D4}' -f $ownerIndex);at='2026-10-20T00:00:00Z';category='decision';status='open';owner='owner';summary=('UNOWNED '+('S'*142))}})
         # Appended last, oldest first in the classifier: arrival order cannot decide selection.
         $boundedRows+=@{pattern='urgent-owner';at='2000-01-01T00:00:00Z';category='decision';status='open';owner='owner';summary='MOST-URGENT-OWNER'}
         $boundedRows+=@{pattern='critical-agent';at='2000-01-01T00:00:00Z';category='failure';severity='high';status='open';summary='UNOWNED-SENTINEL'}
@@ -82,6 +84,48 @@ try{
         [IO.File]::Delete($boundedIndex)
         Set-PulseFixtureEvents @()
         if($BoundProbeOnly){if($pulseFailures){throw 'PULSE_BOUND_PROBE_FAILED'};$pulseCompleted=$true;'PULSE_BOUND_PROBE PASS';return}
+        # The overflow footer names the data root; a token-shaped folder name must be masked there too.
+        $tokenShape='ghp_'+('A1b2C3d4E5'*4).Substring(0,36)  # the real GitHub token length the masking rule recognizes
+        $tokenRoot=Join-Path $pulseFixture $tokenShape
+        [void][IO.Directory]::CreateDirectory((Join-Path $tokenRoot 'events'))
+        [IO.File]::WriteAllText((Join-Path $tokenRoot 'events/events.jsonl'),(@($boundedRows|ForEach-Object{$_|ConvertTo-Json -Compress})-join"`n"),[Text.UTF8Encoding]::new($false))
+        $tokenLines=@(& pwsh -NoProfile -File $pulseLauncher -Pulse $pulsePath -Data $tokenRoot -Repository '' -DiscoveryFault '' -RuntimeRows 0 2>&1)-join"`n"
+        Assert-PulseCheck 'overflow footer masks a token-shaped data-root path' ($tokenLines-match'(?m)^more\s'-and!$tokenLines.Contains($tokenShape)) $tokenLines
+        # Mask before the 150-character cut: a token straddling the cut must not leave its prefix behind.
+        Set-PulseFixtureEvents @(@{pattern='straddle';at='2026-10-20T00:00:00Z';category='decision';status='open';owner='owner';summary=('S'*139)+' '+$tokenShape})  # a token stands after a separator, as in real text
+        $straddle=Invoke-PulseCheck ''
+        Assert-PulseCheck 'owner summary is masked before it is shortened' ($straddle.Text-match'straddle: S+ <masked>'-and$straddle.Text-notmatch'ghp_') $straddle.Text
+        # Coordinator's own cuts (summary 110, action 260) happen before Pulse sees the line: masked at the source.
+        Set-PulseFixtureEvents @(@{pattern='escalated-straddle';at='2026-10-20T00:00:00Z';category='failure';severity='high';status='open';summary=('S'*104)+' '+$tokenShape},
+            @{pattern='active-straddle';at='2026-10-20T00:00:00Z';category='observation';owner='agent';status='open';summary='in flight';action=('A'*254)+' '+$tokenShape})
+        $coordinatorCut=Invoke-PulseCheck ''
+        Assert-PulseCheck 'Coordinator summary and action are masked before their own cuts' ($coordinatorCut.Text-match'escalated-straddle'-and$coordinatorCut.Text-match'active-straddle'-and$coordinatorCut.Text-notmatch'ghp_') $coordinatorCut.Text
+        Set-PulseFixtureEvents @()
+        # Map freshness: each mapped repository's saved head against its live HEAD; every outcome is visible.
+        $mapFile=Join-Path $pulseFixture 'ai-map.json';$marker=Join-Path $pulseFixture 'map-started.txt'
+        $mapRepository=Join-Path $pulseFixture 'mapped';[void][IO.Directory]::CreateDirectory($mapRepository)
+        foreach($gitStep in @(@('init','-q'),@('-c','user.name=fixture','-c','user.email=fixture@example.invalid','commit','-q','--allow-empty','-m','mapped'))){& git -C $mapRepository @gitStep 2>&1|Out-Null;if($LASTEXITCODE){throw 'PULSE_FIXTURE_GIT_FAILED'}}
+        $mappedHead="$(& git -C $mapRepository rev-parse HEAD)".Trim()
+        $mapProbe=Join-Path $pulseFixture 'invoke-map.ps1'
+        [IO.File]::WriteAllText($mapProbe,'param($Pulse,$Data,$Map,$Marker,[switch]$FailLaunch) $start=if($FailLaunch){{throw ''launch failed''}}else{[scriptblock]::Create("[IO.File]::AppendAllText(''$Marker'',''x'')")};& $Pulse -Root $Data -Repos @() -MapPath $Map -StartMapTask $start;exit $LASTEXITCODE')
+        $mapJson={param($Head)@{generated='2026-10-20T00:00:00Z';repos=@(@{name='mapped';root=$mapRepository;head=$Head})}|ConvertTo-Json -Compress -Depth 4}
+        foreach($case in @(
+            @{name='stale map (saved head differs) starts one refresh';map=(& $mapJson ('0'*40));line='^map      stale \(mapped\): refresh started$';exit=0;started=$true},
+            @{name='fresh map starts no refresh and says fresh';map=(& $mapJson $mappedHead);line='^map      fresh$';exit=0;started=$false},
+            @{name='missing map is named, never silent';map=$null;line='^map      missing: ';exit=0;started=$false},
+            @{name='malformed map makes Pulse unreadable';map='{torn';line='^map      UNREADABLE ';exit=2;started=$false},
+            @{name='empty map makes Pulse unreadable';map='{"repos":[]}';line='^map      UNREADABLE \(no mapped repositories\)';exit=2;started=$false},
+            @{name='blank map file makes Pulse unreadable';map='';line='^map      UNREADABLE ';exit=2;started=$false},
+            @{name='map object without repos makes Pulse unreadable';map='{}';line='^map      UNREADABLE \(no mapped repositories\)';exit=2;started=$false},
+            @{name='map entry without fields makes Pulse unreadable';map='{"repos":[{}]}';line='^map      UNREADABLE \(map entry without name, root or head\)';exit=2;started=$false},
+            @{name='map entry without head makes Pulse unreadable, never a refresh';map=('{"repos":[{"name":"mapped","root":'+($mapRepository|ConvertTo-Json)+'}]}');line='^map      UNREADABLE \(map entry';exit=2;started=$false},
+            @{name='failed refresh launch makes Pulse unreadable';map=(& $mapJson ('0'*40));line='^map      UNREADABLE \(launch failed\)';exit=2;started=$false;fail=$true})){
+            foreach($stale in $marker,$mapFile){if(Test-Path -LiteralPath $stale){[IO.File]::Delete($stale)}}
+            if($null-ne$case.map){[IO.File]::WriteAllText($mapFile,$case.map)}
+            $mapOut=@(& pwsh -NoProfile -File $mapProbe -Pulse $pulsePath -Data $pulseFixture -Map $mapFile -Marker $marker -FailLaunch:([bool]$case.fail) 2>&1)-join"`n";$mapExit=$LASTEXITCODE
+            $started=(Test-Path -LiteralPath $marker)-and[IO.File]::ReadAllText($marker)-ceq'x'
+            Assert-PulseCheck $case.name ($started-eq$case.started-and$mapExit-eq$case.exit-and$mapOut-match('(?m)'+$case.line)) $mapOut
+        }
     }
     $null=Read-PulseFixtureGit @('init','--quiet','-b','main')
     $null=Read-PulseFixtureGit @('config','user.name','Pulse Fixture')

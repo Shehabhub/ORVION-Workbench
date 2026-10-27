@@ -35,10 +35,10 @@ Selected Version: V3
 ## Execution Context
 
 Original Root: absolute intended original Workbench root
-Sandbox Parent: absolute independently owned disposable parent outside the original
-Tests Root: absolute short external fixture parent, with proven safe full revision/path probe
-Temp Root: absolute external tool/operation-temp parent
-Runtime Root: absolute external evidence/log parent
+Sandbox Parent: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench-temporary\sb\<WS>\sb
+Tests Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench-temporary\sb\<WS>\t
+Temp Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench-temporary\sb\<WS>\tmp
+Runtime Root: C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools\records\<WS>\runtime
 PowerShell Version: exact observed semantic version
 Git Version: exact observed git version output
 Minimum Physical GB: 1.5

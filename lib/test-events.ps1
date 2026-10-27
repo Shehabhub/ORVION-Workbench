@@ -16,6 +16,9 @@ try{
             @{name='same function parameter and loop';code='function Read-First { param($Token) foreach($token in 1..2){ $token } }';count=1},
             @{name='conditional block';code='function Read-First { $Token=1; if($true){$token=2} }';count=1},
             @{name='dot sourced block';code='function Read-First { $Token=1; . { $token=2 } }';count=1},
+            @{name='dot invoked own function';code='function Read-First { $Token=1 }; . Read-First; $token=2';count=1},
+            @{name='one function dot invoked from two scopes';code='function Read-Shared { $x=1 }; function Read-First { . Read-Shared }; function Read-Second { . Read-Shared }';count=1},
+            @{name='dot invocation joins only its own function';code='function Read-First { $Token=1 }; function Read-Second { $token=2 }; function Invoke-LocalDot { $x=1 }; . Invoke-LocalDot';count=0},
             @{name='automatic variable';code='function Read-First { $Pid=1 }';count=1}
         )
         foreach($hazardCase in $hazardCases){
@@ -34,9 +37,43 @@ try{
         $repeated=& $ev -Root $evidenceStore -Add -Pattern evidence-correction -Session same-session -Summary 'suite completed' -Evidence 'work\correct.log'
         $evidenceRows=@([IO.File]::ReadAllLines((Join-Path $evidenceStore 'events\events.jsonl'))|ForEach-Object{$_|ConvertFrom-Json})
         Assert-That 'evidence-only correction is appended and an identical correction is deduplicated' ($corrected-match'EVENT RECORDED'-and$repeated-match'EVENT DUPLICATE'-and$evidenceRows.Count-eq2-and$evidenceRows[-1].evidence-ceq'work\correct.log'-and$evidenceRows[0].evidence-ceq'work\wrong.log')
+        $cycle=Join-Path $t 'cycle'
+        foreach($summary in 'A','B','A'){$null=& $ev -Root $cycle -Add -Pattern cycle -Session s -Summary $summary -At ([datetime]'2026-01-01T00:00:00Z') -Repo fixture}
+        $null=& $ev -Root $cycle -Add -Pattern cycle -Session s -Summary A -At ([datetime]'2026-01-01T00:00:00Z') -Repo fixture -Category failure
+        $null=& $ev -Root $cycle -Add -Pattern cycle -Session other -Summary A -At ([datetime]'2026-01-01T00:00:00Z') -Repo fixture -Category failure
+        $cycleRows=@([IO.File]::ReadAllLines((Join-Path $cycle 'events/events.jsonl'))|ForEach-Object{$_|ConvertFrom-Json})
+        Assert-That 'current tied row, material category and session recurrence' ($cycleRows.Count-eq5-and$cycleRows[2].summary-ceq'A')
+        $found=@(& $ev -Root $cycle -Find cycle -Repo fixture)-join' '
+        $absent=@(& $ev -Root $cycle -Find cycle -Repo other)-join' '
+        Assert-That 'Find filters repository before grouping' ($found-match'cycle'-and$absent-match'nothing recorded')
+        # Real journals name repositories loosely: lists, owner/repo, and "Workbench" for ORVION-Workbench.
+        $aliases=Join-Path $t 'aliases'
+        foreach($row in @(@('pair','CRM,ORVION'),@('slug','Shehabhub/ORVION-Workbench'),@('short','Workbench'))){$null=& $ev -Root $aliases -Add -Pattern $row[0] -Session s -Summary $row[0] -Repo $row[1]}
+        $orvion=@(& $ev -Root $aliases -Find 'pair slug short' -Repo ORVION)-join' ';$wb=@(& $ev -Root $aliases -Find 'pair slug short' -Repo Workbench)-join' '
+        Assert-That 'Repo filter matches list members, owner/repo slugs and the Workbench alias' ($orvion-match'pair'-and$orvion-notmatch'slug|short'-and$wb-match'slug'-and$wb-match'short'-and$wb-notmatch'pair')
+        $bySlug=@(& $ev -Root $aliases -Find 'pair slug short' -Repo 'Shehabhub/ORVION-Workbench')-join' '
+        Assert-That 'an owner/repo selector matches its own stored slug and alias' ($bySlug-match'slug'-and$bySlug-match'short'-and$bySlug-notmatch'pair')
+        # The repository is part of the fact: the same note for another repository is recorded, not a duplicate.
+        $first=& $ev -Root $aliases -Add -Pattern per-repo -Session s -Summary same -Repo CRM
+        $second=& $ev -Root $aliases -Add -Pattern per-repo -Session s -Summary same -Repo ORVION
+        $orvionOnly=@(& $ev -Root $aliases -Find 'per repo' -Repo ORVION)-join' '
+        Assert-That 'dedupe includes the repository' ($first-match'EVENT RECORDED'-and$second-match'EVENT RECORDED'-and$orvionOnly-match'per-repo')
+        $tokenShape='ghp_'+('A1b2C3d4E5'*4).Substring(0,36)  # the real GitHub token length the masking rule recognizes
+        $null=& $ev -Root $aliases -Add -Pattern leaked-note -Session s -Summary "saw $tokenShape" -Action "rotate $tokenShape" -Repo CRM
+        $shown=@(& $ev -Root $aliases -Find 'leaked note')-join' '
+        Assert-That 'Find output masks credential shapes in every field' ($shown-match'leaked-note: saw <masked>'-and!$shown.Contains('ghp_'))
+        # Diagnostics name paths: a token-shaped data root never prints intact (missing and damaged journals).
+        $tokenRoot=Join-Path $t $tokenShape
+        $missingOut=@(& pwsh -NoProfile -File $ev -Root $tokenRoot -Find 'anything')-join' '
+        [void][IO.Directory]::CreateDirectory((Join-Path $tokenRoot 'events'));[IO.File]::WriteAllText((Join-Path $tokenRoot 'events/events.jsonl'),"{torn`n")
+        $damagedOut=@(& pwsh -NoProfile -File $ev -Root $tokenRoot -Brief)-join' '
+        Assert-That 'unavailable and incomplete diagnostics mask a token-shaped root' ($missingOut-match'EVENTS_UNAVAILABLE'-and$damagedOut-match'EVENTS_INCOMPLETE'-and!($missingOut+$damagedOut).Contains('ghp_'))
+        $here=@(Push-Location $t;try{git init -q 'repo-auto' 2>&1|Out-Null;Push-Location 'repo-auto';try{& $ev -Root $aliases -Add -Pattern auto-repo -Session s -Summary auto}finally{Pop-Location}}finally{Pop-Location})
+        $autoRow=@([IO.File]::ReadAllLines((Join-Path $aliases 'events/events.jsonl'))|ForEach-Object{$_|ConvertFrom-Json}|Where-Object{$_.pattern-eq'auto-repo'})
+        Assert-That 'Add fills Repo from the current git root' ($here-match'EVENT RECORDED'-and$autoRow.Count-eq1-and$autoRow[0].repo-ceq'repo-auto')
         if($EvidenceProbeOnly){if($fail){throw 'EVENTS_EVIDENCE_PROBE_FAILED'};'EVENTS_EVIDENCE_PROBE PASS';return}
     }
-    $expression='$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw ''ORVION_DATA_ROOT_NOT_ABSOLUTE''};$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace''[\\/]hooks$'','''') -Parent) -Parent) ''ORVION-Owner-Tools'')|Where-Object{Test-Path -LiteralPath (Join-Path $_ ''events'')})+@(Split-Path ($PSScriptRoot-replace''[\\/]hooks$'','''') -Parent))[0]})'
+    $expression='$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw ''ORVION_DATA_ROOT_NOT_ABSOLUTE''};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace''[\\/]hooks$'','''') -Parent) -Parent) ''ORVION-Owner-Tools''})'
     $drift=@(foreach($tool in 'Events','Spider','Pulse','Coordinator','Delegate','Sync-Sessions'){if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot "$tool.ps1")).Contains('[string]$Root='+$expression)){$tool}})+@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Watch-Subagents.ps1')).Contains('[string]$EventRoot='+$expression)){'Watch-Subagents'})+@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Hunt.ps1')).Contains('[string]$DataRoot='+$expression)){'Hunt'})
     $drift+=@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Backup-Workspace.ps1')).Contains('$ownerTools='+$expression)){'Backup-Workspace'})
     $drift+=@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'hooks\Watch-Reminder.ps1')).Contains('$dataRoot='+$expression)){'Watch-Reminder'})
@@ -128,7 +165,7 @@ function Get-CimInstance{param([string]$ClassName,[string]$Filter) if($ClassName
     $null=& pwsh -NoProfile -File $ev -Root (Join-Path $t 'no-store') -Brief;$noneBriefCode=$LASTEXITCODE
     Assert-That 'a missing journal is UNAVAILABLE (exit 3), never "nothing recorded"' ($noneCode-eq3-and$none[0]-match'^EVENTS_UNAVAILABLE'-and($none-join' ')-notmatch'nothing recorded'-and$noneBriefCode-eq3)
     # The default data root: the sibling ORVION-Owner-Tools store when it has events\, ORVION_DATA_ROOT above all.
-    $gh=Join-Path $t 'gh';$copy=Join-Path $gh 'ORVION-Workbench\lib';[void][IO.Directory]::CreateDirectory($copy);Copy-Item $ev $copy
+    $gh=Join-Path $t 'gh';$copy=Join-Path $gh 'ORVION-Workbench\lib';[void][IO.Directory]::CreateDirectory($copy);Copy-Item $ev,(Join-Path $PSScriptRoot 'Sync-Sessions.ps1') $copy  # Events masks with the archive's rules
     $null=& $ev -Root (Join-Path $gh 'ORVION-Owner-Tools') -Add -Pattern sibling-store-marker -Session s9 -Summary 'found in the sibling data store' -Tags 'siblingmarker'
     $null=& $ev -Root (Join-Path $t 'env store') -Add -Pattern env-store-marker -Session s9 -Summary 'found through ORVION_DATA_ROOT' -Tags 'siblingmarker'
     $savedRoot=$env:ORVION_DATA_ROOT

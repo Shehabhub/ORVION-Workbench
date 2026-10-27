@@ -10,11 +10,15 @@
 # Rules (its robots.txt): credential values are masked in every snippet; a failing git read refuses, never reads as
 # "no match"; .git, node_modules and raw sandboxes are never crawled. Read-only.
 param([Parameter(Mandatory,Position=0)][string]$Query,[int]$Top=5,
-      [string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent))[0]}),
-      [string[]]$Repos=@('CRM','ORVION'|ForEach-Object{Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) $_}),
-      [string]$ReviewRoot=(Join-Path $env:USERPROFILE 'Documents\ORVION-Owner-Review'))
+      [string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools'}),
+      [string[]]$Repos,
+      [string]$GitHub=(Split-Path (Split-Path $PSScriptRoot -Parent) -Parent))
 $ErrorActionPreference='Stop'
+if(!$PSBoundParameters.ContainsKey('Root')-and!$env:ORVION_DATA_ROOT-and!(Test-Path -LiteralPath (Join-Path $Root 'events') -PathType Container)){'SPIDER_UNAVAILABLE: ORVION_DATA_ROOT_UNAVAILABLE';exit 3}
 . (Join-Path $PSScriptRoot 'Sync-Sessions.ps1') -Library -Root $Root  # the archive's secret rules mask snippets the same way
+. (Join-Path $PSScriptRoot 'workspace-layout.ps1')
+# The three ORVION repositories are always expected: one missing or not Git is a coverage gap, never silently dropped.
+if(!$PSBoundParameters.ContainsKey('Repos')){$Repos=@(@('CRM','ORVION','ORVION-Workbench'|ForEach-Object{Join-Path $GitHub $_})+@(Get-OrvionRepositoryCandidates -GitHub $GitHub|ForEach-Object root)|Select-Object -Unique)}
 $cmp=[StringComparison]::OrdinalIgnoreCase
 function Get-Snippet([string]$Line){  # one readable line around the first match, credential values masked
     # mask the whole line first: masking after the cut leaked the part of a token that fell inside the snippet
@@ -22,8 +26,11 @@ function Get-Snippet([string]$Line){  # one readable line around the first match
     $at=[Math]::Max(0,$Line.IndexOf($Query,$cmp)-70);$s=$Line.Substring($at,[Math]::Min(220,$Line.Length-$at))
     (($s-replace'\\[nrt]',' '-replace'\\"','"'-replace'\\\\','\'-replace'\s+',' ').Trim())
 }
-function Invoke-RepoGit([string]$Repo){$o=& git -C $Repo @args 2>&1;if($LASTEXITCODE-gt1){throw "SPIDER_GIT_FAILED $Repo git $($args-join' '): $o"};@($o|Where-Object{$_-is[string]})}
+function Invoke-RepoGit([string]$Repo){$o=& git -C $Repo @args 2>&1;if($LASTEXITCODE-gt1){throw (Hide-Secret "SPIDER_GIT_FAILED $Repo git $($args-join' '): $o")};@($o|Where-Object{$_-is[string]})}
 
+# Every rendered line (pointers, file names, note paths, diagnostics) leaves masked; fields cut short are masked first.
+$script:spiderExit=0
+& {
 "SPIDER '$Query'"
 # Sessions: lines that mention the query, per session, ranked by count; the first mention as the snippet.
 $ix=@{};$ixPath=Join-Path $Root 'sessions\index.jsonl'
@@ -59,22 +66,23 @@ foreach($r in $Repos){
     $files=@($g|ForEach-Object{$p,$n=$_-split':(?=\d+$)';[pscustomobject]@{path=$p;hits=[int]$n}}|Sort-Object hits -Descending)
     $log=@(Invoke-RepoGit $r log --oneline -i -F "--grep=$Query" -n $Top)
     "== $name files: $($files.Count) ($(($files|Select-Object -First $Top|ForEach-Object{"$($_.path) $($_.hits)"})-join', '))"
-    if($log.Count){"   $name commits: $(($log|ForEach-Object{$_.Substring(0,[Math]::Min(90,$_.Length))})-join' | ')"}
+    if($log.Count){"   $name commits: $(($log|ForEach-Object{$c=Hide-Secret $_;$c.Substring(0,[Math]::Min(90,$c.Length))})-join' | ')"}
 }
 # Notes: memory, workspace docs, owner-review packets (markdown only).
 $md=@(
-    $projects=Join-Path $env:USERPROFILE '.claude\projects'
-    # Claude is optional; enumeration/read errors for a present source must still refuse.
-    if(Test-Path -LiteralPath $projects){
-        if(!(Test-Path -LiteralPath $projects -PathType Container)){throw 'SPIDER_CLAUDE_PROJECTS_NOT_DIRECTORY'}
-        Get-ChildItem -LiteralPath $projects -Directory|ForEach-Object{$m=Join-Path $_.FullName 'memory';if(Test-Path $m){Get-ChildItem $m -File -Filter *.md}}
+    $sessionIndex=Join-Path $Root 'sessions\INDEX.md';if(Test-Path -LiteralPath $sessionIndex -PathType Leaf){Get-Item -LiteralPath $sessionIndex}
+    $records=Join-Path $Root 'records'
+    if(Test-Path -LiteralPath $records -PathType Container){
+        Get-ChildItem -LiteralPath $records -File -Filter *.md
+        foreach($d in Get-ChildItem -LiteralPath $records -Directory|Where-Object{$_.Name -notmatch 'sandbox' -and !($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -and !(Test-Path -LiteralPath (Join-Path $_.FullName '.git'))}){
+            Get-ChildItem -LiteralPath $d.FullName -File -Filter *.md
+            foreach($sub in Get-ChildItem -LiteralPath $d.FullName -Directory|Where-Object{$_.Name -notmatch 'sandbox' -and !($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -and !(Test-Path -LiteralPath (Join-Path $_.FullName '.git'))}){Get-ChildItem -LiteralPath $sub.FullName -File -Filter *.md}
+        }
     }
-    foreach($p in 'README.md','lib\README.md','sessions\INDEX.md'){$x=Join-Path $Root $p;if(Test-Path $x){Get-Item $x}}
-    if(Test-Path $ReviewRoot){Get-ChildItem $ReviewRoot -File -Filter *.md;foreach($d in Get-ChildItem $ReviewRoot -Directory){
-        Get-ChildItem $d.FullName -File -Filter *.md
-        Get-ChildItem $d.FullName -Directory|Where-Object{!(Test-Path (Join-Path $_.FullName '.git'))}|ForEach-Object{Get-ChildItem $_.FullName -File -Filter *.md}}}
 )
 $nh=@(foreach($f in $md){$c=@([IO.File]::ReadAllLines($f.FullName)|Where-Object{$_.IndexOf($Query,$cmp)-ge0}).Count;if($c){[pscustomobject]@{path=$f.FullName;hits=$c}}})
 if($gaps.Count){$coverage="SPIDER_COVERAGE: incomplete - $($gaps-join'; ')"}
 "== notes: $($nh.Count) files$(if($nh.Count){': '+(($nh|Sort-Object hits -Descending|Select-Object -First $Top|ForEach-Object{"$($_.path.Replace($env:USERPROFILE,'~')) $($_.hits)"})-join', ')})"
-if($gaps.Count){$coverage;exit 3}
+if($gaps.Count){$coverage;$script:spiderExit=3}
+}|ForEach-Object{Hide-Secret $_}
+exit $script:spiderExit

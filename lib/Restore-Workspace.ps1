@@ -5,9 +5,16 @@
 # `pwsh -NoProfile -File <repo>\scripts\check_agent_continuity.ps1 -Boot` in each repository.
 # Selective package v1: -Package <file.7z> extracts a Backup-Workspace -Package archive into TEMP first (removed afterwards).
 param([string]$From,[string]$Target=(Join-Path $env:USERPROFILE 'Documents\GitHub'),
-      [string]$ClaudeHome=(Join-Path $env:USERPROFILE '.claude'),[string]$LegacyTarget=(Join-Path $env:USERPROFILE 'Documents'),[switch]$SkipLegacy,
-      [string]$Package,[string]$CodexHome=(Join-Path $env:USERPROFILE '.codex'))
+      [string]$ClaudeHome=(Join-Path $env:USERPROFILE '.claude'),[string]$LegacyTarget,[switch]$SkipLegacy,
+      [string]$Package,[string]$CodexHome=(Join-Path $env:USERPROFILE '.codex'),[switch]$Temporary)
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'workspace-layout.ps1')
+if($Temporary){
+    if($From-or$Package-or$LegacyTarget-or$SkipLegacy-or$PSBoundParameters.ContainsKey('ClaudeHome')-or$PSBoundParameters.ContainsKey('CodexHome')){throw 'RESTORE_TEMPORARY_ARGUMENTS'}
+    $root=Restore-OrvionTemporary $Target
+    "RESTORED temporary workspace: $root"
+    return
+}
 # stdout only on success; a failure names the subcommand and masks URL credentials (config values pass through here)
 function Invoke-Git{param([string]$Repo)$o=& git -C $Repo @args 2>&1;if($LASTEXITCODE){throw "GIT_FAILED $Repo git $($args[0]) (exit $LASTEXITCODE)`n$("$o"-replace'://[^/@\s]+@','://***@')"};$o|Where-Object{$_-isnot[Management.Automation.ErrorRecord]}}
 function Assert-Absent([string]$Path){if(Test-Path -LiteralPath $Path){throw "RESTORE_TARGET_EXISTS: $Path (restore never overwrites)"}}
@@ -15,6 +22,7 @@ function Assert-Absent([string]$Path){if(Test-Path -LiteralPath $Path){throw "RE
 if(!$From-eq!$Package){throw 'RESTORE_SOURCE_REQUIRED: pass exactly one of -From or -Package'}
 try{
 if($Package){
+    $temporaryRoot=Initialize-OrvionTemporaryRoot -Checkout (Split-Path $PSScriptRoot -Parent)
     $zip=(Get-Command 7z -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1).Source;if(!$zip){$zip=Join-Path $env:ProgramFiles '7-Zip\7z.exe'}
     if(!(Test-Path -LiteralPath $zip)){throw 'PACKAGE_7ZIP_REQUIRED'}
     $staging=Join-Path ([IO.Path]::GetTempPath()) ("orvion-restore-"+[guid]::NewGuid().ToString('N'))
@@ -22,6 +30,8 @@ if($Package){
     $From=@(Get-ChildItem -LiteralPath $staging -Directory)[0].FullName
 }
 $From=(Resolve-Path $From).Path
+# A data root is never a repository (including a .git file or junction). Refuse before destination writes.
+if(Get-Item -LiteralPath (Join-Path $From 'owner-tools/.git') -Force -ErrorAction SilentlyContinue){throw 'RESTORE_DATA_ROOT_GIT_REFUSED'}
 $listed=@{}
 $bad=@(foreach($l in [IO.File]::ReadAllLines((Join-Path $From 'SHA256SUMS.txt'))){
     $h,$rel=$l-split'  ',2
@@ -61,11 +71,32 @@ if(@($plan.repos|Where-Object{$_.name-like'ORVION-Workbench*'}).Count){
     }
     $listed=@([IO.File]::ReadAllLines((Join-Path $From 'SHA256SUMS.txt'))|ForEach-Object{($_-split'  ',2)[1]-replace'\\','/'})
     foreach($file in $required){if(!(Test-Path -LiteralPath (Join-Path $From $file) -PathType Leaf)-or$file-cnotin$listed){throw 'RESTORE_WORKBENCH_INPUT_REQUIRED'}}
-    Assert-Absent (Join-Path $Target 'ORVION-Recovery-Inputs')
+    # A recovered data root may already carry earlier proof inputs. Identical names must agree.
+    foreach($inputFile in Get-ChildItem -LiteralPath (Join-Path $From 'recovery-inputs') -File){
+        $existing=Join-Path $From ('owner-tools/records/recovery-inputs/'+$inputFile.Name)
+        if((Test-Path -LiteralPath $existing)-and(!(Test-Path -LiteralPath $existing -PathType Leaf)-or(Get-FileHash -LiteralPath $existing).Hash-cne(Get-FileHash -LiteralPath $inputFile.FullName).Hash)){throw 'RESTORE_RECOVERY_INPUT_CONFLICT'}
+    }
 }
 
 foreach($r in $plan.repos){Assert-Absent (Join-Path $Target $r.name)}
 Assert-Absent (Join-Path $Target 'ORVION-Owner-Tools')
+# Preflight every memory destination, including dangling links, before restoring any repository.
+$memorySources=@{}
+foreach($m in Get-ChildItem -LiteralPath (Join-Path $From 'owner-tools/records/claude-memory') -Directory -ErrorAction SilentlyContinue){$memorySources[$m.Name]=$m.FullName}
+foreach($m in Get-ChildItem -LiteralPath (Join-Path $From 'claude/projects') -Directory -ErrorAction SilentlyContinue){
+    $source=Join-Path $m.FullName 'memory'
+    if(Test-Path -LiteralPath $source -PathType Container){
+        if($memorySources.ContainsKey($m.Name)){throw 'RESTORE_MEMORY_SOURCE_CONFLICT'}
+        $memorySources[$m.Name]=$source
+    }
+}
+foreach($key in $memorySources.Keys){
+    $destination=Join-Path $ClaudeHome "projects/$key/memory"
+    $existing=Get-Item -LiteralPath $destination -Force -ErrorAction SilentlyContinue
+    $expected=[IO.Path]::GetFullPath((Join-Path $Target "ORVION-Owner-Tools/records/claude-memory/$key")).TrimEnd('\')
+    if($existing-and($existing.LinkType-cne'Junction'-or[IO.Path]::GetFullPath(@($existing.Target)[0]).TrimEnd('\')-ine$expected)){throw 'RESTORE_MEMORY_CONFLICT'}
+}
+$temporaryRoot=Initialize-OrvionTemporaryRoot -Checkout (Split-Path $PSScriptRoot -Parent) -Target $(if($PSBoundParameters.ContainsKey('Target')){$Target})
 
 $created=[Collections.Generic.List[string]]::new()
 try{foreach($r in $plan.repos){
@@ -101,9 +132,18 @@ try{foreach($r in $plan.repos){
 }}catch{"PARTIAL RESTORE: these were created before the failure; remove them before retrying: $($created-join', ')";throw}
 Copy-Item (Join-Path $From 'owner-tools') (Join-Path $Target 'ORVION-Owner-Tools') -Recurse
 "RESTORED ORVION-Owner-Tools"
-foreach($m in Get-ChildItem (Join-Path $From 'claude\projects') -Directory -ErrorAction SilentlyContinue){
-    $d=Join-Path $ClaudeHome "projects\$($m.Name)\memory"
-    if(Test-Path $d){"SKIPPED claude memory $($m.Name) (exists)"}else{New-Item -ItemType Directory (Split-Path $d -Parent) -Force|Out-Null;Copy-Item (Join-Path $m.FullName 'memory') $d -Recurse;"RESTORED claude memory $($m.Name)"}
+foreach($key in $memorySources.Keys){
+    $memoryTarget=Join-Path $Target "ORVION-Owner-Tools/records/claude-memory/$key"
+    if(!(Test-Path -LiteralPath $memoryTarget)){
+        [void][IO.Directory]::CreateDirectory((Split-Path $memoryTarget -Parent))
+        Copy-Item -LiteralPath $memorySources[$key] -Destination $memoryTarget -Recurse
+    }
+    $destination=Join-Path $ClaudeHome "projects/$key/memory"
+    [void][IO.Directory]::CreateDirectory((Split-Path $destination -Parent))
+    if(!(Get-Item -LiteralPath $destination -Force -ErrorAction SilentlyContinue)){$null=New-Item -ItemType Junction -Path $destination -Target $memoryTarget}
+    $link=Get-Item -LiteralPath $destination -Force
+    if($link.LinkType-cne'Junction'-or[IO.Path]::GetFullPath(@($link.Target)[0]).TrimEnd('\')-ine[IO.Path]::GetFullPath($memoryTarget).TrimEnd('\')){throw 'RESTORE_MEMORY_JUNCTION_INVALID'}
+    "RESTORED claude memory junction $key"
 }
 foreach($f in 'settings.json','statusline.ps1'){
     $s=Join-Path $From "claude\$f";if(!(Test-Path $s)){continue};$d=Join-Path $ClaudeHome $f
@@ -114,12 +154,20 @@ if(Test-Path -LiteralPath $s -PathType Leaf){
     if(Test-Path -LiteralPath $d){if(Test-Path -LiteralPath "$d.restored"){"KEPT existing $d and config.toml.restored (nothing copied)"}else{Copy-Item -LiteralPath $s -Destination "$d.restored";"KEPT existing $d (backup copy: config.toml.restored, merge by hand)"}}
     else{New-Item -ItemType Directory $CodexHome -Force|Out-Null;Copy-Item -LiteralPath $s -Destination $d;"RESTORED $d"}
 }
-if(!$SkipLegacy){foreach($l in Get-ChildItem (Join-Path $From 'legacy') -Directory -ErrorAction SilentlyContinue){
+if(!$SkipLegacy-and$PSBoundParameters.ContainsKey('LegacyTarget')-and$LegacyTarget){foreach($l in Get-ChildItem (Join-Path $From 'legacy') -Directory -ErrorAction SilentlyContinue){
+    [void][IO.Directory]::CreateDirectory($LegacyTarget)
     $d=Join-Path $LegacyTarget $l.Name;if(Test-Path $d){"SKIPPED legacy $($l.Name) (exists)"}else{Copy-Item $l.FullName $d -Recurse;"RESTORED legacy $($l.Name)"}
-}}
+}}elseif(Test-Path -LiteralPath (Join-Path $From 'legacy')){'ACTION: old package legacy files were not restored; pass -LegacyTarget explicitly to recover them'}
 if($plan.workbenchRecovery){
-    Copy-Item -LiteralPath (Join-Path $From 'recovery-inputs') -Destination (Join-Path $Target 'ORVION-Recovery-Inputs') -Recurse
-    Copy-Item -LiteralPath (Join-Path $From 'backup.json') -Destination (Join-Path $Target 'ORVION-Recovery-Inputs/source-map.json')
+    $inputsTarget=Join-Path $Target 'ORVION-Owner-Tools/records/recovery-inputs'
+    [void][IO.Directory]::CreateDirectory($inputsTarget)
+    foreach($inputFile in Get-ChildItem -LiteralPath (Join-Path $From 'recovery-inputs') -File){
+        $destination=Join-Path $inputsTarget $inputFile.Name
+        if(!(Test-Path -LiteralPath $destination)){Copy-Item -LiteralPath $inputFile.FullName -Destination $destination}
+    }
+    $map=Join-Path $From 'backup.json';$mapDestination=Join-Path $inputsTarget 'source-map.json'
+    if((Test-Path -LiteralPath $mapDestination)-and(Get-FileHash -LiteralPath $mapDestination).Hash-cne(Get-FileHash -LiteralPath $map).Hash){$mapDestination=Join-Path $inputsTarget ('source-map-'+(Get-FileHash -LiteralPath $map).Hash+'.json')}
+    if(!(Test-Path -LiteralPath $mapDestination)){Copy-Item -LiteralPath $map -Destination $mapDestination}
     'RESTORED Workbench proof inputs; source-map.json retains original paths. Historical receipts retain their original physical roots; no new-machine certification or trust advancement is implied.'
 }
 "NEXT: gh auth login (PlatPlusHub and Shehabhub); re-enter the masked local postgres passwords in $CodexHome\config.toml (merge config.toml.restored if present), then Boot in each repository."

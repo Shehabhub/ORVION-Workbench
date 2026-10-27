@@ -221,6 +221,20 @@ exit 0
         $concurrentHunt=Complete-AckChild (Start-AckChild @($huntLauncher,'-Hunt',(Join-Path $PSScriptRoot 'Hunt.ps1'),'-Store',$case.Store))
         Assert-Ack 'concurrent new failure blocks Hunt after acknowledgement' ($concurrentHunt.Code-eq1-and$concurrentHunt.Text-match'BUG sync-errors:.*new concurrent failure')
     }
+    if($Probe-in'All','Concurrency'){
+        # The sidecar lock is the file itself: an aliased spelling (junction) of the same store contends, and the
+        # sidecar survives release (deleting it would let two writers each create their own).
+        $lockStore=Join-Path $t 'lock-store';$alias=Join-Path $t 'lock-alias'
+        [void][IO.Directory]::CreateDirectory((Join-Path $lockStore 'work'));$null=New-Item -ItemType Junction -Path $alias -Target $lockStore
+        $first=& {. (Join-Path $PSScriptRoot 'Sync-Sessions.ps1') -Library -Root $lockStore;Enter-SyncErrorLock -WaitMilliseconds 1000}
+        try{
+            $secondRefused=try{$second=& {. (Join-Path $PSScriptRoot 'Sync-Sessions.ps1') -Library -Root $alias;Enter-SyncErrorLock -WaitMilliseconds 300};$second.Dispose();$false}catch{"$_"-match'SYNC_ERRORS_LOCK_TIMEOUT'}
+        }finally{$first.Dispose()}
+        Assert-Ack 'aliased store spelling contends on the same sidecar lock' $secondRefused
+        $null=& {. (Join-Path $PSScriptRoot 'Sync-Sessions.ps1') -Library -Root $lockStore;Write-SyncError 'fixture' ([pscustomobject]@{Exception=[Exception]::new('sidecar probe')})} 2>&1
+        Assert-Ack 'sidecar lock file survives release, also after a real error write' ((Test-Path -LiteralPath (Join-Path $lockStore 'work\sync-errors.log.lock') -PathType Leaf)-and[IO.File]::ReadAllText((Join-Path $lockStore 'work\sync-errors.log'))-match'sidecar probe')
+        [IO.Directory]::Delete($alias)
+    }
 }finally{
     foreach($ownedChild in $ackChildren){try{if(!$ownedChild.Process.HasExited){$ownedChild.Process.Kill($true);$null=$ownedChild.Process.WaitForExit(5000)}}finally{$ownedChild.Process.Dispose()}}
     $null=Remove-OrvionOwnedTree -Path $t -AllowedRoots @([IO.Path]::GetTempPath())

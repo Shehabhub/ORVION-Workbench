@@ -2,7 +2,34 @@
 # Execute the accepted checker, never the proposed working checker. No full-suite duplication.
 set -eu
 root=$(git rev-parse --show-toplevel) || exit 1
-judge=$(mktemp "${TMPDIR:-/tmp}/workbench-judge-XXXXXXXX.ps1") || exit 1
+refuse_temp() { echo 'WORKBENCH: BLOCKED'; echo "CODE: $1"; exit 1; }
+# Resolve without executing proposed checkout code. Keep in step with lib/workspace-layout.ps1.
+temporary=${WORKBENCH_TEMP_ROOT:-}
+if [ -z "$temporary" ]; then
+    # Only the exact clone homes bind: <temporary>/cx/<name> and <temporary>/sb/<WS>/<name>.
+    lower() { basename "$1" | tr '[:upper:]' '[:lower:]'; }
+    p=$(dirname "$root"); gp=$(dirname "$p"); ggp=$(dirname "$gp")
+    if [ "$(lower "$p")" = cx ] && [ "$(lower "$gp")" = orvion-workbench-temporary ]; then temporary=$gp
+    elif [ "$(lower "$gp")" = sb ] && [ "$(lower "$ggp")" = orvion-workbench-temporary ]; then temporary=$ggp
+    elif [ -n "${RUNNER_TEMP:-}" ] || [ "${GITHUB_ACTIONS:-}" = true ] || [ "${ORVION_STANDALONE_TEMP:-}" = 1 ]; then
+        temporary="${RUNNER_TEMP:-${TEMP:-/tmp}}/ORVION-Workbench"
+    else
+        case $(lower "$root") in
+            orvion-workbench|orvion-workbench-trusted-main) temporary="$p/ORVION-Workbench-temporary" ;;
+            *) refuse_temp WB_TEMP_LAYOUT_UNAVAILABLE ;;
+        esac
+    fi
+fi
+case "$temporary" in /*|[A-Za-z]:[\\/]*) ;; *) refuse_temp WB_TEMP_ROOT_NOT_ABSOLUTE ;; esac
+temporary=$(cygpath -am "$temporary") || refuse_temp WB_TEMP_ROOT_NOT_ABSOLUTE
+case $(printf '%s' "$temporary/" | tr '[:upper:]' '[:lower:]') in
+    "$(printf '%s' "$root/" | tr '[:upper:]' '[:lower:]')"*) refuse_temp WB_TEMP_ROOT_INSIDE_CHECKOUT_REFUSED ;;
+esac
+managed=$(cygpath -u "$temporary")/tmp
+mkdir -p -- "$managed" || refuse_temp WB_TEMP_MATERIALIZATION_FAILED
+TEMP=$(cygpath -w "$managed"); TMP=$TEMP; TMPDIR=$managed
+export TEMP TMP TMPDIR
+judge=$(mktemp "$managed/workbench-judge-XXXXXXXX.ps1") || refuse_temp WB_TEMP_MATERIALIZATION_FAILED
 trap 'rm -f -- "$judge"' EXIT HUP INT TERM
 if git cat-file -e HEAD:lib/Test-WorkbenchChange.ps1 2>/dev/null; then
     git show HEAD:lib/Test-WorkbenchChange.ps1 > "$judge" || exit 1

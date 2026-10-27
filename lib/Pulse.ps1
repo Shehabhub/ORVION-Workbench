@@ -5,15 +5,32 @@
 #   waiting    genuine owner choices from the SAME Coordinator snapshot as the queue
 #   last       the newest other session: task, when it ended, where it stopped
 #   queue      the coordinator's queue (Coordinator.ps1 -Brief): counts by state, the three most urgent items
-# Read-only; a failing git read prints UNREADABLE for that repository instead of guessing.
-param([string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent))[0]}),[string]$Session=$env:CLAUDE_CODE_SESSION_ID,
-      [string[]]$Repos=@('CRM','ORVION'|ForEach-Object{Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) $_}))
+#   map        ai-map freshness: each mapped repository's saved head against its live HEAD
+# Read-only except one side effect: a stale map starts its refresh task. A failing read prints UNREADABLE, never a guess.
+param([string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools'}),[string]$Session=$env:CLAUDE_CODE_SESSION_ID,
+      [string[]]$Repos=@('CRM','ORVION'|ForEach-Object{Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) $_}),
+      [scriptblock]$StartMapTask={Start-ScheduledTask -TaskName 'ORVION Repository Map' -ErrorAction Stop},
+      [string]$MapPath=(Join-Path (Split-Path $PSScriptRoot -Parent) 'ai-map.json'))  # owner-fixed generated map location
 $ErrorActionPreference='Stop'
+if(!$PSBoundParameters.ContainsKey('Root')-and!$env:ORVION_DATA_ROOT-and!(Test-Path -LiteralPath (Join-Path $Root 'events') -PathType Container)){'PULSE_UNAVAILABLE: ORVION_DATA_ROOT_UNAVAILABLE';exit 3}
 $pulseUnreadable=$false
+# Mask every value before it is shortened: a cut first can leave a token's tail unmasked. The library loads in its own
+# module, isolated from Pulse's variables.
+$null=New-Module -Name PulseMask -ScriptBlock {param($Library,$Data) . (Join-Path $Library 'Sync-Sessions.ps1') -Library -Root $Data;Export-ModuleMember -Function Hide-Secret} -ArgumentList $PSScriptRoot,$Root|Import-Module -PassThru
 function Get-GitLine{param([string]$Repo)$o=& git -C $Repo @args 2>$null;if($LASTEXITCODE){throw "git $($args-join' ')"};"$o".Trim()}
 $pulseOwnerLines=@()
 $pulseLines=@(. {
 "ORVION PULSE $([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm')) UTC"
+if(!(Test-Path -LiteralPath $MapPath -PathType Leaf)){"map      missing: pwsh -NoProfile -File lib\Map-Repos.ps1 -Install"}
+else{try{
+    $map=[IO.File]::ReadAllText($MapPath)|ConvertFrom-Json
+    $mappedRepos=@($map|ForEach-Object{$_.repos}|Where-Object{$null-ne$_})  # @($null).Count is 1: a blank map must not read as fresh
+    if(!$mappedRepos.Count){throw 'no mapped repositories'}
+    $stale=@(foreach($mapped in $mappedRepos){
+        if(!$mapped.name-or!$mapped.root-or!$mapped.head){throw 'map entry without name, root or head'}
+        if((Get-GitLine $mapped.root rev-parse HEAD)-ne$mapped.head){$mapped.name}})
+    if($stale){& $StartMapTask|Out-Null;"map      stale ($($stale-join', ')): refresh started"}else{'map      fresh'}
+}catch{$pulseUnreadable=$true;"map      UNREADABLE ($($_.Exception.Message))"}}
 foreach($r in $Repos){
     $name=Split-Path $r -Leaf
     try{
@@ -43,7 +60,7 @@ $procs=@(Get-CimInstance Win32_Process -Filter "Name='pwsh.exe'" -ErrorAction St
 $follow=@($procs|Where-Object{$_.CommandLine-match'Sync-Sessions\.ps1.*-Follow'})
 $timed=@($procs|Where-Object{$_.CommandLine-match'run_timed\.ps1'}|ForEach-Object{
     $log=[regex]::Match($_.CommandLine,'-Log\s+"?([^"]+?)"?(\s+-|\s*$)').Groups[1].Value
-    $last=if($log-and(Test-Path -LiteralPath $log)){@(Get-Content -LiteralPath $log -Tail 1)[0]}else{''}
+    $last=if($log-and(Test-Path -LiteralPath $log)){Hide-Secret @(Get-Content -LiteralPath $log -Tail 1)[0]}else{''}
     "pid $($_.ProcessId)$(if($log){" $log"})$(if($last){": $($last.Substring(0,[Math]::Min(80,$last.Length)))"})"})
 $os=Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
 if(!$os-or$null-eq$os.FreePhysicalMemory-or$null-eq$os.FreeVirtualMemory){throw 'host evidence unavailable'}
@@ -58,6 +75,7 @@ try{
     if(!$pulseSnapshot.Readable){throw 'required journal incomplete'}
     $waiting=@($pulseSnapshot.Items|Where-Object state -eq 'OWNER')
     "waiting  on the owner: $($waiting.Count)"
+    # Snapshot summaries arrive masked: Coordinator masks item text where it builds items.
     $pulseOwnerLines=@(foreach($w in $waiting){"         - $($w.pattern): $($w.summary.Substring(0,[Math]::Min(150,$w.summary.Length)))$(if($w.summary.Length-gt150){'...'})"})
     $pulseOwnerLines
 }catch{$pulseUnreadable=$true;'waiting  UNREADABLE (required Coordinator evidence unavailable/incomplete)'}
@@ -65,7 +83,7 @@ $ixPath=Join-Path $Root 'sessions\index.jsonl'
 $prev=@(if(Test-Path $ixPath){[IO.File]::ReadAllLines($ixPath)|Where-Object{$_}|ForEach-Object{try{$_|ConvertFrom-Json}catch{$script:indexBadRows++}}|Where-Object{$_}|Where-Object{$_.id-ne$Session-and$_.prompts}|Sort-Object end})|Select-Object -Last 1
 # The session index is continuity evidence: missing is said plainly, damaged rows make the pulse unreadable.
 if(!(Test-Path $ixPath)){"last     none: no session index at $ixPath (Sync-Sessions.ps1 builds it)"}elseif($script:indexBadRows){$pulseUnreadable=$true;"last     UNREADABLE: $($script:indexBadRows) damaged session-index row(s) in $ixPath"}
-function Format-PulsePrompt([string]$Text){if($Text.Length-gt300){return $Text.Substring(0,297)+'...'};$Text}
+function Format-PulsePrompt([string]$Text){$Text=Hide-Secret $Text;if($Text.Length-gt300){return $Text.Substring(0,297)+'...'};$Text}
 if($prev){
     $title=Format-PulsePrompt (@($prev.title,$prev.firstPrompt)|Where-Object{$_}|Select-Object -First 1)
     $lastPrompt=Format-PulsePrompt $prev.lastPrompt
@@ -86,19 +104,18 @@ if(Test-Path $hl){
 })
 if($pulseUnreadable){$pulseLines=@($pulseLines[0],'state    UNREADABLE (required live evidence incomplete)')+@($pulseLines|Select-Object -Skip 1)}
 # Select before rendering: keep diagnostics/counts/pointers, then the snapshot's urgent detail order.
-# Mask complete lines before any new abbreviation; the library is isolated from Pulse's variables.
-$pulseSafeLines=@(& {
-    param($Lines,$Library,$Data)
-    . (Join-Path $Library 'Sync-Sessions.ps1') -Library -Root $Data
-    foreach($line in $Lines){Hide-Secret $line}
-} $pulseLines $PSScriptRoot $Root)
+# Mask complete lines again before any new abbreviation (covers every line not masked at its source).
+$pulseSafeLines=@(foreach($line in $pulseLines){Hide-Secret $line})
 $pulseOwnerSet=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
 foreach($line in $pulseOwnerLines){[void]$pulseOwnerSet.Add($line)}
 $pulseRows=@();$pulseAbbreviated=$false
 for($lineIndex=0;$lineIndex-lt$pulseLines.Count;$lineIndex++){
     $text=[string]$pulseSafeLines[$lineIndex];$ownerDetail=$pulseOwnerSet.Contains([string]$pulseLines[$lineIndex])
-    $priority=if($text-match'^ORVION PULSE|^state\s'){0}elseif($text-match'^(waiting|cases|tools)\s'){1}elseif(!$ownerDetail-and$text-match'^(repo|running|last|queue)\s.*UNREADABLE'){2}
-        elseif($text-match'^last\s|^         in flight:'){3}elseif($text-match'^(repo|running|hunt)\s'){4}elseif($ownerDetail){6}else{5}
+    # Priority from line structure only: summary words (an owner note saying "UNOWNED") never promote a line.
+    # Non-owner "         - " lines are the Coordinator's escalated (UNOWNED/OVERDUE) items.
+    $priority=if($text-match'^ORVION PULSE|^state\s'){0}elseif($text-match'^(waiting|cases|tools)\s'){1}elseif($ownerDetail){6}
+        elseif($text-match'^(repo|running|last|queue|map)\s.*UNREADABLE'){2}
+        elseif($text-match'^last\s|^         (in flight:|- )'){3}elseif($text-match'^(repo|running|hunt|map)\s'){4}else{5}
     if($text.Length-gt1024){
         $pulseAbbreviated=$true
         $archiveOffset=$text.IndexOf('; archive: ',[StringComparison]::Ordinal)
@@ -115,6 +132,7 @@ if($pulseText.Length-gt$pulseLimit-or$pulseAbbreviated){
     $coordinatorCommand="pwsh -NoProfile -File '"+(Join-Path $PSScriptRoot 'Coordinator.ps1').Replace("'","''")+"' -Root '"+$Root.Replace("'","''")+"'"
     # Extremely long caller paths get an explicit same-Root template rather than a cut, misleading command.
     if($coordinatorCommand.Length-gt1000){$coordinatorCommand='Coordinator.ps1 -Root <same Root supplied to Pulse>'}
+    $coordinatorCommand=Hide-Secret $coordinatorCommand
     $footerReserve="more     $($pulseOwnerLines.Count) more owner wait(s); $($pulseRows.Count) more entries total; $coordinatorCommand"
     $available=$pulseLimit-$footerReserve.Length-1;$used=0;$ownerFull=$false
     $selected=[Collections.Generic.HashSet[int]]::new()

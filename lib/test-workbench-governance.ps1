@@ -69,6 +69,7 @@ function Start-FixtureChild([string[]]$Arguments,[string]$Directory,[hashtable]$
     $info.UseShellExecute=$false;$info.CreateNoWindow=$true;$info.RedirectStandardOutput=$true;$info.RedirectStandardError=$true
     $info.WorkingDirectory=$Directory
     foreach($key in 'WORKBENCH_TEST_ROOT','WORKBENCH_TEMP_ROOT','WORKBENCH_TEST_EVIDENCE','WORKBENCH_SUITE_PARENT','WORKBENCH_SUITE_RECIPE','WORKBENCH_SUITE_MODE','WORKBENCH_CI_CANDIDATE','WORKBENCH_CI_RUNTIME'){$null=$info.Environment.Remove($key)}
+    $info.Environment['WORKBENCH_TEMP_ROOT']=Join-Path $ownedRoot 'entry-temp'
     $activeFile=Join-Path $Directory 'changes/WS-001-fixture.md'
     if(Test-Path -LiteralPath $activeFile){
         $childContext=Get-WorkbenchContext (Get-WorkbenchFields ([IO.File]::ReadAllText($activeFile)))
@@ -368,7 +369,7 @@ function Test-CICapability {
     $ciRoot=Join-Path $ownedRoot 'ci-caller';[void][IO.Directory]::CreateDirectory($ciRoot)
     $null=Invoke-FixtureGit $ciRoot @('init','--quiet')
     foreach($pair in @(@('user.name','CI fixture'),@('user.email','ci@invalid.local'),@('core.autocrlf','true'),@('core.hooksPath','.git/hooks'))){$null=Invoke-FixtureGit $ciRoot @('config','--local',$pair[0],$pair[1])}
-    foreach($relative in 'lib/Test-WorkbenchChange.ps1','lib/Workbench.ps1','lib/run_timed.ps1','lib/watch_run.ps1','lib/Test-ScriptHazards.ps1','lib/Events.ps1','lib/Hunt.ps1','tests.ps1'){
+    foreach($relative in 'lib/Test-WorkbenchChange.ps1','lib/Workbench.ps1','lib/workspace-layout.ps1','lib/remove-owned.ps1','lib/run_timed.ps1','lib/watch_run.ps1','lib/Test-ScriptHazards.ps1','lib/Events.ps1','lib/Hunt.ps1','tests.ps1'){
         Write-FixtureFile (Join-Path $ciRoot $relative) ([IO.File]::ReadAllText((Join-Path (Split-Path $PSScriptRoot -Parent) $relative)))
     }
     Write-FixtureFile (Join-Path $ciRoot 'RESUME.md') ('Active Workbench Contract: None'+[char]10)
@@ -412,6 +413,7 @@ function Test-CICapability {
     $observations.Add([pscustomobject]@{Kind='ci-actual-positive';Root=$ciRoot;Runtime=$ciRuntime;Exit=$positive.Exit;Output=$positive.Output})
     $ciResult=if(Test-Path -LiteralPath (Join-Path $ciRuntime 'ci-result.json')){Get-Content -LiteralPath (Join-Path $ciRuntime 'ci-result.json') -Raw|ConvertFrom-Json}else{$null}
     Assert-Fixture 'CI actual terminal-None caller owns exactly one successful timed/watched schedule' ($positive.Exit-eq0-and$ciResult.Result-ceq'READY'-and$ciResult.Certification-eq$false-and$ciResult.Recipe-ceq$ciRecipe.Digest) $positive
+    Assert-Fixture 'CI driver removes its test data from managed temp on success' ($positive.Exit-eq0-and@(Get-ChildItem -LiteralPath (Join-Path $ciRecipe.Context['Temp Root'] 'tmp') -Filter 'orvion-test-data-*' -ErrorAction SilentlyContinue).Count-eq0)
     Assert-Fixture 'CI actual success prints no failure diagnostics' ($positive.Output-cnotmatch'CI_CHILD:|CI_LOG:|CI_WATCHER:') $positive
     Assert-Fixture 'CI actual success creates neither native working nor archived certification' (!(Test-Path -LiteralPath (Join-Path $ciRoot '.workbench-local-certification.json'))-and!(Test-Path -LiteralPath (Join-Path $ciRoot '.workbench-certifications')))
     foreach($scenario in 'child-exit','omitted-schedule','omitted-hazards','stale-recipe','watcher-exit'){
@@ -451,6 +453,7 @@ function Test-CICapability {
         $expectedFailure=if($scenario-in@('omitted-schedule','omitted-hazards')){'WB_CI_REQUIRED_TEST_NOT_OBSERVED'}else{'WB_CI_CHILD_OR_OBSERVER_FAILED'}
         $observations.Add([pscustomobject]@{Kind='ci-actual-mutant';Scenario=$scenario;Runtime=$mutantRuntime;Exit=$failure.Exit;Output=$failure.Output;Expected=$expectedFailure})
         Assert-Fixture ('CI actual '+$scenario+' cannot become success') ($failure.Exit-ne0-and$failure.Output-match$expectedFailure-and!(Test-Path -LiteralPath (Join-Path $mutantRuntime 'ci-result.json'))) $failure
+        if($scenario-ceq'child-exit'){Assert-Fixture 'CI driver removes its test data after a failed test child' (@(Get-ChildItem -LiteralPath (Join-Path $mutantRuntime 'tmp/tmp') -Filter 'orvion-test-data-*' -ErrorAction SilentlyContinue).Count-eq0)}
         if($scenario-ceq'child-exit'){Assert-Fixture 'CI child failure names both exits, the failing test and its detail without raw workflow commands or controls' ($failure.Output-cmatch'(?m)^CI_CHILD: runner exit=1\r?$'-and$failure.Output-cmatch'(?m)^CI_CHILD: watcher exit=1\r?$'-and$failure.Output-cmatch'(?m)^CI_LOG: .*FAIL test-synthetic\.ps1'-and$failure.Output-cmatch'(?m)^CI_LOG: .*::error::forged workflow command'-and$failure.Output-cmatch'(?m)^CI_LOG: .*forged ansi\? bell'-and$failure.Output-cmatch'(?m)^CI_WATCHER: '-and$failure.Output-cnotmatch'(?m)^::'-and$failure.Output-cnotmatch'\x1B') $failure}
         if($scenario-ceq'child-exit'){Assert-Fixture 'CI actual child assertion redacts credentials and retains assertion context' ($failure.Output.Contains('FAIL assertion expected=42 actual=41')-and$failure.Output.Contains('<redacted>')-and!$failure.Output.Contains($fakeGh)-and!$failure.Output.Contains($fakeNamed)) $failure}
         if($scenario-ceq'watcher-exit'){Assert-Fixture 'CI observer failure names its own exit beside the runner log' ($failure.Output-cmatch'(?m)^CI_CHILD: runner exit=0\r?$'-and$failure.Output-cmatch'(?m)^CI_CHILD: watcher exit=7\r?$'-and$failure.Output-cmatch'(?m)^CI_LOG: .*END exit=0 '-and$failure.Output-cmatch'(?m)^CI_WATCHER: ') $failure}
@@ -486,7 +489,7 @@ try {
     $seed=Join-Path $ownedRoot 'seed';[void][IO.Directory]::CreateDirectory($seed)
     $null=Invoke-FixtureGit $seed @('init','--quiet')
     foreach($setting in @(@('user.name','Fixture'),@('user.email','fixture@invalid.local'),@('core.hooksPath','.git/hooks'),@('core.autocrlf','true'),@('gc.auto','0'),@('maintenance.auto','false'))){$null=Invoke-FixtureGit $seed @('config','--local',$setting[0],$setting[1])}
-    foreach($relative in 'lib/Test-WorkbenchChange.ps1','lib/Workbench.ps1','lib/run_timed.ps1','lib/watch_run.ps1','lib/apply-draft-steps.ps1','lib/Invoke-DraftSteps.ps1','lib/Events.ps1','lib/Hunt.ps1','lib/Sync-Sessions.ps1','.githooks/pre-commit'){
+    foreach($relative in 'lib/Test-WorkbenchChange.ps1','lib/Workbench.ps1','lib/workspace-layout.ps1','lib/run_timed.ps1','lib/watch_run.ps1','lib/apply-draft-steps.ps1','lib/Invoke-DraftSteps.ps1','lib/Events.ps1','lib/Hunt.ps1','lib/Sync-Sessions.ps1','.githooks/pre-commit'){
         $source=Join-Path (Split-Path $PSScriptRoot -Parent) $relative
         Write-FixtureFile (Join-Path $seed $relative) ([IO.File]::ReadAllText($source))
     }

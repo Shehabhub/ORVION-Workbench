@@ -13,8 +13,9 @@
 # -Once prints selected states and exits 2 on a stall or incomplete evidence. Reads transcripts; alarms append Events.
 param([string]$Session,[ValidateRange(0.001,10080)][double]$StallMinutes=3,[ValidateRange(0.001,10080)][double]$IdleMinutes=8,
       [ValidateRange(1,3600)][int]$PollSeconds=15,[switch]$Once,[string[]]$Only,[switch]$SinceStart,
-      [string]$EventRoot=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent))[0]}))
+      [string]$EventRoot=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools'}))
 $ErrorActionPreference='Stop'
+if(!$PSBoundParameters.ContainsKey('EventRoot')-and!$env:ORVION_DATA_ROOT-and!(Test-Path -LiteralPath (Join-Path $EventRoot 'events') -PathType Container)){throw 'ORVION_DATA_ROOT_UNAVAILABLE'}
 # `pwsh -File` passes "a,b" as one string, not an array.
 $Only=@($Only|ForEach-Object{$_-split','}|ForEach-Object{$_.Trim()}|Where-Object{$_}|Sort-Object -Unique)
 if(@($Only|Where-Object{$_-notmatch'^[A-Za-z0-9_-]+$'}).Count){throw 'WATCHDOG_SELECTOR_INVALID'}

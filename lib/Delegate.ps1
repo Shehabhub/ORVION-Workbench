@@ -19,8 +19,13 @@ param([Parameter(ParameterSetName='brief',Mandatory)][ValidatePattern('^[a-z0-9]
       [Parameter(ParameterSetName='list',Mandatory)][switch]$List,
       [Parameter(ParameterSetName='report',Mandatory)][string]$Report,
       [Parameter(ParameterSetName='report',Mandatory)][string]$Reply,
-      [string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent))[0]}))
+      [string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools'}))
 $ErrorActionPreference='Stop'
+if(!$PSBoundParameters.ContainsKey('Root')-and!$env:ORVION_DATA_ROOT-and!(Test-Path -LiteralPath (Join-Path $Root 'events') -PathType Container)){
+    if($List){'DELEGATIONS_UNAVAILABLE: ORVION_DATA_ROOT_UNAVAILABLE';exit 3};throw 'ORVION_DATA_ROOT_UNAVAILABLE'
+}
+. (Join-Path $PSScriptRoot 'workspace-layout.ps1')
+$temporaryRoot=Initialize-OrvionTemporaryRoot -Checkout (Split-Path $PSScriptRoot -Parent)
 $base=Join-Path $Root 'work\delegations';$ev=Join-Path $PSScriptRoot 'Events.ps1'
 
 if($Report){
@@ -62,7 +67,7 @@ $spider=if($Query){@(& (Join-Path $PSScriptRoot 'Spider.ps1') $Query -Top 3 -Roo
 $dir=Join-Path $base "$([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))-$Pattern";New-Item -ItemType Directory $dir -Force|Out-Null
 $reportPath=Join-Path $dir 'REPORT.md'
 $authority=if($Mode-eq'sandbox'){
-"- You MAY create disposable copies (clones, worktrees, files) under ``$([IO.Path]::GetTempPath())`` and run experiments there, including deliberate failure injection. Delete them when done.
+"- You MAY create disposable copies (clones, worktrees, files) under ``$(Join-Path $temporaryRoot 'cx\ORVION-<task>')`` and run experiments there, including deliberate failure injection. Delete them when done.
 - You MAY read every file of the workspace and both repositories, and run read-only git commands in the real checkouts."
 }else{
 "- You MAY read every file of the workspace and both repositories, and run read-only git commands (show, log, grep, rev-parse, cat-file, ls-tree, status) in the real checkouts."
@@ -88,7 +93,7 @@ $(if($spider){'```'+"`n"+($spider-join"`n")+"`n"+'```'}else{'- not run (no -Quer
 ## Authority (delegation never grants more)
 $authority
 - You MAY write only inside ``$dir`` (probe scripts and their outputs)$(if($Mode-eq'sandbox'){' and your own temp copies'}).
-- You MUST NOT commit, push, check out, reset or otherwise change the real checkouts (``Documents\GitHub\CRM``, ``Documents\GitHub\ORVION``, the trusted-main clones), edit ``Documents\ORVION-Owner-Review``, touch credentials (``gh auth``, tokens), call remote services that write, or start ``-Finish``.
+- You MUST NOT commit, push, check out, reset or otherwise change the real checkouts (``Documents\GitHub\CRM``, ``Documents\GitHub\ORVION``, the trusted-main clones), edit ``$Root\records``, touch credentials (``gh auth``, tokens), call remote services that write, or start ``-Finish``.
 - Prefer Read/Grep/Glob for files; use PowerShell for git and experiments. Never print environment variable values or secrets.
 - Repository authority stays where it is: each repository's own Boot, contracts and Gate 1. Your result is evidence, not a decision.
 

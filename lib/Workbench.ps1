@@ -22,7 +22,7 @@ $temporaryJudge=$null
 $operationLease=$null
 $heavyLease=$null
 $toolDirectory=$null
-$temporaryParent=if($env:WORKBENCH_TEMP_ROOT){[IO.Path]::GetFullPath($env:WORKBENCH_TEMP_ROOT)}else{Join-Path ([IO.Path]::GetTempPath()) 'ORVION-Workbench'}
+$temporaryParent=$null
 function Read-WorkbenchEntryGit([string[]]$Arguments) {
     $outputLines=@(& git -C $Root @Arguments 2>$null)
     if($LASTEXITCODE-ne0){throw 'WB_ENTRY_GIT_UNREADABLE'}
@@ -55,8 +55,9 @@ try {
         if([Environment]::GetEnvironmentVariable($key,'Process')){throw 'WB_BOOTSTRAP_GIT_ENVIRONMENT_REFUSED'}
     }
     $Root=[IO.Path]::GetFullPath($Root)
-    if($temporaryParent-ieq$Root-or$temporaryParent.StartsWith($Root.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'WB_TEMP_ROOT_INSIDE_CHECKOUT_REFUSED'}
     if([IO.Path]::GetFullPath($PSCommandPath)-ine(Join-Path $Root 'lib/Workbench.ps1')){throw 'WB_ENTRY_ROOT_MISMATCH'}
+    . (Join-Path $PSScriptRoot 'workspace-layout.ps1')
+    $temporaryParent=Initialize-OrvionTemporaryRoot -Checkout $Root
     $judge=Get-WorkbenchAcceptedJudge
     if($Boot){& pwsh -NoProfile -File $judge -Root $Root -Mode Boot;exit $LASTEXITCODE}
     if($Gate){
@@ -75,6 +76,7 @@ try {
         if(!$CIWorker){
             if(Test-Path -LiteralPath $CIRuntimeRoot){throw 'WB_CI_RUNTIME_ALREADY_EXISTS'}
             [void][IO.Directory]::CreateDirectory($CIRuntimeRoot)
+            $null=Initialize-OrvionTemporaryRoot -Checkout $Root -TemporaryRoot $ciRecipe.Context['Temp Root']
             $ciLog=Join-Path $CIRuntimeRoot 'ci.log'
             # Invoke only the existing timed runner/watcher and this fixed worker. No caller command API.
             $quote={param($value) "'"+$value.Replace("'","''")+"'"}
@@ -219,6 +221,7 @@ try {
             $heavyLease=Enter-WorkbenchHeavyOperation $context
             $env:WORKBENCH_TEST_ROOT=$context['Tests Root']
             $env:WORKBENCH_TEMP_ROOT=$context['Temp Root']
+            $null=Initialize-OrvionTemporaryRoot -Checkout $Root
             $env:WORKBENCH_SUITE_PARENT=[string]$PID
             $env:WORKBENCH_SUITE_RECIPE=$recipe.Digest
         }
@@ -234,7 +237,10 @@ try {
             & pwsh -NoProfile -File (Join-Path $Root 'lib/Events.ps1') -Find $record.Id
             if($LASTEXITCODE-notin0,2,3){throw 'WB_REQUIRED_EVENTS_READ_FAILED'}
             'WORKBENCH_PREFLIGHT: Events Find '+@{0='READY';2='INCOMPLETE (unreadable records skipped)';3='UNAVAILABLE (no journal at the data root; lessons not consulted)'}[$LASTEXITCODE]
-            & pwsh -NoProfile -File (Join-Path $Root 'lib/Hunt.ps1') -Root $Root -Quick -NoRecord
+            $huntArguments=@('-NoProfile','-File',(Join-Path $Root 'lib/Hunt.ps1'),'-Root',$Root,'-Quick','-NoRecord')
+            $huntData=Get-OrvionFinishHuntDataRoot -Checkout $Root
+            if($huntData){$huntArguments+=@('-DataRoot',$huntData);'WORKBENCH_PREFLIGHT: no data root beside this checkout (sandbox/clone); Hunt Quick uses an empty disposable store'}
+            & pwsh @huntArguments
             if($LASTEXITCODE-ne0){throw 'WB_REQUIRED_HUNT_FAILED'}
             'WORKBENCH_PREFLIGHT: Hunt Quick READY (GAP/proposal text is not zero findings or approval)'
         }

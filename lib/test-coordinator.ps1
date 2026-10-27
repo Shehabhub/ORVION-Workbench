@@ -55,7 +55,7 @@ try{
     New-Item -ItemType Directory (Join-Path $t 'sessions')|Out-Null;Set-Content (Join-Path $t 'sessions\index.jsonl') '{"torn index'
     $aux=@(& pwsh -NoProfile -File $co -Root $t -Assign technical-choice -Owner agent -Action 'retain assignment');$auxCode=$LASTEXITCODE
     Assert-That 'incomplete auxiliary lookup warns without blocking assignment' ($auxCode-eq0-and($aux-join' ')-match'EVENTS_INCOMPLETE:'-and(Get-State technical-choice)-eq'ACTIVE')
-    $auxLib=Join-Path $t 'aux-lib';New-Item -ItemType Directory $auxLib|Out-Null;Copy-Item $co $auxLib
+    $auxLib=Join-Path $t 'aux-lib';New-Item -ItemType Directory $auxLib|Out-Null;Copy-Item $co,(Join-Path $PSScriptRoot 'Sync-Sessions.ps1') $auxLib  # Coordinator masks with the archive's rules
     # Select an absent store only for the auxiliary read; assignment still appends to its required journal.
     $proxy='param([string]$Root,[string]$Find,[int]$Top);if($Find){& ''__EVENTS__'' -Root (Join-Path $Root ''absent'') -Find $Find -Top $Top;exit $LASTEXITCODE};& ''__EVENTS__'' -Root $Root @args;exit $LASTEXITCODE'
     Set-Content (Join-Path $auxLib 'Events.ps1') ($proxy.Replace('__EVENTS__',$ev.Replace("'","''")))
@@ -93,7 +93,7 @@ try{
     try{& $co -Root $empty -Check|Out-Null;$heldCode=$LASTEXITCODE}finally{$held.Dispose()}
     Assert-That 'unreadable journal IO cannot return success' ($heldCode-eq2)
     # Causal mutant: removing this required-check refusal changes the very observation above to success.
-    $mutant=Join-Path $t 'Coordinator-mutant.ps1'
+    $mutant=Join-Path $auxLib 'Coordinator-mutant.ps1'  # beside the copied Sync-Sessions.ps1 it loads
     $body=[IO.File]::ReadAllText($co);$needle='if($incomplete){exit 2}'
     if(!$body.Contains($needle)){throw 'COORDINATOR_MUTANT_ANCHOR_MISSING'}
     [IO.File]::WriteAllText($mutant,$body.Replace($needle,'if($false){exit 2}'))

@@ -1,6 +1,6 @@
 # ORVION Workbench - Remaining Execution Plan
 
-Version 1.9 | 2026-10-26 | Batch 6 gate is HANDOFF §12 (amended); status/evidence dated at Draft freeze, native live state owns execution
+Version 2.0 | 2026-10-27 | Batch 6 gate is HANDOFF §12 (amended); status/evidence dated at Draft freeze, native live state owns execution
 
 ## HANDOFF
 
@@ -14,11 +14,11 @@ Version 1.9 | 2026-10-26 | Batch 6 gate is HANDOFF §12 (amended); status/eviden
 
 ## 1. Read this first: authority and continuity
 
-This is the owner's current remaining execution sequence. It supersedes earlier conversational sequencing, not immutable contracts or the acceptance map in [03-WORKBENCH.md](<C:\Users\My Lab\Documents\ORVION-Owner-Review\owner-workbench-handoff-20261021\runbooks\03-WORKBENCH.md>). Do not create a competing roadmap, approval registry or active-contract register.
+This is the owner's current remaining execution sequence. It supersedes earlier conversational sequencing, not immutable contracts or the [preserved P3 acceptance map](history/programme/workbench-acceptance-v10.md). Do not create a competing roadmap, approval registry or active-contract register.
 
 The architectural companion is [WORKSPACE-LAYOUT.md](WORKSPACE-LAYOUT.md): complete target code/data trees, existing tool names, unit planning/revision folders, V1/V2/V3, selected-version pointers and migration constraints. Use it when shaping new outputs. It is a target design, not installed paths, a frozen schema or permission to move accepted roots.
 
-Start at [README.md](../README.md), then follow the newest `RESUME HERE` checkpoint routed by [RESUME.md](../RESUME.md), then run `pwsh -NoProfile -File lib/Workbench.ps1 -Boot`. Workbench RESUME owns its active engineering contract; each product owns its own lifecycle. Live owner instructions win; otherwise follow the owning README/AGENTS/Boot and exact contract. Historical HANDOFF files and reports never grant a new scope.
+Start at [README.md](../README.md), then follow the private live-state route in [RESUME.md](../RESUME.md), then run `pwsh -NoProfile -File lib/Workbench.ps1 -Boot`. Workbench RESUME owns its active engineering contract; each product owns its own lifecycle. Live owner instructions win; otherwise follow the owning README/AGENTS/Boot and exact contract. Historical HANDOFF files and reports never grant a new scope.
 
 Accepted direction permits earned technical continuation under the recorded delegation. Every implementation still needs a concrete frozen contract, demonstrated feasibility and an exact approval with truthful human or DELEGATED provenance. This plan is not Gate 1 for future bytes. Never silently replace an approved Draft, invent authentication, or bypass owner-only/destructive/remote/system boundaries.
 
@@ -58,12 +58,12 @@ Completed owning contracts: [WS001](../changes/WS-001-workbench-local-governance
 
 | Subject | Last verified HEAD | Result/evidence |
 |---|---|---|
-| Workbench / ORVION-Owner-Tools | f42c5a098ca69a156e38e7ae8d9a5475c850f288 | WS004 local completion preserved; later owner-authorized private initial main publication and exact clone/Boot verified; [own result](<C:\Users\My Lab\Documents\ORVION-Owner-Review\workbench-native-stage-integrity-20261023-r2\runtime\original\result.json>), [publication](<C:\Users\My Lab\Documents\ORVION-Owner-Review\workbench-native-supervision-20261023\runtime\remote-bootstrap\result.json>) |
+| Workbench / ORVION-Owner-Tools | f42c5a098ca69a156e38e7ae8d9a5475c850f288 | WS004 local completion preserved; later owner-authorized private initial main publication and exact clone/Boot verified; [historical citation: own result](<C:\Users\My Lab\Documents\ORVION-Owner-Review\workbench-native-stage-integrity-20261023-r2\runtime\original\result.json>), [historical citation: publication](<C:\Users\My Lab\Documents\ORVION-Owner-Review\workbench-native-supervision-20261023\runtime\remote-bootstrap\result.json>) |
 | Platinum / PlatPlusHub/CRM | 20ea5e0d8f63742308efd4dc5e13ef178f0f82db | SPEC-295 Complete, published/promoted/certified; original/trusted roots matched |
 | Founder / Shehabhub/ORVION | da919011ee8b0b03cee620e910ff828b8e179f61 | SPEC-297 Complete, published/promoted/certified; original/trusted roots matched |
-| Native repair closure | Separate original receipts | [RELEASE-RESULT.json](<C:\Users\My Lab\Documents\ORVION-Owner-Review\native-brief-unreadable-20261023\RELEASE-RESULT.json>) |
-| Contract B | PT SPEC-294 / FD SPEC-296 released | [B result](<C:\Users\My Lab\Documents\ORVION-Owner-Review\contract-b-release-interface-20261021\runtime\local-source-result.json>), current ContractBRelease section |
-| WS005 readiness-r4 | Complete 2310836a2b70f6e98b85a30a490efd286a85417f; actual canonical cutover ACTIVATED | [Original sealed evidence](<C:\Users\My Lab\Documents\ORVION-Owner-Review\workbench-native-supervision-20261023\runtime\readiness-r4\original\EVIDENCE.json>): 21 suites PASS, Finish 00:14:32, timed 14.6 min, receipt E703219A73CD76451FBB4DA83CFCC70D8055AF81DEC53989EDE4FFEE5C738DFD; Review/Complete/accepted range READY. These results prove readiness, not general native management |
+| Native repair closure | Separate original receipts | [historical citation: RELEASE-RESULT.json](<C:\Users\My Lab\Documents\ORVION-Owner-Review\native-brief-unreadable-20261023\RELEASE-RESULT.json>) |
+| Contract B | PT SPEC-294 / FD SPEC-296 released | [historical citation: B result](<C:\Users\My Lab\Documents\ORVION-Owner-Review\contract-b-release-interface-20261021\runtime\local-source-result.json>), current ContractBRelease section |
+| WS005 readiness-r4 | Complete 2310836a2b70f6e98b85a30a490efd286a85417f; actual canonical cutover ACTIVATED | [historical citation: Original sealed evidence](<C:\Users\My Lab\Documents\ORVION-Owner-Review\workbench-native-supervision-20261023\runtime\readiness-r4\original\EVIDENCE.json>): 21 suites PASS, Finish 00:14:32, timed 14.6 min, receipt E703219A73CD76451FBB4DA83CFCC70D8055AF81DEC53989EDE4FFEE5C738DFD; Review/Complete/accepted range READY. These results prove readiness, not general native management |
 
 Original receipts: Platinum `334ef9c48d6e2284a0b234a9a7764a5e5b0fc8e8d0921b707792aa988e9be549`; Founder `d96aa363897479f151e3ea1ce71b50b19a5a00837130fa22bf09a1928b15ec41`; WS004 `C846653BDC46D68739F8A9C30990A842F66952B4E4B0CDEA072FA33353D93219`.
 
@@ -99,7 +99,7 @@ The owner delegates the final retention design. Keep what cannot be regenerated 
     pwsh -NoProfile -File 'C:\Users\My Lab\Documents\GitHub\ORVION-Workbench\lib\Events.ps1' -Root 'C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools' -Find 'workbench native supervision WS005'
 
 3. Follow Workbench README/AGENTS/RESUME and its actual `lib/Workbench.ps1 -Boot` for its engineering lifecycle. Each selected native Boot remains required at its own boundaries; single selection does not preload/activate the peer.
-4. Check current HEAD, dirt and selected source/config anchors. Historical `C:\Users\My Lab\Documents\ORVION-Sandbox\evidence\WS005\prototype` contains preserved readiness edits, not a current clean management baseline. Do not reset it or rerun Prepare-Supervision.ps1. A new proposal uses an absent destination outside authoritative trees, an independent Git/common directory and object store with no alternates/hardlinks, push DISABLED and the exact accepted baseline recorded in its own existing preparation evidence. No existing preparation file grants a new approval.
+4. Check current HEAD, dirt and selected source/config anchors. Preserve the historical WS005 readiness prototype; it is not a current clean management baseline. Do not reset it or rerun Prepare-Supervision.ps1. A new proposal uses an absent destination outside authoritative trees, an independent Git/common directory and object store with no alternates/hardlinks, push DISABLED and the exact accepted baseline recorded in its own existing preparation evidence. No existing preparation file grants a new approval.
 5. Unexpected dirt/drift stops the affected scope. Never reset/stash/discard it. Use Spider for a specific missing fact; no default whole-history scan, Doctor or Full Hunt.
 
 Exit: current task, authority, prototype and blocker known; no heavy test run just for arrival.
@@ -181,7 +181,7 @@ Apply this procedure to every implementation unit; it is not an extra workflow:
    The target packet layout separates planning/revisions, assurance/V1-V3 and selected/selection.json. The selected record points to the actual V3 bytes; do not create a second editable selected Draft or treat a locator as approval. Current exact contracts/guards retain their actual supported artifact paths until a proven change.
 4. Before freeze, prove literal replay to selected blobs and feasibility of all completion commands. Match raw Draft SHA-256 and Git-filtered allocation blob under current line-ending settings. Never regenerate/substitute approved bytes silently.
 5. Complete the own sandbox lifecycle, including required timed/watched Full verification. Preserve failures. Original execution then needs its own concrete exact lawful approval with honest provenance; the plan is not that approval.
-6. Execute original scope through its own fresh Finish, actual Review/Complete and normal hook/range/candidate rules. Never transplant a sandbox receipt. The private source remote now exists; source publication is distinct from hosted enforcement/certification, which is not yet implemented for Workbench. Never invent a hosted CI result or native REMOTE_CERTIFY for it.
+6. Execute original scope through its own fresh Finish, actual Review/Complete and normal hook/range/candidate rules. Never transplant a sandbox receipt. The public source remote and local CI capability exist, and the dated exact hosted success above is recorded. Source publication, hosted success, effective protection and remote certification remain separate evidence classes. Never invent a fresh hosted result or native REMOTE_CERTIFY.
 7. Update owning routes/checkpoints and commit the coherent clean boundary. Use existing run/event evidence, not new reporting machinery.
 
 For a future hosted-security unit, Stage 3's security acceptance is mandatory in addition to this procedure. Establish the accepted local CI verifier before a CI-profile contract, preserve an explicit non-circular first-hosted bootstrap, and separately authorize candidate publication, settings and promotion. Local sandbox/original completion does not imply hosted acceptance, trusted evaluation, effective branch protection or remote certification; preserve each evidence class and its exact subject independently.
@@ -216,7 +216,7 @@ Prove click/open/search consumers and source links on disposable fixtures: add/c
 
 The owner created and selected the actual Git source checkout at `C:\Users\My Lab\Documents\GitHub\ORVION-Workbench` on client date 2026-10-24. It is the repository root, not a non-Git parent containing control. Preserve this actual independent clone and remote/history; do not nest or move it to repair an older diagram. [WORKSPACE-LAYOUT.md](WORKSPACE-LAYOUT.md) owns the reconciled source/data layout.
 
-The checker still rejects Sandbox/Tests/Temp/Runtime overlap with the authoritative checkout. Keep managed operational data external. Until a tested stage5 cutover, use existing declared external packet/factory roots and the one event/session data root: `ORVION_DATA_ROOT`, else the sibling `ORVION-Owner-Tools` when it has `events\`, else this checkout. A future consolidated `GitHub/ORVION-Workbench-Data` sibling is a target, not created or installed by this plan. This deliberate external data boundary preserves isolation; ignored folders are not an exemption.
+The checker still rejects Sandbox/Tests/Temp/Runtime overlap with the authoritative checkout. [WORKSPACE-LAYOUT.md](WORKSPACE-LAYOUT.md#3-private-data-and-disposable-trees) owns the three roles: private data/records under ORVION-Owner-Tools and disposable sandbox/test/temp/tool roots under ORVION-Workbench-temporary. The earlier Workbench-Data proposal is superseded; sealed historical paths remain unchanged. [lib/README.md](../lib/README.md) owns the actual data resolver and missing-store refusal. Existing exact approved roots retain their bindings until tested cutover; ignored folders are not an exemption.
 
 Source admission, the own RESUME route and original readiness certification are COMPLETE in WS005 R4. The selected checkout has its own fresh original receipt and archives; never overwrite them with old-root working receipts. Reuse the normal local `.githooks` admission and preserve origin/hash-verified historical evidence when a range requires it. Explicit Root selects the one event/session data root described above. Neither Boot nor WS005 readiness proves full environment recovery or the future storage cutover.
 
@@ -276,7 +276,9 @@ Each future approved material scope/status update records date, owning WS/SPEC/o
 
 - 2026-10-24 / v1.6: integrate the owner-required Workbench GitHub security parity/trusted-main acceptance in Stage 3 and Per-change assurance, with Stage 6 recovery dependencies. Proposed independent checkout only; no hosted capability, settings, publication or original implementation is claimed or authorized. Preserve all earlier stages, P3 acceptance and directory/tool roles.
 
-- 2026-10-26 / v1.9: under the owner's exceptional delegation and reinstall directive, decoupled Batch 6 from Stage 7 and P3 management; HANDOFF §12 owns the gate. Stage 6 recovery is to be delivered as WS-015's selective package with C1 same-machine restore; the package is unencrypted by owner decision (2026-10-26), which replaces the encrypted destination/key conditions of Stages 6-7 for it, with a redacted secret-scan report instead; clean-Windows recovery (C2) is the owner's planned reinstallation via docs/RECOVERY.md. No stage, P3 obligation or frozen evidence was deleted.
+- 2026-10-27 / v2.0: root roles and Markdown guard reconciled; current P3 reference routes to the tracked history copy, live state routes through RESUME, source/CI evidence classes and three-folder storage roles corrected. HANDOFF §12 retains the amended C2 gate; no old test result certifies these new bytes.
+
+- 2026-10-26 / v1.9: under the owner's exceptional delegation and reinstall directive, decoupled Batch 6 from Stage 7 and P3 management; HANDOFF §12 owns the gate. Stage 6 recovery is to be delivered as WS-015's selective package with C1 same-machine restore; the package is unencrypted by owner decision (2026-10-26), which replaces the encrypted destination/key conditions of Stages 6-7 for it, with a redacted secret-scan report instead; clean-Windows recovery (C2) was then the owner's planned reinstallation via docs/RECOVERY.md. No stage, P3 obligation or frozen evidence was deleted.
 
 - 2026-10-24 / v1.5: reconcile completed WS005 R4, installed canonical routing, original evidence and six unpublished commits. Preserve all stages and P3 G2c A-H/G3/G4 obligations. Retain earlier version entries as history. Separate remaining selected-native dispatch/monitoring/concurrency/recovery from readiness; no new execution authority or migration.
 

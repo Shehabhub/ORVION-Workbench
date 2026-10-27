@@ -55,7 +55,12 @@ try{
             if($case-eq'fallback'){$null=Remove-OrvionOwnedTree -Path $sibling -AllowedRoots @($t)}else{[void][IO.Directory]::CreateDirectory((Join-Path $sibling 'events'))}
             $expected=if($case-eq'override'){$env:ORVION_DATA_ROOT=$override+'\';$override}elseif($case-eq'sibling'){$sibling}else{$checkout}
             $output=@(& pwsh -NoProfile -File (Join-Path $copy 'Sync-Sessions.ps1') -ClaudeProjects $probeProjects -CodexSessions (Join-Path $t 'empty-codex') -Quiet 2>&1);$syncCode=$LASTEXITCODE
-            Assert-That "sync default $case selects only the data root, silent exit 0" ($syncCode-eq0-and!$output.Count-and(Test-Path (Join-Path $expected 'sessions\INDEX.md'))-and($case-eq'fallback'-or!(Test-Path (Join-Path $checkout 'sessions'))))
+            if($case-eq'fallback'){
+                # No data root: refuse with a stable code and never archive into the source checkout (WS-022).
+                Assert-That 'sync without a data root refuses and writes nothing into the checkout' ($syncCode-ne0-and($output-join' ')-match'ORVION_DATA_ROOT_UNAVAILABLE'-and!(Test-Path (Join-Path $checkout 'sessions'))-and!(Test-Path (Join-Path $checkout 'work')))
+            }else{
+                Assert-That "sync default $case selects only the data root, silent exit 0" ($syncCode-eq0-and!$output.Count-and(Test-Path (Join-Path $expected 'sessions\INDEX.md'))-and!(Test-Path (Join-Path $checkout 'sessions')))
+            }
         }
     }finally{$env:ORVION_DATA_ROOT=$savedDataRoot}
     if($RootProbeOnly){if($fail){throw 'SYNC_ROOT_PROBE_FAILED'};'SYNC_ROOT_PROBE PASS';return}

@@ -1,9 +1,9 @@
 # Fresh-Windows entry: only the three recovery prerequisites are installed here.
 # Keep ASCII and Windows PowerShell 5.1 compatible: pwsh does not exist yet.
-param([string]$PackageDir=$PSScriptRoot,[string]$Staging='C:\ORVION-Temp',
+param([string]$PackageDir=$PSScriptRoot,[string]$Staging,
       [string]$Target=(Join-Path $env:USERPROFILE 'Documents\GitHub'),
       [string]$ClaudeHome=(Join-Path $env:USERPROFILE '.claude'),
-      [string]$LegacyTarget=(Join-Path $env:USERPROFILE 'Documents'),
+      [string]$LegacyTarget,
       [string]$CodexHome=(Join-Path $env:USERPROFILE '.codex'),
       [switch]$AllowNewProfile,[switch]$SkipProducts)
 $ErrorActionPreference='Stop'
@@ -18,6 +18,25 @@ function Get-RecoveryTool([string]$Name){
 }
 function Update-RecoveryPath{
     $env:PATH=[Environment]::GetEnvironmentVariable('Path','Machine')+';'+[Environment]::GetEnvironmentVariable('Path','User')
+}
+# Resolve existing ancestors too: a junction must not hide a persistent destination inside staging.
+function Get-RecoveryActualPath([string]$Path,[int]$Depth=0){
+    if($Depth-gt128){throw 'RECOVERY_PATH_UNRESOLVED'}
+    $full=[IO.Path]::GetFullPath($Path)
+    if($full-eq[IO.Path]::GetPathRoot($full)){return $full}
+    $full=$full.TrimEnd('\','/')
+    $item=Get-Item -LiteralPath $full -Force -ErrorAction SilentlyContinue
+    if($item){
+        if($item.Attributes-band[IO.FileAttributes]::ReparsePoint){
+            $linkTarget=@($item.Target)[0]
+            if(!$linkTarget){throw 'RECOVERY_PATH_UNRESOLVED'}
+            if(![IO.Path]::IsPathRooted($linkTarget)){$linkTarget=Join-Path (Split-Path $full -Parent) $linkTarget}
+            return Get-RecoveryActualPath $linkTarget ($Depth+1)
+        }
+    }
+    $parent=Split-Path $full -Parent
+    if(!$parent-or$parent-eq$full){return $full}
+    Join-Path (Get-RecoveryActualPath $parent ($Depth+1)) (Split-Path $full -Leaf)
 }
 # Function seam: focused tests replace process execution, never invoking real installers or logins.
 function Invoke-RecoveryProcess([string]$File,[string[]]$Arguments){
@@ -61,8 +80,6 @@ function Write-RecoveryPluginChecklist([string]$Settings,[string[]]$Installed){
 }
 function Write-RecoveryChecklist([string]$Target,[string]$ClaudeHome,[string]$CodexHome){
     Write-Host 'READY/ACTION recovery checklist (manual steps; no further installation here)'
-    if($script:RecoveryExit-eq0){Write-Host 'READY: restore and requested product preparation completed'}
-    else{Write-Host "ACTION: recovery reported exit $script:RecoveryExit; resolve the failure above before declaring READY"}
     Write-Host 'ACTION: revoke old GitHub CLI authorizations on github.com for PlatPlusHub and Shehabhub, then gh auth login for each account'
     Write-Host 'ACTION: supabase login; claude and codex sign-in; Docker first run; WSL admin/reboot if product prepare reported it'
     Write-Host "ACTION: re-enter the two masked local postgres passwords in $CodexHome\config.toml (merge config.toml.restored if present)"
@@ -73,7 +90,6 @@ function Write-RecoveryChecklist([string]$Target,[string]$ClaudeHome,[string]$Co
         if($script:NativeExitCode){Write-Host 'ACTION: claude plugin list failed; plugin presence is unverified; commands below cover all enabled plugins';if(!$script:RecoveryExit){$script:RecoveryExit=$script:NativeExitCode};$installed=@()}
     }
     Write-RecoveryPluginChecklist (Join-Path $ClaudeHome 'settings.json') $installed
-    Write-Host "ACTION: pwsh -File `"$Target\ORVION-Workbench\lib\Map-Repos.ps1`" -Install"
     foreach($product in 'CRM','ORVION'){Write-Host "ACTION: in $Target\$product run pwsh -NoProfile -File scripts\check_agent_continuity.ps1 -Boot; require ORVION: READY"}
     Write-Host "ACTION: in $Target\ORVION-Workbench run pwsh -NoProfile -File lib\Workbench.ps1 -Boot; require WORKBENCH: READY"
     Write-Host "ACTION: use restored ORVION-Owner-Tools as the data root (repair/unset ORVION_DATA_ROOT if needed); record C2 with restore and all three Boot outputs per HANDOFF.md section 12"
@@ -81,10 +97,17 @@ function Write-RecoveryChecklist([string]$Target,[string]$ClaudeHome,[string]$Co
 function Invoke-OrvionRecovery([string]$PackageDir,[string]$Staging,[string]$Target,[string]$ClaudeHome,[string]$LegacyTarget,[string]$CodexHome,[switch]$AllowNewProfile,[switch]$SkipProducts){
     $script:RecoveryExit=0;$ownsStaging=$false
     try{
-        $winget=Get-RecoveryTool 'winget'
-        if(!$winget){throw 'RECOVERY_WINGET_REQUIRED: install App Installer from Microsoft Store, then rerun'}
+        if(!$Staging){$Staging=Join-Path $Target ('ORVION-Workbench-temporary\restore-staging\'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ'))}
+        $actualStage=Get-RecoveryActualPath $Staging
+        foreach($destination in @((Join-Path $Target 'ORVION-Workbench'),(Join-Path $Target 'ORVION-Workbench-trusted-main'),(Join-Path $Target 'ORVION-Owner-Tools'),(Join-Path $Target 'CRM'),(Join-Path $Target 'CRM-trusted-main'),(Join-Path $Target 'ORVION'),(Join-Path $Target 'ORVION-trusted-main'),(Join-Path $Target 'ORVION-Workbench-temporary'),$ClaudeHome,$CodexHome)+@($LegacyTarget|Where-Object{$_})){
+            $actual=Get-RecoveryActualPath $destination
+            if($actual-ieq$actualStage-or$actual.StartsWith($actualStage+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'RECOVERY_DESTINATION_IN_STAGING'}
+        }
+        if(Test-Path -LiteralPath $Staging){throw "RECOVERY_STAGING_EXISTS: $Staging must not exist; inspect it before retrying"}
         foreach($item in @(@('git','Git.Git'),@('7z','7zip.7zip'),@('pwsh','Microsoft.PowerShell'))){
             if(!(Get-RecoveryTool $item[0])){
+                $winget=Get-RecoveryTool 'winget'
+                if(!$winget){throw 'RECOVERY_WINGET_REQUIRED: install App Installer from Microsoft Store, then rerun'}
                 Invoke-RecoveryProcess $winget @('install','--id',$item[1],'--exact','--source','winget','--accept-source-agreements','--accept-package-agreements')
                 if($script:NativeExitCode){$script:RecoveryExit=$script:NativeExitCode;throw "RECOVERY_INSTALL_FAILED: $($item[1])"}
                 Update-RecoveryPath
@@ -92,7 +115,6 @@ function Invoke-OrvionRecovery([string]$PackageDir,[string]$Staging,[string]$Tar
             if(!(Get-RecoveryTool $item[0])){throw "RECOVERY_COMMAND_MISSING: $($item[0]) after prerequisite setup"}
         }
         $archive=Get-RecoveryPackage $PackageDir
-        if(Test-Path -LiteralPath $Staging){throw "RECOVERY_STAGING_EXISTS: $Staging must not exist; inspect it before retrying"}
         $null=New-Item -ItemType Directory -Path $Staging;$ownsStaging=$true
         $extract=Join-Path $Staging 'pkg'
         Invoke-RecoveryProcess (Get-RecoveryTool '7z') @('x',"-o$extract",$archive)
@@ -116,10 +138,14 @@ function Invoke-OrvionRecovery([string]$PackageDir,[string]$Staging,[string]$Tar
         if($record.branch-eq'HEAD'){$checkout+=@('--detach',$record.head)}else{$checkout+=@('-B',$record.branch,$record.head)}
         Invoke-RecoveryProcess $git $checkout
         if($script:NativeExitCode){$script:RecoveryExit=$script:NativeExitCode;throw 'RECOVERY_WORKBENCH_CHECKOUT_FAILED'}
-        Invoke-RecoveryProcess (Get-RecoveryTool 'pwsh') @('-NoProfile','-File',(Join-Path $wb 'lib\Restore-Workspace.ps1'),'-From',$pkg,'-Target',$Target,'-ClaudeHome',$ClaudeHome,'-LegacyTarget',$LegacyTarget,'-CodexHome',$CodexHome)
+        $restoreArgs=@('-NoProfile','-File',(Join-Path $wb 'lib\Restore-Workspace.ps1'),'-From',$pkg,'-Target',$Target,'-ClaudeHome',$ClaudeHome,'-CodexHome',$CodexHome)
+        if($LegacyTarget){$restoreArgs+=@('-LegacyTarget',$LegacyTarget)}
+        Invoke-RecoveryProcess (Get-RecoveryTool 'pwsh') $restoreArgs
         if($script:NativeExitCode){$script:RecoveryExit=$script:NativeExitCode;throw 'RECOVERY_RESTORE_FAILED'}
-        Get-ChildItem -LiteralPath $Staging -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'}
-        [IO.Directory]::Delete([IO.Path]::GetFullPath($Staging),$true);$ownsStaging=$false
+        foreach($operation in @(@('lib\Restore-Workspace.ps1','-Temporary','-Target',$Target),@('lib\Map-Repos.ps1','-Install','-GitHub',$Target))){
+            Invoke-RecoveryProcess (Get-RecoveryTool 'pwsh') (@('-NoProfile','-File',(Join-Path $Target ('ORVION-Workbench\'+$operation[0])))+@($operation[1..($operation.Count-1)]))
+            if($script:NativeExitCode){Write-Host "ACTION: $($operation[0]) failed (exit $script:NativeExitCode)";if(!$script:RecoveryExit){$script:RecoveryExit=$script:NativeExitCode}}
+        }
         if(!$SkipProducts){foreach($product in 'CRM','ORVION'){
             $entry=Join-Path $Target "$product\workstation.cmd"
             if(!(Test-Path -LiteralPath $entry -PathType Leaf)){Write-Host "ACTION: product entry missing: $entry";if(!$script:RecoveryExit){$script:RecoveryExit=1};continue}
@@ -128,10 +154,19 @@ function Invoke-OrvionRecovery([string]$PackageDir,[string]$Staging,[string]$Tar
         }}
     }catch{
         if(!$script:RecoveryExit){$script:RecoveryExit=1}
-        Write-Host "ACTION: $($_.Exception.Message)"
-        if($ownsStaging){Write-Host "ACTION: staging retained at $Staging"}
+        $code='RECOVERY_FAILED'
+        if($_.Exception.Message-match'\A(RECOVERY_[A-Z_]+)(?::|$)'){$code=$Matches[1]}
+        Write-Host "ACTION: $code; inspect the package and requested paths before retrying"
     }
-    try{Write-RecoveryChecklist $Target $ClaudeHome $CodexHome}catch{if(!$script:RecoveryExit){$script:RecoveryExit=1};Write-Host "ACTION: checklist incomplete: $($_.Exception.Message)"}
+    try{Write-RecoveryChecklist $Target $ClaudeHome $CodexHome}catch{if(!$script:RecoveryExit){$script:RecoveryExit=1};Write-Host 'ACTION: RECOVERY_CHECKLIST_FAILED'}
+    if($ownsStaging-and$script:RecoveryExit-eq0){
+        try{
+            Get-ChildItem -LiteralPath $Staging -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'}
+            [IO.Directory]::Delete([IO.Path]::GetFullPath($Staging),$true);$ownsStaging=$false
+        }catch{$script:RecoveryExit=1;Write-Host 'ACTION: RECOVERY_STAGING_CLEANUP_FAILED'}
+    }
+    if($ownsStaging){Write-Host "ACTION: staging retained at $Staging"}
+    if($script:RecoveryExit-eq0){Write-Host 'READY: restore and requested preparation completed'}
 }
 Invoke-OrvionRecovery -PackageDir $PackageDir -Staging $Staging -Target $Target -ClaudeHome $ClaudeHome -LegacyTarget $LegacyTarget -CodexHome $CodexHome -AllowNewProfile:$AllowNewProfile -SkipProducts:$SkipProducts
 exit $script:RecoveryExit

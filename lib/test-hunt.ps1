@@ -4,6 +4,7 @@ param([switch]$RootProbeOnly,[switch]$EvidenceProbeOnly,[switch]$IndexProbeOnly)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'remove-owned.ps1')
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-huntcheck-$([guid]::NewGuid().ToString('N').Substring(0,6))";New-Item -ItemType Directory $t|Out-Null
+$savedTemporaryRoot=$env:WORKBENCH_TEMP_ROOT;$savedTemp=$env:TEMP;$savedTmp=$env:TMP;$env:WORKBENCH_TEMP_ROOT=$t+'-managed'
 $savedProfile=$env:USERPROFILE;$env:USERPROFILE=Join-Path $t 'profile'
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 try{
@@ -34,6 +35,19 @@ exit $LASTEXITCODE
         $indexOutput=@(& pwsh -NoProfile -File $indexLauncher -Hunt (Join-Path $PSScriptRoot 'Hunt.ps1') -Store $indexStore 2>&1)-join"`n";$indexCode=$LASTEXITCODE
         Assert-That 'index corruption counts two rows, checks valid rows on both sides and continues other hounds' ($indexCode-eq1-and$indexOutput-match'BUG index-unreadable: 2 malformed row\(s\)'-and$indexOutput-match'BUG index-consistency: 2 '-and$indexOutput-match'BUG sync-errors:.*INDEPENDENT-SENTINEL'-and$indexOutput-match'^HUNT ')
         Assert-That 'partial index saves its result and NoRecord preserves the journal' ((Test-Path (Join-Path $indexStore 'work/hunt-last.txt'))-and(Get-FileHash $indexJournal).Hash-ceq$indexHash)
+        # The repository map refreshes itself only while its scheduled task exists and last succeeded.
+        $mapLauncher=Join-Path $t 'map-probe.ps1'
+        [IO.File]::WriteAllText($mapLauncher,@'
+param([string]$Hunt,[string]$Store,[string]$Mode)
+function Get-Process { @() }
+function Get-CimInstance { @() }
+$task=switch($Mode){'missing'{{throw 'no task'}}'failed'{{[pscustomobject]@{LastTaskResult=1}}}default{{[pscustomobject]@{LastTaskResult=0}}}}
+& $Hunt -Root $Store -DataRoot $Store -Quick -NoRecord -GetMapTask $task
+exit $LASTEXITCODE
+'@)
+        $mapSeen=@{}
+        foreach($mode in 'missing','failed','ok'){$mapSeen[$mode]=(@(& pwsh -NoProfile -File $mapLauncher -Hunt (Join-Path $PSScriptRoot 'Hunt.ps1') -Store $indexStore -Mode $mode 2>&1)-join"`n")-match'GAP map-task'}
+        Assert-That 'map task missing or failed is a GAP; a healthy task is not' ($mapSeen.missing-and$mapSeen.failed-and!$mapSeen.ok)
         $indexRow.bytes=1;$indexRow.metaBytes=1
         [IO.File]::WriteAllText((Join-Path $indexStore 'work/sync-errors.log'),'')
         [IO.File]::WriteAllLines($indexFile,[string[]]@(($indexRow|ConvertTo-Json -Compress),'{torn'))
@@ -90,10 +104,10 @@ exit $LASTEXITCODE
     Copy-Item (Join-Path $PSScriptRoot '*') $copy -Recurse
     $savedDataRoot=$env:ORVION_DATA_ROOT
     try{
-        foreach($case in 'sibling','override','explicit','fallback'){
+        foreach($case in 'sibling','override','explicit'){
             $env:ORVION_DATA_ROOT=$null
-            if($case-eq'fallback'){$null=Remove-OrvionOwnedTree -Path $sibling -AllowedRoots @($t)}else{[void][IO.Directory]::CreateDirectory((Join-Path $sibling 'events'))}
-            $expected=if($case-eq'explicit'){$env:ORVION_DATA_ROOT=$override;$explicit}elseif($case-eq'override'){$env:ORVION_DATA_ROOT=$override+'\';$override}elseif($case-eq'sibling'){$sibling}else{$checkout}
+            [void][IO.Directory]::CreateDirectory((Join-Path $sibling 'events'))
+            $expected=if($case-eq'explicit'){$env:ORVION_DATA_ROOT=$override;$explicit}elseif($case-eq'override'){$env:ORVION_DATA_ROOT=$override+'\';$override}else{$sibling}
             [void][IO.Directory]::CreateDirectory((Join-Path $expected 'work'));[void][IO.Directory]::CreateDirectory((Join-Path $expected 'sessions'));[void][IO.Directory]::CreateDirectory((Join-Path $expected 'events'))
             Set-Content (Join-Path $expected 'work\sync-errors.log') "fixture-$case"
             Set-Content (Join-Path $expected 'work\hook-errors.log') "fixture-hook-$case"
@@ -109,7 +123,7 @@ exit $LASTEXITCODE
             Assert-That "hunt $case reads sessions, events and sync errors from data root with BUG exit 1" ($huntCode-eq1-and$result-match"BUG sync-errors:.*fixture-$case"-and$result-match'BUG index-consistency:.*index says'-and$result-match'BUG events-corrupt:'-and$result-match'BUG archive-prefix:'-and$result-match"BUG hook-errors:.*fixture-hook-$case"-and$result-notmatch'GAP event-evidence:')
             $rootEvents=@(Get-Content (Join-Path $expected 'events\events.jsonl')|ForEach-Object{try{$_|ConvertFrom-Json}catch{$null=$_}})
             $closed=@($rootEvents|Where-Object pattern -eq 'hunt-old-root-problem')[-1]
-            Assert-That "hunt $case records findings and last result only in data root" ((Test-Path (Join-Path $expected 'work\hunt-last.txt'))-and@($rootEvents|Where-Object pattern -eq 'hunt-sync-errors').Count-gt0-and$closed.status-eq'resolved'-and($case-eq'fallback'-or!(Test-Path (Join-Path $checkout 'work'))))
+            Assert-That "hunt $case records findings and last result only in data root" ((Test-Path (Join-Path $expected 'work\hunt-last.txt'))-and@($rootEvents|Where-Object pattern -eq 'hunt-sync-errors').Count-gt0-and$closed.status-eq'resolved'-and!(Test-Path (Join-Path $checkout 'work')))
             # Data has no .git. Source has an invalid .git; only the source may decide tools-git.
             Set-Content (Join-Path $checkout '.git') 'gitdir: missing-fixture-git'
             $sourceCheck=@(& pwsh -NoProfile -File (Join-Path $copy 'Hunt.ps1') -Quick -NoRecord @extra)-join"`n"
@@ -135,5 +149,5 @@ exit $LASTEXITCODE
     $last=@($ev|Where-Object pattern -eq 'hunt-old-problem'|Sort-Object at)[-1]
     Assert-That 'a finding no longer found is closed by the hunter' ($last.status-eq'resolved'-and$last.summary-like'no longer found*')
     Assert-That 'current findings are recorded as events' (@($ev|Where-Object{$_.pattern-eq'hunt-index-missing'-and$_.source-eq'hunter'}).Count-eq1)
-}finally{$env:USERPROFILE=$savedProfile;$null=Remove-OrvionOwnedTree -Path $t -AllowedRoots @([IO.Path]::GetTempPath())}
+}finally{$env:WORKBENCH_TEMP_ROOT=$savedTemporaryRoot;$env:TEMP=$savedTemp;$env:TMP=$savedTmp;$env:USERPROFILE=$savedProfile;$null=Remove-OrvionOwnedTree -Path $t -AllowedRoots @([IO.Path]::GetTempPath());if(Test-Path ($t+'-managed')){$null=Remove-OrvionOwnedTree -Path ($t+'-managed') -AllowedRoots @([IO.Path]::GetTempPath())}}
 if($fail){throw "HUNT_SELFCHECK_FAILED $fail"};'HUNT_SELFCHECK PASS'

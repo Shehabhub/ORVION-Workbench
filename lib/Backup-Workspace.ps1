@@ -3,11 +3,7 @@
 #   repos\<name>\         ignored receipts (.orvion-local-certification.json, .orvion-certifications\), .claude\settings*.json,
 #                         local git config (identity, remote, per-account credential pin: commands only, never tokens), HEAD
 #   owner-tools\          GitHub\ORVION-Owner-Tools (sessions archive, events journal, work) minus work\sandboxes (disposable clones)
-#   claude\               user settings + ORVION project memory (never ~/.claude.json or credentials: re-login after restore)
-#   legacy\               Documents\ORVION-Owner-Review, -Owner-Tools, -Owner-Recovery, -Sandbox, -drafts-backup, Windows-Memory-Config
-#                         (node_modules skipped; a nested clone keeps only what no main bundle holds: its ignored files in
-#                         place, .clone-state\ unique.bundle (HEAD and every other tip absent from the main bundles),
-#                         staged.diff, worktree.diff, untracked\, state.json)
+#   claude\               user settings only; memory lives in owner-tools\records\claude-memory
 # Session transcripts are sensitive, so the destination must be BitLocker-protected unless -AllowUnencrypted is passed.
 # -Package writes one compressed, UNENCRYPTED 7z instead (owner decision 2026-10-26: recoverability over secrecy), staged under
 # TEMP and removed. gitleaks (when installed) scans the staging first and writes <archive>.secret-scan.txt next to it: rule,
@@ -17,10 +13,14 @@ param([Parameter(Mandatory)][string]$Destination,[switch]$AllowUnencrypted,[swit
 $ErrorActionPreference='Stop'
 $tools=Split-Path $PSScriptRoot -Parent;$gh=Split-Path $tools -Parent;$docs=Split-Path $gh -Parent
 # Same data-root default as the readers; the script's checkout is already a repository bundle.
-$ownerTools=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent))[0]})
+$ownerTools=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools'})
+if(!$env:ORVION_DATA_ROOT-and!(Test-Path -LiteralPath (Join-Path $ownerTools 'events') -PathType Container)){throw 'ORVION_DATA_ROOT_UNAVAILABLE'}
 # Selective package v1: on success only stdout is returned; stderr warnings (CRLF) must never count as entries.
 # A failure names the subcommand and masks URL credentials: arguments and output may carry config values.
 $ownerTools=[IO.Path]::GetFullPath($ownerTools).TrimEnd('\')
+if(Get-Item -LiteralPath (Join-Path $ownerTools '.git') -Force -ErrorAction SilentlyContinue){throw 'BACKUP_DATA_ROOT_GIT_REFUSED'}
+. (Join-Path $PSScriptRoot 'workspace-layout.ps1')
+$temporaryRoot=Initialize-OrvionTemporaryRoot -Checkout $tools
 function Invoke-Git{param([string]$Repo)$o=& git -C $Repo @args 2>&1;if($LASTEXITCODE){throw "GIT_FAILED $Repo git $($args[0]) (exit $LASTEXITCODE)`n$("$o"-replace'://[^/@\s]+@','://***@')"};$o|Where-Object{$_-isnot[Management.Automation.ErrorRecord]}}
 function Get-SevenZip{$z=(Get-Command 7z -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1).Source;if(!$z){$z=Join-Path $env:ProgramFiles '7-Zip\7z.exe'};if(!(Test-Path -LiteralPath $z)){throw 'PACKAGE_7ZIP_REQUIRED'};$z}
 function Get-SafeConfig([string]$Repo){
@@ -42,6 +42,30 @@ function Get-SafeConfig([string]$Repo){
     }
 }
 
+function Protect-CodexConfig([string]$Text){
+    $quoted='""".*?"""|\x27{3}.*?\x27{3}|"(?:\\.|[^"\\])*"|''[^'']*'''
+    # Consume composite values together: masking a secret array/table must not leave tail bytes.
+    $composite='[\[{](?:(?:'+$quoted+')|#[^\r\n]*|(?<depth>[\[{])|(?<-depth>[\]}])|[^\[\]{}"''#])*(?(depth)(?!))[\]}]'
+    $pattern='(?ms)(?<prefix>(?:^|[,\[{]\s*)[ \t]*(?<key>"[^"\r\n]+"|''[^''\r\n]+''|[A-Za-z0-9_.-]+)[ \t]*=[ \t]*)(?<value>'+$quoted+'|'+$composite+'|[^\[\]{},\r\n#]+)'
+    $masked=[regex]::Replace($Text,$pattern,{
+        param($match)
+        $key=$match.Groups['key'].Value.Trim('"',"'")
+        $value=$match.Groups['value'].Value
+        # Whole credential words only (separator- or camelCase-bounded): "path", "patch", "keyboard" are not secrets.
+        if(($key-match'(?i)(?:^|[_.\-])(?:api_?keys?|keys?|tokens?|secrets?|passwords?|passwd|pats?)(?:$|[_.\-])'-or$key-cmatch'[a-z0-9](?:Keys?|Tokens?|Secrets?|Passwords?|Pats?)$')-and$key-notmatch'(?i)_(?:env|env_var)$'){
+            # Explicit environment substitutions are references, not inline credentials.
+            if($value-notmatch'^(["''])?\$(?:\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*|env:[A-Za-z_][A-Za-z0-9_]*)(?:["''])?$'){$value='"***"'}
+        }
+        elseif($value.TrimStart()-match'^[\[{]'){$value=Protect-CodexConfig $value}
+        $match.Groups['prefix'].Value+$value
+    })
+    [regex]::Replace($masked,'://([^:/@\s]+):([^@\s]*)@',{
+        param($match)
+        if($match.Groups[2].Value-match'^\$(?:\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*|env:[A-Za-z_][A-Za-z0-9_]*)$'){return $match.Value}
+        '://'+$match.Groups[1].Value+':***@'
+    })
+}
+
 if($Package){
     $zip=Get-SevenZip
     # Selective package v1: a package without both products is incomplete; refuse instead of omitting them.
@@ -59,6 +83,14 @@ try{
 function Copy-Tree([string]$From,[string]$To,[scriptblock]$Skip={$false}){
     if(!(Test-Path -LiteralPath $From)){return}
     $src=(Get-Item -LiteralPath $From).FullName
+    # Empty memory directories still identify projects that need junctions after recovery.
+    if((Get-Item -LiteralPath $src).PSIsContainer){
+        [void][IO.Directory]::CreateDirectory($To)
+        foreach($directory in Get-ChildItem -LiteralPath $src -Recurse -Directory -Force){
+            $relative=$directory.FullName.Substring($src.Length+1)
+            if(!(& $Skip ($relative+'\'))){[void][IO.Directory]::CreateDirectory((Join-Path $To $relative))}
+        }
+    }
     $files=if((Get-Item -LiteralPath $src).PSIsContainer){Get-ChildItem -LiteralPath $src -Recurse -File -Force}else{Get-Item -LiteralPath $src}
     foreach($f in $files){
         $rel=if($f.FullName-eq$src){$f.Name}else{$f.FullName.Substring($src.Length+1)}
@@ -142,58 +174,9 @@ Copy-Tree "$env:USERPROFILE\.claude\statusline.ps1" (Join-Path $out 'claude')
 $codexConfig=Join-Path $env:USERPROFILE '.codex\config.toml'
 if(Test-Path -LiteralPath $codexConfig -PathType Leaf){
     $codexOut=Join-Path $out 'codex';New-Item -ItemType Directory $codexOut -Force|Out-Null
-    $masked=[IO.File]::ReadAllText($codexConfig)-replace'://([^:/@\s]+):([^@\s]*)@','://${1}:***@'
+    $masked=Protect-CodexConfig ([IO.File]::ReadAllText($codexConfig))
     [IO.File]::WriteAllText((Join-Path $codexOut 'config.toml'),$masked,[Text.UTF8Encoding]::new($false))
 }
-$projects=Join-Path $env:USERPROFILE '.claude\projects'
-# Claude is optional; errors reading a present source still terminate the backup before its manifest.
-if(Test-Path -LiteralPath $projects){
-if(!(Test-Path -LiteralPath $projects -PathType Container)){throw 'BACKUP_CLAUDE_PROJECTS_NOT_DIRECTORY'}
-foreach($p in Get-ChildItem -LiteralPath $projects -Directory|Where-Object{Test-Path (Join-Path $_.FullName 'memory')}){
-    if($p.Name-match'Documents-GitHub|ORVION'){Copy-Tree (Join-Path $p.FullName 'memory') (Join-Path $out "claude\projects\$($p.Name)\memory")}
-}
-}
-# Selective package v1: a nested clone is regenerated from its recorded origin/HEAD; only state no main bundle holds is kept.
-function Save-CloneState([string]$Clone,[string]$To){
-    $localConfig=@(Get-SafeConfig $Clone)
-    # .clone-state is reserved for generated metadata; a source path of that name would be overwritten, so refuse.
-    if(Test-Path -LiteralPath (Join-Path $Clone '.clone-state')){throw "BACKUP_CLONE_STATE_NAME_COLLISION: $Clone"}
-    # Unresolved merge entries cannot be rebuilt by git apply from the saved diffs: refuse rather than save a broken patch.
-    if(@(Invoke-Git $Clone diff --name-only --diff-filter=U).Count){throw "BACKUP_NESTED_UNMERGED_NOT_PRESERVABLE: $Clone (resolve or abort the merge first)"}
-    $state=Join-Path $To '.clone-state';New-Item -ItemType Directory $state -Force|Out-Null
-    # Ignored files (receipts, approvals, evidence) are copied in place; only node_modules is regenerable.
-    $ignored=@("$(& git -C $Clone ls-files --others --ignored --exclude-standard -z 2>$null)"-split"`0");if($LASTEXITCODE){throw "GIT_FAILED $Clone ls-files"}
-    foreach($f in @($ignored|Where-Object{$_-and$_-notmatch'(^|/)node_modules/'})){Copy-Tree (Join-Path $Clone $f) (Split-Path (Join-Path $To $f) -Parent)}
-    $refs=@(Invoke-Git $Clone for-each-ref --format='%(objectname) %(refname)')
-    # A bundle carries refs/stash, not older stash entries kept only in its reflog: refuse rather than lose them.
-    if(@(Invoke-Git $Clone stash list).Count-gt1){throw "BACKUP_NESTED_STASHES_NOT_PRESERVABLE: $Clone (apply or drop the older stashes first)"}
-    $head="$(& git -C $Clone rev-parse -q --verify HEAD)".Trim()
-    # Regenerable = reachable from what the main bundles actually hold; every other tip, HEAD included, is bundled above it.
-    if($null-eq$script:mainCommits){$script:mainCommits=[Collections.Generic.HashSet[string]]::new();foreach($m in $bundledTips.Keys){foreach($s in @(Invoke-Git $m rev-list @($bundledTips[$m]))){[void]$script:mainCommits.Add($s)}}}
-    $known=@(@($refs|ForEach-Object{($_-split' ')[0]})+@($head)|Where-Object{$_-and$script:mainCommits.Contains($_)}|Sort-Object -Unique)
-    $unique=@($refs|Where-Object{!$script:mainCommits.Contains(($_-split' ')[0])}|ForEach-Object{($_-split' ',2)[1]})
-    if($head-and!$script:mainCommits.Contains($head)){$unique+='HEAD'}
-    # Git cannot write beyond MAX_PATH here: it writes a short path under $out and .NET moves the file into place.
-    $short=Join-Path $out ('.t'+[guid]::NewGuid().ToString('N').Substring(0,8))
-    if($unique.Count){Invoke-Git $Clone bundle create $short @unique @($known|ForEach-Object{"^$_"})|Out-Null;[IO.File]::Move($short,(Join-Path $state 'unique.bundle'))}
-    # One worktree walk: index and worktree changes are saved apart (staged.diff, worktree.diff); renames carry a second path.
-    $status=@("$(& git -C $Clone status --porcelain=v1 -z --untracked-files=all 2>$null)"-split"`0");if($LASTEXITCODE){throw "GIT_FAILED $Clone status"}
-    $staged=$false;$unstaged=$false;$untracked=@()
-    for($i=0;$i-lt$status.Count;$i++){$e=$status[$i];if($e.Length-lt4){continue};if($e.StartsWith('?? ')){$untracked+=$e.Substring(3)}else{if($e[0]-ne' '){$staged=$true};if($e[1]-ne' '){$unstaged=$true};if($e[0]-in'R','C'){$i++}}}
-    if($staged){& git -C $Clone diff --cached --binary "--output=$short";if($LASTEXITCODE){throw "GIT_FAILED $Clone diff --cached"};[IO.File]::Move($short,(Join-Path $state 'staged.diff'))}
-    if($unstaged){& git -C $Clone diff --binary "--output=$short";if($LASTEXITCODE){throw "GIT_FAILED $Clone diff"};[IO.File]::Move($short,(Join-Path $state 'worktree.diff'))}
-    foreach($f in @($untracked|Where-Object{$_-notmatch'(^|/)node_modules/'})){Copy-Tree (Join-Path $Clone $f) (Split-Path (Join-Path "$state\untracked" $f) -Parent)}
-    [ordered]@{head=$head;branch="$(& git -C $Clone symbolic-ref -q --short HEAD)".Trim();origin=(($localConfig|Where-Object{$_-like'remote.origin.url=*'})-replace'^remote.origin.url=','');refs=$refs;unique=$unique}|ConvertTo-Json -Depth 3|Set-Content (Join-Path $state 'state.json')
-}
-if(!$SkipLegacy){foreach($n in 'ORVION-Owner-Review','ORVION-Owner-Tools','ORVION-Owner-Recovery','ORVION-Sandbox','ORVION-drafts-backup','Windows-Memory-Config'){
-    $src=Join-Path $docs $n;if(!(Test-Path $src)){continue}
-    # a legacy folder that is itself a repository keeps its files, not its .git; node_modules is reinstalled from its lockfile
-    # Only a .git that Git accepts as its work tree's top is a clone; a broken one is ordinary data and is copied whole.
-    # A .git FILE (linked worktree, submodule) marks a work tree too, so its own state is captured, never dropped.
-    $clones=@(Get-ChildItem $src -Recurse -Force -Filter .git -ErrorAction SilentlyContinue|ForEach-Object{Split-Path $_.FullName -Parent}|Where-Object{$top="$(& git -C $_ rev-parse --show-toplevel 2>$null)";!$LASTEXITCODE-and$top-and[IO.Path]::GetFullPath($top)-eq$_}|ForEach-Object{if($_.Length-gt$src.Length){$_.Substring($src.Length+1)+'\'}else{'.git\'}})
-    Copy-Tree $src (Join-Path $out "legacy\$n") {param($rel)if($rel-match'(^|\\)node_modules\\'){return $true};foreach($c in $clones){if($rel.StartsWith($c)){return $true}};$false}
-    foreach($c in $clones){$rel=if($c-eq'.git\'){''}else{$c};Save-CloneState (Join-Path $src $rel) (Join-Path $out "legacy\$n\$rel")}
-}}
 $plan|ConvertTo-Json -Depth 4|Set-Content (Join-Path $out 'backup.json')
 $sums=Get-ChildItem $out -Recurse -File|ForEach-Object{"$((Get-FileHash -LiteralPath $_.FullName).Hash)  $($_.FullName.Substring($out.Length+1))"}
 [IO.File]::WriteAllLines((Join-Path $out 'SHA256SUMS.txt'),[string[]]$sums)

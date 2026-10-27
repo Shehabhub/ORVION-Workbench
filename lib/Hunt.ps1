@@ -11,15 +11,20 @@
 #               against broken code is a gap)
 #   capability  NEED (history shows a missing MCP server, hook or skill) and PRUNE (configured, never used) proposals
 #   lint        PSScriptAnalyzer bug-relevant rules, when installed (known false positives listed below)
+# -NoRecord suppresses events only; work\hunt-last.txt is still written in the data root.
 # -Quick skips mutants and lint (about 5 s instead of about 60 s).
-param([string]$Root=(Split-Path $PSScriptRoot -Parent),[switch]$Quick,[switch]$NoRecord,[object[]]$MutantSet,[string]$DataRoot=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent))[0]}))  # -MutantSet: test-hunt.ps1 only
+param([string]$Root=(Split-Path $PSScriptRoot -Parent),[switch]$Quick,[switch]$NoRecord,[object[]]$MutantSet,[string]$DataRoot=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools'}),[scriptblock]$GetMapTask={Get-ScheduledTask -TaskName 'ORVION Repository Map' -ErrorAction Stop | Get-ScheduledTaskInfo -ErrorAction Stop})  # test seams
 $ErrorActionPreference='Stop'
+if(!$PSBoundParameters.ContainsKey('DataRoot')-and!$env:ORVION_DATA_ROOT-and!(Test-Path -LiteralPath (Join-Path $DataRoot 'events') -PathType Container)){throw 'ORVION_DATA_ROOT_UNAVAILABLE'}
+. (Join-Path $PSScriptRoot 'workspace-layout.ps1')
+$temporaryRoot=Initialize-OrvionTemporaryRoot -Checkout $Root
 # Sync's library binds $Root in this scope; restore the independent source root afterwards.
 $sourceRoot=$Root
 . (Join-Path $PSScriptRoot 'Sync-Sessions.ps1') -Library -Root $DataRoot
 $Root=$sourceRoot
 $findings=[Collections.Generic.List[object]]::new()
 function Add-Finding([string]$Kind,[string]$Hound,[string]$Text,[string]$Tags=''){$findings.Add([pscustomobject]@{kind=$Kind;hound=$Hound;text=$Text;tags=$Tags})}
+try{$mapTaskInfo=& $GetMapTask;if(!$mapTaskInfo-or$null-eq$mapTaskInfo.LastTaskResult-or$mapTaskInfo.LastTaskResult-ne0){throw 'missing or nonzero result'}}catch{Add-Finding GAP map-task 'ORVION Repository Map task missing or last result non-zero/unreadable' 'repository map scheduled task'}
 $sw=[Diagnostics.Stopwatch]::StartNew()
 
 # invariants: the archive never diverges from a source it copies (the prefix rule Copy-Grown relies on).
@@ -114,7 +119,7 @@ if(!$Quick){
         ,@('Coordinator.ps1','-or$sev-eq''high''-or$last','-or$sev-eq''high''','test-coordinator.ps1','a recurrence after a fix being material')
         ,@('Events.ps1','if($fs.ReadByte()-ne10){$lead="`n"}','if($false){$lead="`n"}','test-coordinator.ps1','closing a torn journal line before the next record')
         ,@('Delegate.ps1','-Owner $(if($next){''agent''}else{''''})','-Owner ''''','test-coordinator.ps1','handing a returned verdict back to the agent')
-        ,@('Watch-Subagents.ps1','$e.message.stop_reason-eq''end_turn''','$text','test-watch-subagents.ps1','finished only on end_turn')
+        ,@('Watch-Subagents.ps1','$e.message.stop_reason-eq''end_turn''','$false','test-watch-subagents.ps1','finished only on end_turn')
     )}
     $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-hunt-$([guid]::NewGuid().ToString('N').Substring(0,6))"
     . (Join-Path $PSScriptRoot 'remove-owned.ps1')

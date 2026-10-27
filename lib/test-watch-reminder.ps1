@@ -5,10 +5,13 @@ $ErrorActionPreference='Stop'
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-hookcheck-$([guid]::NewGuid().ToString('N').Substring(0,6))"
 $savedProfile=$env:USERPROFILE;$env:USERPROFILE=Join-Path $t 'profile'
+$savedTemporaryRoot=$env:WORKBENCH_TEMP_ROOT;$env:WORKBENCH_TEMP_ROOT=Join-Path $t 'managed'
 $inheritedDataRoot=$env:ORVION_DATA_ROOT;$env:ORVION_DATA_ROOT=$null  # hermetic: a caller's data root must not steer the fixture hook
 $ws=Join-Path $env:USERPROFILE 'Documents\GitHub\OwnerTools';$lib=Join-Path $ws 'lib';$native=Join-Path $env:USERPROFILE 'Documents\GitHub\Native'
 New-Item -ItemType Directory "$lib\hooks","$t\repo\scripts",$native -Force|Out-Null
 $hook=Join-Path $lib 'hooks\Watch-Reminder.ps1';Copy-Item (Join-Path $PSScriptRoot 'hooks\Watch-Reminder.ps1') $hook
+Copy-Item (Join-Path $PSScriptRoot 'workspace-layout.ps1') $lib
+[void][IO.Directory]::CreateDirectory((Join-Path (Split-Path $ws -Parent) 'ORVION-Owner-Tools/events'))
 $sync=Join-Path $PSScriptRoot 'Sync-Sessions.ps1'
 $stub=@'
 param([switch]$Library,[string]$Root=(Split-Path $PSScriptRoot -Parent),[switch]$Quiet,[switch]$Follow)
@@ -40,6 +43,7 @@ try{
         $deadlineCheckout=Join-Path $t 'deadline checkout';$deadlineLib=Join-Path $deadlineCheckout 'lib'
         $deadlineStore=Join-Path $t 'deadline store';$deadlineTemp=Join-Path $deadlineStore 'temp'
         [void][IO.Directory]::CreateDirectory((Join-Path $deadlineLib 'hooks'));[void][IO.Directory]::CreateDirectory($deadlineTemp)
+        Copy-Item (Join-Path $PSScriptRoot 'workspace-layout.ps1') $deadlineLib
         $deadlineHook=Join-Path $deadlineLib 'hooks/Watch-Reminder.ps1'
         Copy-Item (Join-Path $PSScriptRoot 'hooks/Watch-Reminder.ps1') $deadlineHook
         [IO.File]::WriteAllText((Join-Path $deadlineLib 'README.md'),"## Always`nFIXTURE-TOOLS`n## Next`n")
@@ -75,6 +79,7 @@ if($mode-eq'nonzero'){'Pulse UNREADABLE fixture';exit 2}
                 [pscustomobject]@{Text=$outTask.GetAwaiter().GetResult();Error=$errTask.GetAwaiter().GetResult();Exit=$child.ExitCode;Ms=[math]::Round($elapsed.Elapsed.TotalMilliseconds,1);Expired=$expired}
             }finally{$child.Dispose()}
         }
+        $deadlineSavedTemporaryRoot=$env:WORKBENCH_TEMP_ROOT;$env:WORKBENCH_TEMP_ROOT=$deadlineTemp
         $deadlineSavedRoot=$env:ORVION_DATA_ROOT;$deadlineSavedTemp=$env:TEMP;$deadlineSavedTmp=$env:TMP
         try{
             $env:ORVION_DATA_ROOT=$deadlineStore;$env:TEMP=$deadlineTemp;$env:TMP=$deadlineTemp
@@ -108,8 +113,8 @@ if($mode-eq'nonzero'){'Pulse UNREADABLE fixture';exit 2}
             $end=Invoke-DeadlineEvent $deadlineHook 'SessionEnd'
             $unrelated=Invoke-DeadlineEvent $deadlineHook 'SessionStart' (Join-Path $t 'unrelated')
             Assert-That 'deadline leaves silent SessionEnd and unrelated branches silent with exit 0' ($end.Exit-eq0-and$unrelated.Exit-eq0-and!$end.Text-and!$end.Error-and!$unrelated.Text-and!$unrelated.Error)
-            Assert-That 'Pulse stdout and stderr temporary files are deleted after healthy, failed and timed-out calls' (@(Get-ChildItem -LiteralPath $deadlineTemp -Filter 'orvion-pulse-*').Count-eq0)
-        }finally{$env:ORVION_DATA_ROOT=$deadlineSavedRoot;$env:TEMP=$deadlineSavedTemp;$env:TMP=$deadlineSavedTmp}
+            Assert-That 'Pulse stdout and stderr temporary files are deleted after healthy, failed and timed-out calls' (@(Get-ChildItem -LiteralPath (Join-Path $deadlineTemp 'tmp') -Filter 'orvion-pulse-*').Count-eq0)
+        }finally{$env:WORKBENCH_TEMP_ROOT=$deadlineSavedTemporaryRoot;$env:ORVION_DATA_ROOT=$deadlineSavedRoot;$env:TEMP=$deadlineSavedTemp;$env:TMP=$deadlineSavedTmp}
         if($DeadlineProbeOnly){if($fail){throw 'HOOK_DEADLINE_PROBE_FAILED'};'HOOK_DEADLINE_PROBE PASS';return}
     }
 
@@ -139,17 +144,22 @@ if($Invalid){Remove-Item Function:\Split-Path}
             $stdout=Join-Path $layout 'stdout.txt';$stderr=Join-Path $layout 'stderr.txt'
             ''|& pwsh -NoProfile -File $launcher -Hook $probeHook -Invalid:($case-like'invalid-*') 1>$stdout 2>$stderr
             $code=$LASTEXITCODE;$log=Join-Path $expected 'work\hook-errors.log'
+            if($case-in'fallback','invalid-fallback'){
+                Assert-That "hook early $case stays stderr-only without creating checkout work" ($code-eq0-and[IO.File]::ReadAllText($stdout)-eq''-and[IO.File]::ReadAllText($stderr)-match'^WATCH_REMINDER_UNREADABLE:'-and!(Test-Path (Join-Path $checkout 'work'))-and@((Get-ChildItem $layout -Recurse -Filter hook-errors.log)).Count-eq0)
+                continue
+            }
             Assert-That "hook early $case logs once in fallback store; stderr only and exit 0" ($code-eq0-and[IO.File]::ReadAllText($stdout)-eq''-and[IO.File]::ReadAllText($stderr)-match'^WATCH_REMINDER_UNREADABLE:'-and(Test-Path $log)-and@([IO.File]::ReadAllLines($log)).Count-eq1-and[IO.File]::ReadAllText($log)-match'WATCH_REMINDER_UNREADABLE'-and@((Get-ChildItem $layout -Recurse -Filter hook-errors.log)).Count-eq1)
         }
         if($FailureProbeOnly){if($fail){throw 'HOOK_FAILURE_PROBE_FAILED'};'HOOK_FAILURE_PROBE PASS';return}
-        foreach($case in 'sibling','override','fallback'){
+        foreach($case in 'sibling','override'){
             $layout=Join-Path $t $case;$checkout=Join-Path $layout 'ORVION-Workbench';$probeLib=Join-Path $checkout 'lib'
             $sibling=Join-Path $layout 'ORVION-Owner-Tools';$override=Join-Path $layout 'override store'
             [void][IO.Directory]::CreateDirectory((Join-Path $probeLib 'hooks'))
             Copy-Item (Join-Path $PSScriptRoot 'hooks\Watch-Reminder.ps1') (Join-Path $probeLib 'hooks')
+            Copy-Item (Join-Path $PSScriptRoot 'workspace-layout.ps1') $probeLib
             $env:ORVION_DATA_ROOT=$null
-            if($case-ne'fallback'){[void][IO.Directory]::CreateDirectory((Join-Path $sibling 'events'))}
-            $expected=if($case-eq'override'){$env:ORVION_DATA_ROOT=$override+'\';$override}elseif($case-eq'sibling'){$sibling}else{$checkout}
+            [void][IO.Directory]::CreateDirectory((Join-Path $sibling 'events'))
+            $expected=if($case-eq'override'){$env:ORVION_DATA_ROOT=$override+'\';$override}else{$sibling}
             $real=[IO.File]::ReadAllText($sync).Replace('function Test-AgentsRunning{[bool](Get-Process -Name claude,codex -ErrorAction SilentlyContinue)}','function Test-AgentsRunning{$false}').Replace('Local\orvion-sync-sessions',('Local\ws019-'+[guid]::NewGuid().ToString('N')))
             [IO.File]::WriteAllText((Join-Path $probeLib 'Sync.real.ps1'),$real)
             # Deliberate checkout default: proves the hook passes Root explicitly even if the library default changes.
@@ -171,7 +181,7 @@ if($Library){Add-Content (Join-Path $checkout 'library.calls') $Root;. (Join-Pat
             $deadline=[DateTime]::UtcNow.AddSeconds(15)
             while(!(Test-Path (Join-Path $checkout 'archive.calls'))-and[DateTime]::UtcNow-lt$deadline){Start-Sleep -Milliseconds 50}
             $call=Get-Content (Join-Path $checkout 'archive.calls') -Raw|ConvertFrom-Json
-            $archiveOk=$hookCode-eq0-and!$quiet.Count-and$call.root-eq$expected-and(Test-Path (Join-Path $expected 'sessions\raw\claude\C--Fixture-ORVION\fixture.jsonl'))-and($case-eq'fallback'-or!(Test-Path (Join-Path $checkout 'sessions')))
+            $archiveOk=$hookCode-eq0-and!$quiet.Count-and$call.root-eq$expected-and(Test-Path (Join-Path $expected 'sessions\raw\claude\C--Fixture-ORVION\fixture.jsonl'))-and!(Test-Path (Join-Path $checkout 'sessions'))
             Assert-That "hook $case archives fixture in data root without split archive; silent exit 0" $archiveOk
             if(!$archiveOk){"HOOK_FIXTURE_DIAGNOSTIC: case=$case hook=$hookCode child=$($call.code) stdoutRows=$($quiet.Count) rootMatches=$($call.root-eq$expected) archiveExists=$(Test-Path (Join-Path $expected 'sessions\raw\claude\C--Fixture-ORVION\fixture.jsonl'))"}
             $context=@(@{hook_event_name='SessionStart';cwd=$checkout}|ConvertTo-Json -Compress|& pwsh -NoProfile -File $probeHook)-join' '
@@ -181,7 +191,7 @@ if($Library){Add-Content (Join-Path $checkout 'library.calls') $Root;. (Join-Pat
             foreach($call in $calls){try{$child=Get-Process -Id $call.pid -ErrorAction Stop;if(!$child.WaitForExit(5000)){throw 'ROOT_CHILD_TIMEOUT'}}catch [Microsoft.PowerShell.Commands.ProcessCommandException]{}}
             Assert-That "hook $case passes data root to masking library and Pulse, and reports archive path" ((Get-Content (Join-Path $checkout 'library.calls'))-eq$expected-and(Get-Content (Join-Path $checkout 'pulse.calls'))-eq$expected-and$context.Contains("$expected\sessions\INDEX.md")-and$calls.Count-eq2-and$calls[1].follow)
             $null=@('{bad'|& pwsh -NoProfile -File $probeHook 2>&1)
-            Assert-That "hook $case errors use data root" ((Test-Path (Join-Path $expected 'work\hook-errors.log'))-and($case-eq'fallback'-or!(Test-Path (Join-Path $checkout 'work'))))
+            Assert-That "hook $case errors use data root" ((Test-Path (Join-Path $expected 'work\hook-errors.log'))-and!(Test-Path (Join-Path $checkout 'work')))
         }
     }finally{$env:ORVION_DATA_ROOT=$savedDataRoot}
     if($RootProbeOnly){if($fail){throw 'HOOK_ROOT_PROBE_FAILED'};'HOOK_ROOT_PROBE PASS';return}
@@ -215,10 +225,10 @@ if($Library){Add-Content (Join-Path $checkout 'library.calls') $Root;. (Join-Pat
     Assert-That 'unrelated sessions stay quiet and start no archiver' (!$other.Count-and@(Get-Content (Join-Path $ws 'archive.calls')).Count-eq3)
     $secret='ghp_'+('Ab2C3dEf4G5hI6jK7L8mN9oP0qR1sT2uV3wX'.Substring(0,36))
     $bad=@("{bad $secret"|& pwsh -NoProfile -File $hook 2>&1)-join' ';$code=$LASTEXITCODE
-    $errorText=Get-Content (Join-Path $ws 'work\hook-errors.log') -Raw
+    $errorText=Get-Content (Join-Path (Split-Path $ws -Parent) 'ORVION-Owner-Tools\work\hook-errors.log') -Raw
     Assert-That 'malformed input reports a stable error without raw values or a false gate verdict' ($bad-match'WATCH_REMINDER_UNREADABLE'-and!$bad.Contains($secret)-and$errorText-match'WATCH_REMINDER_UNREADABLE'-and!$errorText.Contains($secret)-and$code-eq0)
 }finally{
-    $env:USERPROFILE=$savedProfile;$env:ORVION_DATA_ROOT=$inheritedDataRoot
+    $env:WORKBENCH_TEMP_ROOT=$savedTemporaryRoot;$env:USERPROFILE=$savedProfile;$env:ORVION_DATA_ROOT=$inheritedDataRoot
     $resolved=[IO.Path]::GetFullPath($t);if(!$resolved.StartsWith([IO.Path]::GetTempPath(),[StringComparison]::OrdinalIgnoreCase)-or(Split-Path $resolved -Leaf)-notlike'orvion-hookcheck-*'){throw 'HOOK_TEST_CLEANUP_BOUNDARY'}
     $null=Remove-OrvionOwnedTree -Path $resolved -AllowedRoots @([IO.Path]::GetTempPath())
 }

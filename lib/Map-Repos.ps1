@@ -4,14 +4,15 @@
 #   pwsh -NoProfile -File Map-Repos.ps1 -Orphans        files nothing links to (entry documents excepted)
 #   pwsh -NoProfile -File Map-Repos.ps1 -Install        refresh hourly and at logon (per-user scheduled task); -Uninstall removes it
 # Repositories are discovered on every run, so a new clone joins the map by itself; *-trusted-main copies and the
-# ORVION-Owner-Tools data store are skipped; an unborn or broken repository is listed under `problems`, never fatal.
+# ORVION-Owner-Tools data store and ORVION-Workbench-temporary tree are skipped; an unborn or broken repository is listed under `problems`, never fatal.
 # Only files COMMITTED at HEAD are read (never the working tree or index, never untracked or ignored files), and paths
 # under sessions/ or events/ and *.jsonl are excluded; credentials in origin URLs are removed. Links (Obsidian-style,
 # with backlinks): markdown links, repository paths named in text, cross-repository paths, globs, distinctive bare file
 # names, SPEC-/WS- contract ids and ADR-NNNN sections. The outputs are git-ignored derived views, never authority.
 param([string]$GitHub=(Split-Path (Split-Path $PSScriptRoot -Parent) -Parent),[string]$Out=(Split-Path $PSScriptRoot -Parent),
-      [string]$Links,[switch]$Orphans,[switch]$Install,[switch]$Uninstall,[string[]]$Skip=@('*-trusted-main','ORVION-Owner-Tools','_*'))
+      [string]$Links,[switch]$Orphans,[switch]$Install,[switch]$Uninstall,[string[]]$Skip=@('*-trusted-main','ORVION-Owner-Tools','ORVION-Workbench-temporary','_*'))
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'workspace-layout.ps1')
 $GitHub=[IO.Path]::GetFullPath($GitHub);$Out=[IO.Path]::GetFullPath($Out);$json=Join-Path $Out 'ai-map.json';$task='ORVION Repository Map'
 if($Install){
     $skipArg=(@($Skip|ForEach-Object{"'"+$_.Replace("'","''")+"'"})-join',')
@@ -47,13 +48,11 @@ function Read-Blobs([string]$Repo,[string[]]$BlobIds){
 }
 # Discovery: a direct child of the GitHub folder whose top-level is itself; problems are reported, never fatal.
 $problems=[Collections.Generic.List[object]]::new()
-$repos=@(foreach($d in Get-ChildItem -LiteralPath $GitHub -Directory){
-    if(@($Skip|Where-Object{$d.Name-like$_}).Count-or!(Test-Path -LiteralPath (Join-Path $d.FullName '.git'))){continue}
-    $top="$(& git -C $d.FullName rev-parse --show-toplevel 2>$null)"
-    if($LASTEXITCODE-or!$top-or[IO.Path]::GetFullPath($top)-ne$d.FullName){$problems.Add([ordered]@{repo=$d.Name;problem='not a readable Git work tree'});continue}
-    $head="$(& git -C $d.FullName rev-parse -q --verify HEAD)".Trim();if(!$head){$problems.Add([ordered]@{repo=$d.Name;problem='no commits yet'})}
-    [pscustomobject]@{name=$d.Name;root=$d.FullName;head=$head;branch="$(& git -C $d.FullName symbolic-ref -q --short HEAD)".Trim()
-        origin=("$(& git -C $d.FullName config --get remote.origin.url)".Trim()-replace'://[^/@\s]+@','://')}
+$repos=@(foreach($d in Get-OrvionRepositoryCandidates -GitHub $GitHub -Skip $Skip){
+    if($d.problem){$problems.Add([ordered]@{repo=$d.name;problem=$d.problem});continue}
+    $head="$(& git -C $d.root rev-parse -q --verify HEAD)".Trim();if(!$head){$problems.Add([ordered]@{repo=$d.name;problem='no commits yet'})}
+    [pscustomobject]@{name=$d.name;root=$d.root;head=$head;branch="$(& git -C $d.root symbolic-ref -q --short HEAD)".Trim()
+        origin=("$(& git -C $d.root config --get remote.origin.url)".Trim()-replace'://[^/@\s]+@','://')}
 })
 $text='\.(md|ps1|psm1|psd1|json|ya?ml|sql|py|ts|tsx|js|mjs|toml|txt|cmd|sh|csv)$';$private='(^|/)(sessions|events)/|\.jsonl$'
 $files=[ordered]@{};$byRepo=@{};$unscanned=[Collections.Generic.List[string]]::new();$bodies=@{}

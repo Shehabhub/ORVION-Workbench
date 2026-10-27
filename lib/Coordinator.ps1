@@ -32,9 +32,12 @@ param([Parameter(ParameterSetName='queue')][switch]$Check,
       [Parameter(ParameterSetName='dispatch')][ValidateSet('readonly','sandbox')][string]$Mode='readonly',
       [Parameter(ParameterSetName='dispatch')][int]$Minutes=30,
       [datetime]$Now=[DateTime]::UtcNow,  # the self-check moves the clock
-      [string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent))[0]}))
+      [string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools'}))
 $ErrorActionPreference='Stop'
+if(!$PSBoundParameters.ContainsKey('Root')-and!$env:ORVION_DATA_ROOT-and!(Test-Path -LiteralPath (Join-Path $Root 'events') -PathType Container)){'COORDINATOR_UNAVAILABLE: ORVION_DATA_ROOT_UNAVAILABLE';exit 3}
 $ev=Join-Path $PSScriptRoot 'Events.ps1';$log=Join-Path $Root 'events\events.jsonl'
+# Item text is masked where items are built, before any view shortens it (a cut first leaves a token's prefix).
+$null=New-Module -Name CoordinatorMask -ScriptBlock {param($Library,$Data) . (Join-Path $Library 'Sync-Sessions.ps1') -Library -Root $Data;Export-ModuleMember -Function Hide-Secret} -ArgumentList $PSScriptRoot,$Root|Import-Module -PassThru
 # The journal is the only state: every view is computed from it at read time, so there is no index to drift or rebuild.
 # Times stay strings until here (ConvertFrom-Json would guess a kind); a bare date is due at the end of that day.
 function ConvertTo-Utc([string]$s){$d=[DateTimeOffset]::Parse($s,[Globalization.CultureInfo]::InvariantCulture).UtcDateTime;if($s.Length-eq10){$d.AddDays(1).AddSeconds(-1)}else{$d}}
@@ -70,8 +73,8 @@ $open=foreach($g in @($records|Group-Object pattern)){
     $state=if(!$case){'OBSERVATION'}elseif($ownerDecision){'OWNER'}
         elseif($dueAt-and$Now-gt$dueAt){'OVERDUE'}elseif($z.source-eq'delegate-road'){'DISPATCHED'}
         elseif(!$own-or!$act){'UNOWNED'}else{'ACTIVE'}
-    [pscustomobject]@{pattern=$g.Name;state=$state;owner=$own;action=$act;due=$dueAt;age=[int]($Now-(ConvertTo-Utc $since[0].at)).TotalDays
-        summary=$z.summary;last=(ConvertTo-Utc $z.at);recurred=$closed.Count;lastFix=$(if($last){"$(([datetime](ConvertTo-Utc $last.at)).ToString('yyyy-MM-dd')) $($last.status): $($last.summary)"})}
+    [pscustomobject]@{pattern=$g.Name;state=$state;owner=$own;action=$(if($act){Hide-Secret $act});due=$dueAt;age=[int]($Now-(ConvertTo-Utc $since[0].at)).TotalDays
+        summary=(Hide-Secret $z.summary);last=(ConvertTo-Utc $z.at);recurred=$closed.Count;lastFix=$(if($last){"$(([datetime](ConvertTo-Utc $last.at)).ToString('yyyy-MM-dd')) $($last.status): $(Hide-Secret $last.summary)"})}
 }
 $order=@{UNOWNED=0;OVERDUE=1;OWNER=2;DISPATCHED=3;ACTIVE=4}
 $items=@($open|Where-Object state -ne 'OBSERVATION'|Sort-Object @{e={$order[$_.state]}},@{e='age';Descending=$true})

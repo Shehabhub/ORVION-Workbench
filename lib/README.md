@@ -3,14 +3,17 @@
 Proven agent tooling for both repositories. Not repository authority: each repository's own scripts and
 contracts decide; these only drive them. Run `Test-ScriptHazards.ps1` on every new scratch `.ps1`.
 Contract B supplied each product's own independent native adapters. This directory remains the Workbench agent's tools,
-not a dependency injected into direct-native product operation. Its historical move from Documents\ORVION-Sandbox\lib
-does not make that old copy an execution entry.
+not a dependency injected into direct-native product operation.
+
+Historical citation: Documents\ORVION-Sandbox\lib was the former library location, now retired.
 
 Data root (one data root everywhere): Events, Spider, Pulse, Coordinator, Delegate, Watch-Subagents, Sync-Sessions,
 Backup-Workspace, Hunt `-DataRoot` and the session hook (`hooks\Watch-Reminder.ps1`) default to
-`ORVION_DATA_ROOT`, else the sibling `..\ORVION-Owner-Tools` store when it has `events\`, else this checkout.
+`ORVION_DATA_ROOT`, else the sibling `..\ORVION-Owner-Tools` store. Missing data is unavailable; default writers
+refuse `ORVION_DATA_ROOT_UNAVAILABLE` unless the sibling has `events\`. Pass an explicit root for tests/hosted use.
 An environment override must be fully qualified; otherwise `ORVION_DATA_ROOT_NOT_ABSOLUTE` refuses it. The hook
-reports that code on stderr, exits 0, and logs to the next fully qualified fallback root.
+reports on stderr, exits 0, and logs only to an absolute override or an existing sibling store, never the checkout.
+Hunt `-NoRecord` suppresses events only: `work\hunt-last.txt` remains in the data root.
 Readers report `EVENTS_UNAVAILABLE` (exit 3), `EVENTS_INCOMPLETE` (exit 2), or `SPIDER_COVERAGE: incomplete` (exit 3).
 Pulse reports a damaged session index as `last UNREADABLE` with exit 2. A missing index prints `last none: no session
 index`; it does not itself make Pulse fail when the journal and selected repositories are readable.
@@ -22,8 +25,20 @@ Hunt's `-Root` stays this checkout (its source and lint scope).
 
 Codex archival reads the compact first session-metadata line. Its cwd selector accepts a `Documents\GitHub\CRM`
 or `Documents\GitHub\ORVION` prefix, or `ORVION` anywhere in cwd (PowerShell's case-insensitive match).
-Use `C:\cx\ORVION-<task>` for disposable Codex clones, including CRM work: that shape is archived. A generic
-`C:\cx\repo` or `C:\cx\CRM-<task>` is not selected. Naming a clone does not change its native repository authority.
+Use `..\ORVION-Workbench-temporary\cx\<name>` for disposable Codex clones. That parent contains ORVION, so its
+clones are selected by the archival cwd rule. Naming a clone does not change its native repository authority.
+
+## Arrival and knowledge practice
+
+Pulse supplies live state; use the private STATE.md route from the root resume file, never a copied owner-wait inventory. If STATE.md is missing or unreadable, resume from Pulse's `in flight` lines; if commands cannot run, read the newest `RESUME HERE` entry in the journal (`Events.ps1 -Find 'resume here'`). Before authorized operational work, Events -Find returns relevant lessons and Spider recovers a specific original fact. Use the actual resolved data root described above, not a second journal. Find a comparable executed contract in its owning repository and reuse its proven shape. Hunt Quick NoRecord is bounded gap discovery; full Hunt is reserved for relevant risky work. A first diagnosis is a hypothesis until measured.
+
+Confirmed lessons become Events entries and graduate through a contract to their repository home. Long work records a dated checkpoint and RESUME HERE pointer in the one journal. A recurring pattern is an investigation candidate, not authority for a task. Retained sessions include client-written messages, tool calls/results, attachments, subagents and hook context; hidden reasoning, unwritten client state and already-deleted sources cannot be recovered. Claude's retention can remove originals; the archive preserves retained bytes rather than summarizing them away. Credential-shaped index findings name rules/locations, never values; token shapes do not prove live credentials. Review recovery scan findings through [RECOVERY.md](../docs/RECOVERY.md).
+
+Use absolute -File paths: pwsh -WorkingDirectory does not select a relative script. .NET file APIs ignore PowerShell location, and worktree git config may edit shared local configuration. A failed native read is not empty success; use checked exits. PowerShell double-quoted text turns `` `r `` / `` `t `` into control bytes and drops other backticks: write Markdown code as ` ``x`` ` there; the Gate refuses U+000D (`PROHIBITED_CHARACTER`). Literal Draft steps must survive actual applier preflight and blob comparison: they must match how `apply-draft-steps.ps1` applies them (substring matching, deletions with context, a final newline; `test-draft-steps.ps1` covers it). In a product repository, never write an unallocated SPEC id in a tracked file (it reserves the number), and never commit a blocked checkpoint. Read old code's top level before running a causal negative: it may install real tools. Do not restart a host-killed heavy run without its owning authorization.
+
+## Markdown guard
+
+Test-MarkdownConsistency.ps1 checks working/index/explicit-tree Markdown without writes or external path probes. test-markdown-consistency.ps1 owns isolated Git fixtures and causal guard mutants and is discovered by the existing tests.ps1 recipe. [WORKFLOW](../WORKFLOW.md#markdown-consistency) owns the rules, root budgets, history exceptions and one-home table.
 
 ## Workbench's own local cycle
 
@@ -40,8 +55,12 @@ once with its actual parent/recipe binding. The original always needs its own fr
 are preserved. These local controls are not human authentication or protection against equal OS privileges.
 `test-workbench-governance.ps1` uses independent real-Git fixtures and short children for dispatch/refusal proofs;
 those children are not a replacement for the actual full Workbench tool suite. Failed fixture roots are preserved;
-WORKBENCH_TEST_ROOT selects their explicit parent, otherwise TEMP/ORVION-Workbench/tests is used. Accepted-code
-materializations use WORKBENCH_TEMP_ROOT or that same TEMP/ORVION-Workbench parent. Current prototype
+WORKBENCH_TEST_ROOT selects their explicit parent. `workspace-layout.ps1` resolves temporary storage: explicit
+WORKBENCH_TEMP_ROOT first, then an explicit restore target, then a containing ORVION-Workbench-temporary, then
+the canonical installed checkout's sibling ORVION-Workbench-temporary. Entries set process TEMP and TMP to its
+`tmp\` before children start; accepted-code materializations use that root. Broken local layouts refuse
+`WB_TEMP_LAYOUT_UNAVAILABLE`. Only RUNNER_TEMP, GITHUB_ACTIONS=true or an explicit ORVION_STANDALONE_TEMP=1
+allow system temp for hosted/standalone use. An explicit root must be absolute and outside the checkout. Current prototype
 evidence and first-installation bootstrap remain outside this checkout under the existing task's own packet.
 
 ## Always, with the Monitor tool (never a hand-written alarm loop)
@@ -170,3 +189,17 @@ concurrency fixtures; `test-ws020-mutants.ps1 -Mutant <id>` runs a direct focuse
 ## Workbench local CI test context
 
 Use Workbench.ps1 -CI -Candidate <exact-40-character-lowercase-HEAD> -CIRuntimeRoot <new-external-directory> -Actionlint <external-pinned-actionlint.exe>. The existing engine starts its timed runner/watcher and tests.ps1 once; inspect ci.log, watcher.log, runner.exit, watcher.exit and ci-result.json at that external root. Nonzero, omitted owning suites, changed candidate/recipe/inputs, absent observer or forged direct suite parent refuses. Never invoke tests.ps1 or -CIWorker to bypass the parent. Native Finish/approval/receipt/Review/Complete remain independent and unchanged. This CI result cannot certify original work. Get-WorkbenchCITool owns the pinned tool identities; Get-WorkbenchWorkflowPolicy owns the exact deliberately narrow JSON/YAML workflow policy. No workflow file, hosted bootstrap, remote enforcement or publication is installed by this capability. Future provisioning is a separately governed dependency, not an implicit download or owner-credential use.
+
+## Transport and CI evidence contract
+
+Observer integrity: Coordinator derives the one event journal, retains valid partial diagnostics but returns UNREADABLE/exit 2 for incomplete required evidence and refuses assignment/closure/dispatch before writes. Technical decisions do not become owner decisions merely by category. Watch-Subagents requires an explicit supported Claude session, masks with the existing library before truncation, exposes missing/unreadable evidence and reports tool-wait cause as UNPROVEN; it never kills, retries or certifies. The optional Watch-Reminder supplies Workbench context only at this root or for an explicit existing Owner-Tools command in that event. Direct-native entry remains independent; archival preserves knowledge separately. These are reporting adapters, not authenticated approval, OS enforcement or a completed general management interface. Reuse one run observer and one shared host observer; report actionable changes immediately and routine long-gate heartbeat at most every five minutes. A late reminder cannot prove earlier live coverage or justify an expensive replay.
+
+Native stage transport: lib/README.md identifies the existing agent adapters and their evidence limits. An explicit exact config selects one native root/contract; raw Draft SHA256 and destination-filtered blob, clean root, native Boot and normal .githooks precede mutation. Preserve native ACTION/WRITE/START_CONTEXT and refusal output. The existing applier Plan owns creation and literal grammar; scope is checked before writes, only declared paths are staged, and Git owns actual authorship. Native applicability is derived by the native engine, never forced to PASS by this adapter. Appends target legal section names, not an assumed section order. Finish, profiles, tests, receipt validation, Review/Complete and binding remain native; no child test schedule is duplicated. The diagnostic reviewer returns non-success for observed failures or unsupported required evidence and cannot auto-certify descriptive criteria. A post-commit diagnostic refusal requires inspecting actual state before any retry. These bounded adapters are not the general P3 management entry and do not inject dependencies into direct-native operation.
+
+Post-allocation identity: native transport compares its selected filtered Draft blob with the unique actual Git allocation before native Boot or writes. A self-consistent replacement config/Draft pair grants no authority. Keep original failed proposal/fixtures as evidence and use a new exact candidate rather than substituting frozen bytes.
+
+Arrival reporting: Pulse consumes one Coordinator Snapshot for owner routing and the queue, preserving that classifier's inherited assignment and explicit Readable state. A category named decision alone is not an owner wait. Missing/failed selected repository or required journal evidence yields visible UNREADABLE and Pulse exit2, never a zero-wait or clean substitute. A readable empty journal, unconfigured upstream or dirty tree retains its actual meaning. These observations grant no write permission, certification or universal liveness guarantee; native Boot and the owning exact contract still decide. test-pulse owns the real Git/journal caller fixtures.
+
+Local CI capability: lib/Workbench.ps1 -CI -Candidate <full-lowercase-HEAD-SHA> -CIRuntimeRoot <new-absolute-external-directory> -Actionlint <verified-external-actionlint.exe> runs the existing timed runner and one concurrent watcher, then the existing tests.ps1 schedule once. It requires a clean independent root, exact candidate, real timed ancestry/observer and recipe binding ordered tests, hazard/helper blobs, evaluator, root, runtime, PowerShell/Git and pinned grammar tool/policy. Its internal -CIWorker is not a raw-entry bypass; absent real timed ancestry/observer refuses. The driver child is the actual direct suite parent; environment stamps alone grant no admission. A terminal RESUME None is permitted only in that CI route. A CI_TEST_ONLY result is not a local certification receipt, approval, native Review/Complete, hosted check or trusted candidate judgment. No CI path writes native working/archive receipts or lifecycle metadata. Equal-OS-privilege tampering remains outside the local trust boundary; independent accepted-code judgment and hosted protection remain separate requirements.
+
+The supported first workflow set is exactly .github/workflows/workbench-acceptance.yml, encoded as the closed JSON subset of YAML returned by Get-WorkbenchWorkflowPolicy. All duplicate/unknown keys, changed branch/triggers, conditions, permissions, action/checkout settings, step commands and missing tests refuse. The upstream actionlint1.7.12 Windows/amd64 executable is pinned by Get-WorkbenchCITool (archive and executable SHA256); supply a verified external copy, never install globally or fetch latest implicitly. Semantic validation and real grammar parsing are both mandatory when a workflow exists; zero workflows is legitimate only for local capability preparation, not hosted parity. The policy contains fixed official-download/archive/binary hash-verified provisioning under RUNNER_TEMP/workbench-tools, followed by the fixed CI entry; this unit creates no workflow or hosted provisioning operation. Native owning CI tests require the pinned external tool through -Actionlint (or WORKBENCH_ACTIONLINT for targeted tests). Future hosted installation must prove its own bootstrap/toolchain/runtime and permission boundaries before freeze. Native CI-profile Finish validates this same grammar/policy before its unchanged owning tests and receipt rules; missing tool or unsupported workflow refuses. WORKSTATION remains blocked. No current private protection, hosted success, release interface or real trusted checkout is asserted. CTRL-19 remains OPEN.

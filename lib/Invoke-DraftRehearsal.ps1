@@ -4,6 +4,8 @@
 # executable. Carries the authoritative checkout's ignored certification state read-only (ENGINEERING_METHOD §2).
 param([Parameter(Mandatory)][ValidateSet('platinum','founder')][string]$Repo,[Parameter(Mandatory)][string]$Base,[Parameter(Mandatory)][string]$Id,[Parameter(Mandatory)][string]$Slug,[Parameter(Mandatory)][string]$DraftFile,[Parameter(Mandatory)][string]$EvidenceDir,[string]$Date=(Get-Date -Format yyyy-MM-dd))
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'workspace-layout.ps1')
+$temporaryRoot=Initialize-OrvionTemporaryRoot -Checkout (Split-Path $PSScriptRoot -Parent)
 # A failed git or pwsh throws (PowerShell 7.4+); calls whose exit code is the evidence opt out locally.
 $PSNativeCommandUseErrorActionPreference=$true
 $script:Failures=@()

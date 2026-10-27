@@ -41,10 +41,11 @@ function Invoke-Scenario([string]$Case,[string]$Text=$source){
     if($Case-eq'sidecar'){Remove-Item -LiteralPath "$newer.sha256"}
     if($Case-eq'invalid'){[IO.File]::WriteAllText("$newer.sha256",('b'*64)+' *wrong.7z')}
     if($Case-eq'hash'){[IO.File]::WriteAllText($newer,'damaged newest')}
-    if($Case-eq'winget'){$script:available.winget=$false}
+    if($Case-eq'winget'){$script:available.winget=$false;$script:available.git=$false}
+    if($Case-eq'no-winget'){$script:available.winget=$false}
     if($Case-in'claude-list','claude-list-fail'){$script:available.claude=$true}
     if($Case-in'install','verify','install-success'){$script:available.git=$false;$script:available.'7z'=$false;$script:available.pwsh=$false}
-    function script:Get-RecoveryTool([string]$Name){if($script:available[$Name]){return $Name}}
+    function script:Get-RecoveryTool([string]$Name){$script:calls.Add('lookup '+$Name);if($script:available[$Name]){return $Name}}
     function script:Update-RecoveryPath{$script:calls.Add('refresh-path')}
     function script:Invoke-RecoveryProcess([string]$File,[string[]]$Arguments){
         $script:calls.Add($File+' '+($Arguments-join' '));$script:NativeExitCode=0
@@ -62,11 +63,13 @@ function Invoke-Scenario([string]$Case,[string]$Text=$source){
             if($Arguments[2]-eq'config'-and$script:case-eq'config'){$script:NativeExitCode=20}
             if($Arguments[2]-eq'checkout'-and$script:case-eq'checkout'){$script:NativeExitCode=21}
         }
-        if($File-eq'pwsh'){Write-Output 'RESTORE_FIXTURE_OUTPUT';if($script:case-eq'restore'){$script:NativeExitCode=42}}
+        if($File-eq'pwsh'){Write-Output 'RESTORE_FIXTURE_OUTPUT';if($script:case-eq'restore'){$script:NativeExitCode=42};if($script:case-eq'temporary'-and$Arguments-contains'-Temporary'){$script:NativeExitCode=27};if($script:case-eq'map'-and($Arguments-join' ')-match'Map-Repos'){$script:NativeExitCode=28}}
         if($File-eq'claude'){Write-Output '  > ponytail@ponytail';if($script:case-eq'claude-list-fail'){$script:NativeExitCode=26}}
         if($File-like'*CRM\workstation.cmd'-and$script:case-eq'product'){$script:NativeExitCode=23}
     }
     $stage=Join-Path $root 'stage';$target=Join-Path $root 'target'
+    if($Case-eq'exception'){function script:Get-RecoveryPackage {throw 'sensitive-exception-fixture'}}
+    if($Case-eq'checklist-exception'){function script:Write-RecoveryChecklist {throw 'sensitive-checklist-fixture'}}
     if($Case-eq'staging'){[void][IO.Directory]::CreateDirectory($stage);[IO.File]::WriteAllText((Join-Path $stage 'keep.txt'),'keep')}
     foreach($p in 'CRM','ORVION'){[void][IO.Directory]::CreateDirectory((Join-Path $target $p));[IO.File]::WriteAllText((Join-Path $target "$p\workstation.cmd"),'fixture')}
     if($Case-eq'product-missing'){[IO.File]::Delete((Join-Path $target 'CRM\workstation.cmd'))}
@@ -75,6 +78,11 @@ function Invoke-Scenario([string]$Case,[string]$Text=$source){
         [IO.File]::WriteAllText((Join-Path $root 'claude\settings.json'),'{"enabledPlugins":{"ponytail@ponytail":true},"extraKnownMarketplaces":{"ponytail":{"source":{"source":"github","repo":"DietrichGebert/ponytail"}}}}')
     }
     $params=@{PackageDir=$packages;Staging=$stage;Target=$target;ClaudeHome=(Join-Path $root 'claude');LegacyTarget=(Join-Path $root 'docs');CodexHome=(Join-Path $root 'codex')}
+    if($Case-like'under-*'){$params[$Case.Substring(6)] = Join-Path $stage 'persistent'}
+    if($Case-eq'equal-stage'){$params.ClaudeHome=$stage}
+    if($Case-eq'alias-stage'){$alias=Join-Path $root 'alias';$null=New-Item -ItemType Junction -Path $alias -Target $root;$params.ClaudeHome=Join-Path $alias 'stage/persistent'}
+    if($Case-eq'default-stage'){$params.Remove('Staging')}
+    if($Case-eq'default-legacy'){$params.Remove('LegacyTarget')}
     if($Case-eq'allow-profile'){$plan.sourceUserProfile='C:\Users\different';[IO.File]::WriteAllText((Join-Path $script:fakePkg 'backup.json'),($plan|ConvertTo-Json -Depth 6));$params.AllowNewProfile=$true}
     if($Case-eq'skip-products'){$params.SkipProducts=$true}
     $output=@(Invoke-OrvionRecovery @params *>&1)-join"`n"
@@ -84,8 +92,10 @@ function Test-Refusal([string]$Case,[string]$Token,[string]$Text=$source){
     $r=Invoke-Scenario $Case $Text
     $early=$Case-in'package','sidecar','invalid','hash','winget','staging','install','verify'
     $calls=$r.Calls-join"`n"
-    $ok=$r.Exit-ne0-and$r.Output.Contains($Token)-and$r.Output.Contains('READY/ACTION recovery checklist')
-    if($early){$ok=$ok-and$calls-notmatch'^7z x'}else{$ok=$ok-and$r.Stage-and$r.Output.Contains('staging retained')-and$calls-notmatch'workstation.cmd'}
+    $ok=$r.Exit-ne0-and$r.Output-notmatch'(?m)^READY: '-and$r.Output.Contains($Token)-and$r.Output.Contains('READY/ACTION recovery checklist')
+    if($early){$ok=$ok-and$calls-notmatch'(?m)^7z x'}else{$ok=$ok-and$r.Stage-and$r.Output.Contains('staging retained')-and$calls-notmatch'workstation.cmd'}
+    if($Case-eq'exception'){function script:Get-RecoveryPackage {throw 'sensitive-exception-fixture'}}
+    if($Case-eq'checklist-exception'){function script:Write-RecoveryChecklist {throw 'sensitive-checklist-fixture'}}
     if($Case-eq'staging'){$ok=$ok-and$r.Keep}
     if($Case-eq'restore'){$ok=$ok-and$r.Exit-eq42-and$r.Output.Contains('RESTORE_FIXTURE_OUTPUT')}
     if($Case-in'profile','unrecorded'){$ok=$ok-and$calls-notmatch'git clone'-and$r.Output.Contains('Manual fallback, profile paths')}
@@ -105,11 +115,35 @@ try{
     foreach($caseName in $refusals.Keys){Assert-That ("refusal $caseName") (Test-Refusal $caseName $refusals[$caseName])}
     $r=Invoke-Scenario success;$calls=$r.Calls-join"`n"
     Assert-That 'newest by name; one extraction; local bundle branch/head; four paths passed; products both run; staging removed' ($r.Exit-eq0-and!$r.Stage-and@($r.Calls|Where-Object{$_-like'7z x *'}).Count-eq1-and$calls.Contains($r.Newer)-and$calls.Contains('repos\ORVION-Workbench.bundle')-and$calls.Contains('checkout --quiet -B recovery-branch '+('a'*40))-and$calls.Contains('-From ')-and$calls.Contains('-Target ')-and$calls.Contains('-ClaudeHome ')-and$calls.Contains('-LegacyTarget ')-and$calls.Contains('-CodexHome ')-and$calls.Contains('CRM\workstation.cmd')-and$calls.Contains('ORVION\workstation.cmd')-and$calls-notmatch'winget install')
+    $r=Invoke-Scenario no-winget
+    Assert-That 'installed prerequisites need no winget lookup; READY is final' ($r.Exit-eq0-and($r.Calls-join' ')-notmatch'lookup winget'-and($r.Output.Trim()-split"`n")[-1]-match'^READY: ')
+    foreach($caseName in 'under-Target','under-ClaudeHome','under-CodexHome','under-LegacyTarget','equal-stage','alias-stage'){
+        $r=Invoke-Scenario $caseName
+        Assert-That "persistent destination guard $caseName precedes all installers and extraction" ($r.Exit-ne0-and$r.Output-match'RECOVERY_DESTINATION_IN_STAGING'-and$r.Calls.Count-le1-and$r.Output-notmatch'(?m)^READY: ')
+    }
+    $r=Invoke-Scenario default-stage
+    Assert-That 'default staging is an owned UTC child of temporary restore-staging' ($r.Exit-eq0-and($r.Calls-join' ')-match'ORVION-Workbench-temporary\\restore-staging\\[0-9]+T[0-9]+Z'-and@(Get-ChildItem (Join-Path $r.Root 'target/ORVION-Workbench-temporary/restore-staging') -ErrorAction SilentlyContinue).Count-eq0)
+    $r=Invoke-Scenario default-legacy
+    Assert-That 'launcher does not opt into legacy restore by default' ($r.Exit-eq0-and($r.Calls-join' ')-notmatch'-LegacyTarget')
+    $r=Invoke-Scenario success
+    Assert-That 'successful restore runs narrow rebuild then hourly map installation' (($r.Calls-join' ')-match'Restore-Workspace.ps1 -Temporary -Target .*Map-Repos.ps1 -Install -GitHub')
+    foreach($caseName in 'temporary','map','claude-list-fail','exception','checklist-exception'){
+        $r=Invoke-Scenario $caseName
+        Assert-That "late failure $caseName withholds READY, retains staging and masks exceptions" ($r.Exit-ne0-and($r.Stage-or$caseName-eq'exception')-and$r.Output-notmatch'(?m)^READY: |sensitive-.*fixture'-and$r.Output-match'ACTION: ')
+    }
+    $needle="throw 'RECOVERY_DESTINATION_IN_STAGING'"
+    if(!$source.Contains($needle)){throw 'MUTANT_ANCHOR_MISSING destination'}
+    $r=Invoke-Scenario under-ClaudeHome ($source.Replace($needle,"Write-Host 'guard removed'"))
+    Assert-That 'MUTANT killed: persistent destination under staging accepted' ($r.Exit-eq0-and($r.Calls-join' ')-match'7z x')
+    $needle="if(`$script:RecoveryExit-eq0){Write-Host 'READY: restore and requested preparation completed'}"
+    if(!$source.Contains($needle)){throw 'MUTANT_ANCHOR_MISSING READY'}
+    $r=Invoke-Scenario claude-list-fail ($source.Replace($needle,"Write-Host 'READY: mutant'"))
+    Assert-That 'MUTANT killed: READY after late failure' ($r.Exit-ne0-and$r.Output-match'(?m)^READY: ')
     $r=Invoke-Scenario install-success;$calls=$r.Calls-join"`n"
     Assert-That 'missing prerequisites only: exact three winget ids/flags; refresh PATH after each; verify commands' ($r.Exit-eq0-and@($r.Calls|Where-Object{$_-eq'refresh-path'}).Count-eq3-and@($r.Calls|Where-Object{$_-like'winget install *'}).Count-eq3-and$calls.Contains('Git.Git --exact --source winget --accept-source-agreements --accept-package-agreements')-and$calls.Contains('7zip.7zip --exact --source winget --accept-source-agreements --accept-package-agreements')-and$calls.Contains('Microsoft.PowerShell --exact --source winget --accept-source-agreements --accept-package-agreements'))
     $r=Invoke-Scenario allow-profile;Assert-That 'explicit profile override prints manual repair step and restores' ($r.Exit-eq0-and$r.Output.Contains('repair absolute hooks'))
     $r=Invoke-Scenario skip-products;Assert-That 'SkipProducts avoids both product entries' ($r.Exit-eq0-and($r.Calls-join' ')-notmatch'workstation.cmd')
-    foreach($caseName in 'product','product-missing'){$r=Invoke-Scenario $caseName;Assert-That "$caseName records failure and still runs ORVION; restored files retained" ($r.Exit-ne0-and!$r.Stage-and($r.Calls-join' ').Contains('ORVION\workstation.cmd')-and(Test-Path (Join-Path $r.Root 'target\ORVION\workstation.cmd')))}
+    foreach($caseName in 'product','product-missing'){$r=Invoke-Scenario $caseName;Assert-That "$caseName records failure and still runs ORVION; restored files retained" ($r.Exit-ne0-and$r.Stage-and$r.Output-notmatch'(?m)^READY: '-and($r.Calls-join' ').Contains('ORVION\workstation.cmd')-and(Test-Path (Join-Path $r.Root 'target\ORVION\workstation.cmd')))}
     $r=Invoke-Scenario claude-list;Assert-That 'checklist obtains injected claude plugin list and suppresses installed commands' ($r.Exit-eq0-and($r.Calls-join' ').Contains('claude plugin list')-and!$r.Output.Contains('claude plugin install ponytail@ponytail'))
     $r=Invoke-Scenario claude-list-fail;Assert-That 'failed claude list records uncertainty/exit and prints enabled commands' ($r.Exit-eq26-and$r.Output.Contains('plugin presence is unverified')-and$r.Output.Contains('claude plugin install ponytail@ponytail --scope user'))
     Import-RecoveryFunctions $source
@@ -150,7 +184,7 @@ try{
     $zip=(Get-Command 7z -CommandType Application -ErrorAction Stop|Select-Object -First 1).Source;$git=(Get-Command git -CommandType Application -ErrorAction Stop|Select-Object -First 1).Source;$pwsh=(Get-Command pwsh -CommandType Application -ErrorAction Stop|Select-Object -First 1).Source
     $repo=Join-Path $t 'tiny-repo';$pkg=Join-Path $t 'real-package\orvion-backup-fixture';$cloud=Join-Path $t 'real-cloud'
     [void][IO.Directory]::CreateDirectory((Join-Path $repo 'lib'));[void][IO.Directory]::CreateDirectory((Join-Path $pkg 'repos'));[void][IO.Directory]::CreateDirectory($cloud)
-    $body='param($From,$Target,$ClaudeHome,$LegacyTarget,$CodexHome) if(!(Test-Path (Join-Path $From "backup.json")) -or !$Target -or !$ClaudeHome -or !$LegacyTarget -or !$CodexHome){exit 44}; Write-Output "REAL_CHILD_OUTPUT"; if($Target -like "*child-failure*"){exit 42}; exit 0'
+    $body='param($From,$Target,$ClaudeHome,$LegacyTarget,$CodexHome,[switch]$Temporary) if($Temporary){exit 0}; if(!(Test-Path (Join-Path $From "backup.json")) -or !$Target -or !$ClaudeHome -or !$LegacyTarget -or !$CodexHome){exit 44}; [void][IO.Directory]::CreateDirectory((Join-Path $Target "ORVION-Workbench/lib")); [IO.File]::WriteAllText((Join-Path $Target "ORVION-Workbench/lib/Restore-Workspace.ps1"),"param([switch]`$Temporary,`$Target) exit 0"); [IO.File]::WriteAllText((Join-Path $Target "ORVION-Workbench/lib/Map-Repos.ps1"),"param([switch]`$Install,`$GitHub) exit 0"); Write-Output "REAL_CHILD_OUTPUT"; if($Target -like "*child-failure*"){exit 42}; exit 0'
     [IO.File]::WriteAllText((Join-Path $repo 'lib\Restore-Workspace.ps1'),$body)
     & $git init -q -b main $repo;if($LASTEXITCODE){throw 'TINY_INIT_FAILED'}
     & $git -C $repo add -A;if($LASTEXITCODE){throw 'TINY_ADD_FAILED'}
@@ -187,6 +221,7 @@ exit $script:RecoveryExit
     foreach($key in $savedInjection.Keys){[Environment]::SetEnvironmentVariable($key,$savedInjection[$key],'Process')}
     # Own GUID fixture only; never a product clone or real user configuration.
     if([IO.Path]::GetFullPath($t).StartsWith([IO.Path]::GetFullPath([IO.Path]::GetTempPath()),[StringComparison]::OrdinalIgnoreCase)){
+        Get-ChildItem -LiteralPath $t -Recurse -Force -Attributes ReparsePoint|ForEach-Object{[IO.Directory]::Delete($_.FullName,$false)}
         Get-ChildItem -LiteralPath $t -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)
     }else{throw 'FIXTURE_CLEANUP_OUTSIDE_TEMP'}
 }

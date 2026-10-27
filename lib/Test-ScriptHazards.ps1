@@ -14,9 +14,19 @@ foreach($p in $Path){
     }
     # Every variable spelling per scope block: one name written in two letter cases is one variable.
     $vars=$ast.FindAll({$args[0]-is[Management.Automation.Language.VariableExpressionAst]},$true)|Where-Object{$_.VariablePath.IsUnqualified-and$_.VariablePath.UserPath-notmatch'^(_|args|true|false|null|PSItem|this|input|matches|LASTEXITCODE|PID|env:.*)$'}
+    $functionNames=@($ast.FindAll({$args[0]-is[Management.Automation.Language.FunctionDefinitionAst]},$true)|ForEach-Object Name)
+    $scopeOf={param($Node)$s=$Node.Parent;while($s-and$s-isnot[Management.Automation.Language.FunctionDefinitionAst]){$s=$s.Parent};$s}
+    # A dot-invoked own function runs in its caller's scope: only that function joins the caller's scope.
+    # One function dot-invoked from two scopes belongs to both; that is reported, never guessed.
+    $dotCaller=@{}
+    foreach($dotGroup in $ast.FindAll({$args[0]-is[Management.Automation.Language.CommandAst]-and$args[0].InvocationOperator-eq[Management.Automation.Language.TokenKind]::Dot},$true)|Where-Object{$_.GetCommandName() -in $functionNames}|Group-Object{$_.GetCommandName()}){
+        $callers=@($dotGroup.Group|ForEach-Object{$s=& $scopeOf $_;if($s){$s.Extent.StartOffset}else{-1}}|Select-Object -Unique)
+        if($callers.Count-gt1){"$p`:$($dotGroup.Group[1].Extent.StartLineNumber) DOT function '$($dotGroup.Name)' is dot-invoked from $($callers.Count) scopes - its variables join both; give each caller its own function";$found++}
+        $dotCaller[$dotGroup.Name]=& $scopeOf $dotGroup.Group[0]
+    }
     foreach($g in ($vars|Group-Object{
-        $variableScope=$_.Parent
-        while($variableScope-and$variableScope-isnot[Management.Automation.Language.FunctionDefinitionAst]){$variableScope=$variableScope.Parent}
+        $variableScope=& $scopeOf $_;$hops=0
+        while($variableScope-and$dotCaller.ContainsKey($variableScope.Name)-and$hops++-lt10){$variableScope=$dotCaller[$variableScope.Name]}
         $scopeOffset=if($variableScope){$variableScope.Extent.StartOffset}else{-1}
         "$scopeOffset`:$($_.VariablePath.UserPath.ToLowerInvariant())"
     })){

@@ -4,7 +4,7 @@ This authority governs only Workbench's own changes. Each product retains its ow
 
 Official contract statuses: Draft, Approved, In Progress, Complete, Cancelled. Runtime verdicts are not statuses. RESUME.md owns the one active Workbench contract pointer. The existing external task checkpoint owns programme progress; it is not a second Workbench contract registry.
 
-Create a contract using changes/TEMPLATE.md. Exact scope includes additions, deletions and both sides of renames. Local sessions/events/work and credentials never enter tracked engineering state. Freeze the Design, Adversarial Review and Evidence Refresh snapshots; use three distinct IDs/paths, allowing unchanged successive content. The V3 snapshot's digest is supplied by the owner's exact Gate 1; it does not contain its own hash. Approval evidence must actually identify that digest. This binds local evidence, not authenticated owner identity.
+Create a contract using changes/TEMPLATE.md. Exact scope includes additions, deletions and both sides of renames. Local sessions/events/work and credentials never enter tracked engineering state. Freeze the Design, Adversarial Review and Evidence Refresh snapshots; use three distinct IDs/paths, allowing unchanged successive content. The V3 snapshot's digest is supplied by the owner's exact Gate 1; it does not contain its own hash. Approval evidence must actually identify that digest. This binds local evidence, not authenticated owner identity. Acceptance `check:` clauses are judged feasible at Approval and must still hold at Complete, locally and in CI.
 
 After exact approval, allocate the unchanged Draft, then record Approved and the approval evidence, activate its pointer, record In Progress and implement only scope. Approval evidence binds the exact selected Draft and explicit physical execution root; copying a record to another checkout does not grant authority. Frozen sections never change. Runtime Checkpoint, checkbox state and append-only logs are the only mutable contract surfaces. Complete and Cancelled history is immutable. Inspect the actual Git/index subject; a passing working file is not proof of different staged bytes.
 
@@ -32,19 +32,71 @@ An unsupported profile blocks Approval as well as Finish. Introduce its tested v
 
 Review is a live observation: check every actual criterion, inspect timed runner/watcher final exits and fresh receipt, record Confirmed Complete and DONE/None, then use the read-only Review check. Complete verifies those facts again and prepares only its own status/pointer edits. Stage exact paths and commit normally; independently judge the entire carrying range before declaring local completion. No local-only result means publication, promotion or remote certification.
 
-Observer integrity: Coordinator derives the one event journal, retains valid partial diagnostics but returns UNREADABLE/exit 2 for incomplete required evidence and refuses assignment/closure/dispatch before writes. Technical decisions do not become owner decisions merely by category. Watch-Subagents requires an explicit supported Claude session, masks with the existing library before truncation, exposes missing/unreadable evidence and reports tool-wait cause as UNPROVEN; it never kills, retries or certifies. The optional Watch-Reminder supplies Workbench context only at this root or for an explicit existing Owner-Tools command in that event. Direct-native entry remains independent; archival preserves knowledge separately. These are reporting adapters, not authenticated approval, OS enforcement or a completed general management interface. Reuse one run observer and one shared host observer; report actionable changes immediately and routine long-gate heartbeat at most every five minutes. A late reminder cannot prove earlier live coverage or justify an expensive replay.
-
-Native stage transport: lib/README.md identifies the existing agent adapters and their evidence limits. An explicit exact config selects one native root/contract; raw Draft SHA256 and destination-filtered blob, clean root, native Boot and normal .githooks precede mutation. Preserve native ACTION/WRITE/START_CONTEXT and refusal output. The existing applier Plan owns creation and literal grammar; scope is checked before writes, only declared paths are staged, and Git owns actual authorship. Native applicability is derived by the native engine, never forced to PASS by this adapter. Appends target legal section names, not an assumed section order. Finish, profiles, tests, receipt validation, Review/Complete and binding remain native; no child test schedule is duplicated. The diagnostic reviewer returns non-success for observed failures or unsupported required evidence and cannot auto-certify descriptive criteria. A post-commit diagnostic refusal requires inspecting actual state before any retry. These bounded adapters are not the general P3 management entry and do not inject dependencies into direct-native operation.
-
-Post-allocation identity: native transport compares its selected filtered Draft blob with the unique actual Git allocation before native Boot or writes. A self-consistent replacement config/Draft pair grants no authority. Keep original failed proposal/fixtures as evidence and use a new exact candidate rather than substituting frozen bytes.
-
 Draft selection evidence: retain three identified snapshots and three distinct SHA256 identities; the selected Draft footer records reasons and reviewable sources. Actual relevant prechecks and adversarial observations remain required. No semantic-quality scoring engine, three full Finish runs or invented design differences are required. Required assurance artifacts remain protected evidence, never disposable cleanup targets.
 
 Sources: Git githooks, git-add, git-hash-object and git-write-tree manuals; Microsoft Directory.Delete reference informs reuse of bounded owned-fixture cleanup; SLSA v1.2 artifact verification informs subject/input expectations. This is not a claim of SLSA compliance, signature verification, owner authentication or tamper resistance against equal OS privileges.
 
-Arrival reporting: Pulse consumes one Coordinator Snapshot for owner routing and the queue, preserving that classifier's inherited assignment and explicit Readable state. A category named decision alone is not an owner wait. Missing/failed selected repository or required journal evidence yields visible UNREADABLE and Pulse exit2, never a zero-wait or clean substitute. A readable empty journal, unconfigured upstream or dirty tree retains its actual meaning. These observations grant no write permission, certification or universal liveness guarantee; native Boot and the owning exact contract still decide. test-pulse owns the real Git/journal caller fixtures.
+## Active contract
 
+[RESUME.md](RESUME.md) alone owns the active pointer; it contains exactly the pointer and private live-state route. Programme progress stays in that external state. Run the owning Boot before execution; dated snapshots cannot activate a scope.
 
-Local CI capability: lib/Workbench.ps1 -CI -Candidate <full-lowercase-HEAD-SHA> -CIRuntimeRoot <new-absolute-external-directory> -Actionlint <verified-external-actionlint.exe> runs the existing timed runner and one concurrent watcher, then the existing tests.ps1 schedule once. It requires a clean independent root, exact candidate, real timed ancestry/observer and recipe binding ordered tests, hazard/helper blobs, evaluator, root, runtime, PowerShell/Git and pinned grammar tool/policy. Its internal -CIWorker is not a raw-entry bypass; absent real timed ancestry/observer refuses. The driver child is the actual direct suite parent; environment stamps alone grant no admission. A terminal RESUME None is permitted only in that CI route. A CI_TEST_ONLY result is not a local certification receipt, approval, native Review/Complete, hosted check or trusted candidate judgment. No CI path writes native working/archive receipts or lifecycle metadata. Equal-OS-privilege tampering remains outside the local trust boundary; independent accepted-code judgment and hosted protection remain separate requirements.
+## Working with Codex
 
-The supported first workflow set is exactly .github/workflows/workbench-acceptance.yml, encoded as the closed JSON subset of YAML returned by Get-WorkbenchWorkflowPolicy. All duplicate/unknown keys, changed branch/triggers, conditions, permissions, action/checkout settings, step commands and missing tests refuse. The upstream actionlint1.7.12 Windows/amd64 executable is pinned by Get-WorkbenchCITool (archive and executable SHA256); supply a verified external copy, never install globally or fetch latest implicitly. Semantic validation and real grammar parsing are both mandatory when a workflow exists; zero workflows is legitimate only for local capability preparation, not hosted parity. The policy contains fixed official-download/archive/binary hash-verified provisioning under RUNNER_TEMP/workbench-tools, followed by the fixed CI entry; this unit creates no workflow or hosted provisioning operation. Native owning CI tests require the pinned external tool through -Actionlint (or WORKBENCH_ACTIONLINT for targeted tests). Future hosted installation must prove its own bootstrap/toolchain/runtime and permission boundaries before freeze. Native CI-profile Finish validates this same grammar/policy before its unchanged owning tests and receipt rules; missing tool or unsupported workflow refuses. WORKSTATION remains blocked. No current private protection, hosted success, release interface or real trusted checkout is asserted. CTRL-19 remains OPEN.
+Use a two-way method: orchestrator and delegate both bring their own proposals, notes and concerns. Record an agreement table (proposal, each side's position, disposition and reason), then a rebuttal round before freezing. Review meaning line by line, rerun owning focused checks and plant independent mutants. Check that a request is sound and worth doing and state the verdict in one line; label claims PROVEN (cited), HYPOTHESIS (reasoned) or UNVERIFIED (assumed). Learn before guessing; earn improvements and simplify without weakening.
+
+The effort ceiling is xhigh, used only for before-passes; implementation stays at high or below. Choose gpt-6.1-sol for design, adversarial and security work; gpt-6.1-terra for bounded research/checks. Every brief ends with a summary of at most 40 lines.
+
+Delegates must not read real sessions/events, ~/.claude, ~/.codex or ORVION-Owner-Tools. Use supplied safe source and synthetic fixtures. Disposable delegate clones belong only under ORVION-Workbench-temporary\\cx with independent Git/object storage and push disabled. No commit, push or network by the delegate. Never reset another slice's edits. The orchestrator verifies every claim; delegation is advisory and cannot certify.
+
+Run focused test files in the owning Finish environment: WORKBENCH_TEMP_ROOT and WORKBENCH_TEST_ROOT under the selected temporary root; TEMP=TMP=<temporary root>\\tmp; WORKBENCH_ACTIONLINT=<temporary sibling>\\tools\\actionlint.exe; ORVION_DATA_ROOT is a new empty folder under that temp. Remove only owned scratch. The owning native Finish alone schedules tests.ps1; a delegate never starts a duplicate full suite.
+
+## Markdown consistency
+
+lib/Test-MarkdownConsistency.ps1 is read-only: Working checks the complete indexed Markdown inventory against working bytes; Index or an explicit Git tree checks its blobs. Empty/unreadable inputs refuse. Local Markdown links and anchors in living docs resolve from their source, case-sensitively, with no basename search. Absolute/URI/sibling private pointers are opaque external references, never probed. Frozen contracts and indexed history retain original source-bound citations.
+
+Every tracked Markdown file must be reachable from README/AGENTS through local links or listed exactly once in the history index below. Allocated contracts (changes/WS-NNN-*.md) are history by name, since a contract file appears only at its own allocation; any other file under changes/ must be reachable. Index entries must exist. The one-home table has one row per concept and one sole target. RESUME's two-line format has no heading, so its target is the file itself.
+
+Root word limits (whitespace-delimited; LF/CRLF equivalent): AGENTS 100, README 400, RESUME 120, HANDOFF 600, WORKFLOW 2400. Only RESUME may declare the active pointer in living docs, including code fences. Exact duplicate prose paragraphs of at least 25 words refuse among living docs; fenced code, contracts and indexed history are excluded. Header update/amendment dates cannot precede body amendments. Retired entry paths refuse as instructions, including fenced commands. Explicit non-executable historical citations may retain them; approved STATE.md/records pointers remain external. The history index accepts only allocated contracts and docs/history, never living files.
+
+## One-home table
+
+| Concept | Sole home |
+|---|---|
+| Arrival | [AGENTS](AGENTS.md#orvion-workbench--agents-start-here) |
+| Purpose | [README](README.md#orvion-workbench) |
+| Active contract | [RESUME](RESUME.md) |
+| Batch 6 closure | [HANDOFF](HANDOFF.md#12-success-criteria-before-the-programme-closes-and-batch-6-resumes) |
+| Governance | [WORKFLOW](WORKFLOW.md#workbench-local-workflow) |
+| Programme plan | [Plan](docs/EXECUTION-PLAN.md#1-read-this-first-authority-and-continuity) |
+| Workspace layout | [Layout](docs/WORKSPACE-LAYOUT.md#1-three-folder-boundary) |
+| Recovery | [Recovery](docs/RECOVERY.md#workbench-recovery-before-and-after-reinstalling-windows) |
+| Tool catalogue | [Tools](lib/README.md#orvion-agent-tools-tracked-local-workbench-tools-workspace-readmemd) |
+| Contract template | [Template](changes/TEMPLATE.md#workbench-change-request---ws-nnn) |
+
+## History index
+
+- [WS-001-workbench-local-governance.md](changes/WS-001-workbench-local-governance.md)
+- [WS-002-execution-context-binding.md](changes/WS-002-execution-context-binding.md)
+- [WS-003-observer-integrity.md](changes/WS-003-observer-integrity.md)
+- [WS-004-native-stage-integrity.md](changes/WS-004-native-stage-integrity.md)
+- [WS-005-arrival-source-readiness.md](changes/WS-005-arrival-source-readiness.md)
+- [WS-006-plan-reconciliation.md](changes/WS-006-plan-reconciliation.md)
+- [WS-007-local-ci.md](changes/WS-007-local-ci.md)
+- [WS-008-hosted-acceptance.md](changes/WS-008-hosted-acceptance.md)
+- [WS-009-hosted-ci-diagnostics.md](changes/WS-009-hosted-ci-diagnostics.md)
+- [WS-010-source-scaffold.md](changes/WS-010-source-scaffold.md)
+- [WS-011-optional-claude-input.md](changes/WS-011-optional-claude-input.md)
+- [WS-013-workbench-recovery-coverage.md](changes/WS-013-workbench-recovery-coverage.md)
+- [WS-014-knowledge-plan-continuity.md](changes/WS-014-knowledge-plan-continuity.md)
+- [WS-015-selective-recovery-package.md](changes/WS-015-selective-recovery-package.md)
+- [WS-016-interactive-repository-map.md](changes/WS-016-interactive-repository-map.md)
+- [WS-017-trustworthy-agent-answers.md](changes/WS-017-trustworthy-agent-answers.md)
+- [WS-018-trustworthy-preservation.md](changes/WS-018-trustworthy-preservation.md)
+- [WS-019-one-data-root.md](changes/WS-019-one-data-root.md)
+- [WS-020-trustworthy-archiver.md](changes/WS-020-trustworthy-archiver.md)
+- [WS-021-workbench-robustness.md](changes/WS-021-workbench-robustness.md)
+- [WS-023-recovery-launcher.md](changes/WS-023-recovery-launcher.md)
+- [environment-recovery-original.md](docs/history/programme/environment-recovery-original.md)
+- [execution-plan-pre-git-v1.4.md](docs/history/programme/execution-plan-pre-git-v1.4.md)
+- [programme-handoff-original.md](docs/history/programme/programme-handoff-original.md)
+- [workbench-acceptance-v10.md](docs/history/programme/workbench-acceptance-v10.md)

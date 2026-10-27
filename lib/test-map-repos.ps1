@@ -30,12 +30,13 @@ try{
     $unborn=Join-Path $gh 'RepoD';& git init -q $unborn 2>&1|Out-Null
     $broken=Join-Path $gh 'RepoE\.git';[void][IO.Directory]::CreateDirectory($broken);[IO.File]::WriteAllText((Join-Path $broken 'HEAD'),'not a repository')
     [void](New-Repo 'RepoB' @{'notes.md'="# Notes`nBack to [guide](../RepoA/docs/guide.md).`n"})
+    [void](New-Repo 'ORVION-Workbench-temporary' @{'README.md'="# disposable`n"})
     [void](New-Repo 'RepoA-trusted-main' @{'README.md'="# copy`n"})
     $script=Join-Path $PSScriptRoot 'Map-Repos.ps1'
     $o=@(& pwsh -NoProfile -File $script -GitHub $gh -Out $out 2>&1);if($LASTEXITCODE){throw ('MAP_RUN_FAILED: '+($o-join' '))}
     $m=Get-Content (Join-Path $out 'ai-map.json') -Raw|ConvertFrom-Json
     function Has-Edge([string]$From,[string]$To,[string]$Kind){@($m.edges|Where-Object{$_.from-ceq$From-and$_.to-ceq$To-and$_.kind-ceq$Kind}).Count-ge1}
-    Assert-That 'discovers repositories, skips trusted copies, reports unborn and broken ones without failing' ((@($m.repos.name)-join',')-ceq'RepoA,RepoB,RepoD'-and@($m.problems|Where-Object{$_.repo-ceq'RepoD'-and$_.problem-match'no commits'}).Count-eq1-and@($m.problems|Where-Object{$_.repo-ceq'RepoE'}).Count-eq1)
+    Assert-That 'discovers repositories, skips trusted and temporary copies, reports unborn and broken ones without failing' ((@($m.repos.name)-join',')-ceq'RepoA,RepoB,RepoD'-and@($m.problems|Where-Object{$_.repo-ceq'RepoD'-and$_.problem-match'no commits'}).Count-eq1-and@($m.problems|Where-Object{$_.repo-ceq'RepoE'}).Count-eq1)
     Assert-That 'each repository records its full HEAD' (@($m.repos|Where-Object{$_.name-ne'RepoD'-and$_.head-notmatch'^[0-9a-f]{40}$'}).Count-eq0)
     Assert-That 'a nested folder named like a sibling repository resolves locally' (Has-Edge 'RepoA:docs/guide.md' 'RepoA:RepoB/local.md' 'link')
     Assert-That 'two anchors into one file stay two edges' (@($m.edges|Where-Object{$_.from-ceq'RepoA:README.md'-and$_.to-ceq'RepoA:docs/guide.md'}).Count-eq3)

@@ -6,7 +6,8 @@
 $ErrorActionPreference='Stop'
 try{
     $lib=Split-Path $PSScriptRoot -Parent
-    $dataRoot=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent))[0]})
+    $dataRoot=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools'})
+    if(!$env:ORVION_DATA_ROOT-and!(Test-Path -LiteralPath (Join-Path $dataRoot 'events') -PathType Container)){throw 'ORVION_DATA_ROOT_UNAVAILABLE'}
     $dataRoot=[IO.Path]::GetFullPath($dataRoot).TrimEnd('\')
     $raw=[Console]::In.ReadToEnd();$e=if($raw.Trim()){$raw|ConvertFrom-Json}else{$null}
     if(!$e-or!$e.hook_event_name){throw 'HOOK_INPUT_INVALID'}
@@ -46,6 +47,8 @@ try{
         # Archive every session verbatim (Claude Code deletes transcripts after 30 days), continuously: start a follower
         # (a pass a minute while any Claude Code or Codex process runs; a second one exits at once). Detached, so the hook stays fast.
         $mode=if($hookEvent-eq'SessionStart'){'-Follow -Quiet'}else{'-Quiet'}
+        . (Join-Path $lib 'workspace-layout.ps1')
+        $null=Initialize-OrvionTemporaryRoot -Checkout $workbench
         Start-Process pwsh -ArgumentList "-NoProfile -File `"$lib\Sync-Sessions.ps1`" $mode -Root `"$dataRoot`"" -WindowStyle Hidden
         if($hookEvent-eq'SessionEnd'){exit 0}
         if(!$workbenchEntry){exit 0} # archival preserves knowledge; it never enrolls a native session in Workbench
@@ -71,7 +74,7 @@ try{
             $events='Pulse UNREADABLE (reporter could not run).'
         }finally{
             if($pulseChild){$pulseChild.Dispose()}
-            foreach($pulseFile in $pulseOut,$pulseErr){if(Test-Path -LiteralPath $pulseFile){Remove-Item -LiteralPath $pulseFile -Force}}
+            foreach($pulseFile in $pulseOut,$pulseErr){try{if(Test-Path -LiteralPath $pulseFile){Remove-Item -LiteralPath $pulseFile -Force}}catch{$null=$_}}
         }
         $contextPrefix="ORVION AGENT TOOLS exist at $lib (index: README.md). Use them; never hand-write an alarm loop.`n"
         $contextSuffix="`nBefore a task: pwsh -NoProfile -File `"$lib\Events.ps1`" -Find '<task in a few words>'. Record a failure, discovery or decision worth keeping with Events.ps1 -Add. Past sessions (task, size, tools, errors, SPECs, raw path): $dataRoot\sessions\INDEX.md."
@@ -112,12 +115,12 @@ try{
     }
 }catch{  # never block a session, but never fail silently either: Hunt.ps1 reports this log
     # Stable diagnostic only: exception messages/input may contain credentials. This reporter is never a native gate.
-    $relativeRootRefused=$_.Exception.Message-eq'ORVION_DATA_ROOT_NOT_ABSOLUTE'
+    $rootFailureCode=if($_.Exception.Message-in'ORVION_DATA_ROOT_NOT_ABSOLUTE','ORVION_DATA_ROOT_UNAVAILABLE','WB_TEMP_LAYOUT_UNAVAILABLE','WB_TEMP_ROOT_NOT_ABSOLUTE','WB_TEMP_MATERIALIZATION_FAILED'){$_.Exception.Message}
     # Resolve independently of $lib/$dataRoot: even their initialization may have failed.
     try{
     $checkout=Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
     $sibling=Join-Path (Split-Path $checkout -Parent) 'ORVION-Owner-Tools'
-    foreach($candidate in @($env:ORVION_DATA_ROOT)+@(if(Test-Path -LiteralPath (Join-Path $sibling 'events')){$sibling})+@($checkout)){
+    foreach($candidate in @($env:ORVION_DATA_ROOT)+@(if(Test-Path -LiteralPath (Join-Path $sibling 'events')){$sibling})){
         try{
             if(!$candidate-or![IO.Path]::IsPathFullyQualified($candidate)){continue}
             $errDir=Join-Path ([IO.Path]::GetFullPath($candidate)) 'work'
@@ -127,6 +130,6 @@ try{
         }catch{$null=$_}
     }
     }catch{$null=$_}
-    [Console]::Error.WriteLine('WATCH_REMINDER_UNREADABLE: '+$(if($relativeRootRefused){'ORVION_DATA_ROOT_NOT_ABSOLUTE; '})+'reporting failed; consult the native authority, not an inferred success.')
+    [Console]::Error.WriteLine('WATCH_REMINDER_UNREADABLE: '+$(if($rootFailureCode){$rootFailureCode+'; '})+'reporting failed; consult the native authority, not an inferred success.')
 }
 exit 0

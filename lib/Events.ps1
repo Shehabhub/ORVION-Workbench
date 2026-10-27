@@ -18,7 +18,7 @@ param(
     [Parameter(ParameterSetName='add')][string]$Evidence='',
     [Parameter(ParameterSetName='add')][string]$Trigger='',
     [Parameter(ParameterSetName='add')][string]$Tags='',  # words a future task would use (pid process param), for -Find
-    [Parameter(ParameterSetName='add')][string]$Repo='',
+    [Parameter(ParameterSetName='add')][Parameter(ParameterSetName='find')][string]$Repo='',
     [Parameter(ParameterSetName='add')][string]$Sha='',
     [Parameter(ParameterSetName='add')][string]$Source='agent',
     [Parameter(ParameterSetName='add')][string]$Owner='',  # who answers for it next: agent | owner | delegate:<folder> | cr:<subject> (Coordinator.ps1)
@@ -28,7 +28,7 @@ param(
     [Parameter(ParameterSetName='find',Mandatory)][string]$Find,
     [Parameter(ParameterSetName='brief')][switch]$Brief,
     [int]$Top=5,
-    [string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{(@(@(Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools')|Where-Object{Test-Path -LiteralPath (Join-Path $_ 'events')})+@(Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent))[0]})  # the data root: ORVION_DATA_ROOT, else sibling ORVION-Owner-Tools, else this checkout
+    [string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools'})  # the data root: ORVION_DATA_ROOT, else sibling ORVION-Owner-Tools; missing readers are UNAVAILABLE
 )
 $ErrorActionPreference='Stop'
 $log=Join-Path $Root 'events\events.jsonl'
@@ -37,6 +37,7 @@ function Read-Events{if(Test-Path $log){foreach($l in [IO.File]::ReadAllLines($l
 $script:badLines=0
 
 if($Add){
+    if(!$PSBoundParameters.ContainsKey('Root')-and!$env:ORVION_DATA_ROOT-and!(Test-Path -LiteralPath (Join-Path $Root 'events') -PathType Container)){throw 'ORVION_DATA_ROOT_UNAVAILABLE'}
     # Watchers, hunters and agents append at the same moment: one writer at a time, or a line is lost (12 parallel
     # writers kept 11 lines, measured 2026-10-20). The duplicate check runs inside the same lock.
     New-Item -ItemType Directory -Path (Split-Path $log -Parent) -Force|Out-Null
@@ -46,9 +47,20 @@ if($Add){
     $owned=try{$lock.WaitOne(30000)}catch [Threading.AbandonedMutexException]{$true}
     if(!$owned){throw "EVENTS_LOCK_TIMEOUT: another writer held $log for 30 s"}
     try{
+        # the repository is part of the fact: resolve it before the duplicate check
+        if(!$PSBoundParameters.ContainsKey('Repo')){
+            $gitRoot=@(& git -C (Get-Location).Path rev-parse --show-toplevel 2>$null)
+            if($LASTEXITCODE-eq0-and$gitRoot.Count){$Repo=Split-Path $gitRoot[-1] -Leaf}
+        }
         # an assignment repeats the summary with a new owner, action, due or status: that is a new fact
-        $last=@(Read-Events|Where-Object{$_.pattern-eq$Pattern-and$_.session-eq$Session-and$_.summary-eq$Summary-and$_.status-eq$Status-and"$($_.owner)"-eq$Owner-and"$($_.action)"-eq$Action-and"$($_.due)"-eq$Due-and"$($_.evidence)"-ceq$Evidence})
-        if($last.Count){"EVENT DUPLICATE $Pattern (already recorded for this session)";exit 0}  # watchers repeat; one line per fact
+        $last=@(Read-Events|Where-Object{$_.pattern-eq$Pattern}|Sort-Object at -Stable|Select-Object -Last 1)
+        if($last.Count-and$last[0].session-eq$Session){
+            $same=$true
+            foreach($field in 'summary','status','category','cause','severity','action','evidence','owner','due','repo'){
+                if([string]$last[0].$field -cne [string](Get-Variable -Name $field -ValueOnly)){$same=$false;break}
+            }
+            if($same){"EVENT DUPLICATE $Pattern (already recorded for this session)";exit 0}
+        }
         $e=[ordered]@{at=$At.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ',[Globalization.CultureInfo]::InvariantCulture);session="$Session";source=$Source;repo=$Repo;sha=$Sha
             pattern=$Pattern;category=$Category;severity=$Severity;summary=$Summary;cause=$Cause;status=$Status
             tool=$Tool;action=$Action;evidence=$Evidence;trigger=$Trigger;tags=$Tags;owner=$Owner;due=$Due}
@@ -61,15 +73,21 @@ if($Add){
 }
 
 # A reader never reports a missing or damaged journal as "nothing recorded": exit 3 unavailable, exit 2 incomplete.
-if(!(Test-Path -LiteralPath $log)){"EVENTS_UNAVAILABLE: no journal at $log (pass -Root or set ORVION_DATA_ROOT)";exit 3}
+# The archive's secret rules, loaded in their own module so the library cannot touch this script's variables;
+# every reader line (entries and diagnostics naming paths) leaves masked.
+$null=New-Module -Name EventsMask -ScriptBlock {param($Library,$Data) . (Join-Path $Library 'Sync-Sessions.ps1') -Library -Root $Data;Export-ModuleMember -Function Hide-Secret} -ArgumentList $PSScriptRoot,$Root|Import-Module -PassThru
+if(!(Test-Path -LiteralPath $log)){Hide-Secret "EVENTS_UNAVAILABLE: no journal at $log (pass -Root or set ORVION_DATA_ROOT)";exit 3}
 function Exit-Reader{
-    if($script:badLines){"EVENTS_INCOMPLETE: $($script:badLines) unreadable record(s) skipped in $log; results may miss them"}
-    if($script:badIndexLines){"EVENTS_INCOMPLETE: $($script:badIndexLines) unreadable record(s) skipped in $ix; session links may miss them"}
+    if($script:badLines){Hide-Secret "EVENTS_INCOMPLETE: $($script:badLines) unreadable record(s) skipped in $log; results may miss them"}
+    if($script:badIndexLines){Hide-Secret "EVENTS_INCOMPLETE: $($script:badIndexLines) unreadable record(s) skipped in $ix; session links may miss them"}
     if($script:badLines-or$script:badIndexLines){exit 2};exit 0
 }
 # One view per pattern: the latest record decides status and advice; recurrence = distinct sessions.
-$views=foreach($g in @(Read-Events|Group-Object pattern)){
-    $r=@($g.Group|Sort-Object at);$z=$r[-1]
+# -Repo and a stored repo are lists ("CRM,ORVION"); an owner/repo slug counts by its repo name; Workbench = ORVION-Workbench.
+function Get-RepoNames([string]$Value){@($Value-split'[,\s]+'|Where-Object{$_}|ForEach-Object{$n=($_-split'/')[-1];if($n-ieq'Workbench'){'ORVION-Workbench'}else{$n}})}
+$repoWanted=Get-RepoNames $Repo
+$views=foreach($g in @(Read-Events|Where-Object{!$Find-or!$Repo-or$Repo-eq'all'-or@(Get-RepoNames $_.repo|Where-Object{$repoWanted-icontains$_}).Count}|Group-Object pattern)){
+    $r=@($g.Group|Sort-Object at -Stable);$z=$r[-1]
     [pscustomobject]@{pattern=$g.Name;category=$z.category;status=$z.status;sessions=@($r.session|Select-Object -Unique).Count;last=([datetime]$z.at).ToUniversalTime().ToString('yyyy-MM-dd')
         summary=$z.summary;sessionList=@($r.session);tool=@($r.tool|Where-Object{$_})[-1];action=@($r.action|Where-Object{$_})[-1];evidence=@($r.evidence|Where-Object{$_})[-1];owner=@($r.owner|Where-Object{$_})[-1]
         tagWords=@([regex]::Matches((($r|ForEach-Object{"$($_.pattern-replace'-',' ') $($_.tags)"})-join' ').ToLower(),'[a-z0-9$_]{2,}')|ForEach-Object Value|Select-Object -Unique)
@@ -86,7 +104,7 @@ function Format-View($v,[switch]$WithSession){
     $s=if($WithSession){@($v.sessionList|ForEach-Object{$script:sessionIndex[$_]}|Where-Object{$_})[-1]}
     if($s){$when=try{([datetime]$s.start).ToUniversalTime().ToString('yyyy-MM-dd')}catch{'?'}  # an index row may lack a start
         $line+="`n    raw record: session $($s.id.Substring(0,[Math]::Min(8,$s.id.Length))) $when `"$($s.title)`" -> $(Join-Path $Root $s.raw)"}
-    $line
+    Hide-Secret $line  # every rendered field (summary, action, evidence, title) leaves masked
 }
 # The session index links an event to its full raw transcript (written by Sync-Sessions.ps1).
 $sessionIndex=@{};$ix=Join-Path $Root 'sessions\index.jsonl';$script:badIndexLines=0
