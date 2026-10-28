@@ -61,8 +61,28 @@ Use the same Windows profile, `C:\Users\My Lab`; the launcher refuses a differen
 The launcher installs only missing Git, 7-Zip and PowerShell, requires the newest archive's `.sha256` (no older-package
 fallback), hydrates/verifies it, and extracts once under the selected ORVION-Workbench-temporary staging root. It clones the package's own Workbench
 bundle at its recorded branch/head, runs Restore-Workspace and each product's unchanged `workstation.cmd`, then prints
-a READY/ACTION checklist and pauses. Restore failure retains staging for diagnosis; restore success removes staging.
-An existing staging folder is refused; inspect a failed/partial restore before removing anything or retrying.
+a READY/ACTION checklist and pauses. Owner-selected Candidate C (2026-10-28) intentionally retains staging on both
+success and failure. READY requires every requested mandatory operation and the checklist to succeed; a failure keeps
+its failure exit and withholds READY. Output names the absolute owned staging path, its completed/failed status and purpose.
+Each default attempt uses a new timestamp-plus-GUID child of `<Target>\ORVION-Workbench-temporary\restore-staging`.
+An explicit existing staging folder is refused without alteration. Attempts accumulate; inspect their reported locations.
+Staging must remain outside permanent Git repositories, Owner-Tools, Claude/Codex homes and known OneDrive roots,
+including managed reparse aliases. Managed path checks are not atomic namespace protection. Native mapped/subst and
+unknown sync providers are not comprehensively identified; do not use those aliases to place retained recovery data.
+
+Before extraction the launcher reads `7z l -slt -ba` entry sizes and snapshots available bytes on the staging volume.
+It requires the summed expanded logical bytes plus a separate 64 MiB allowance for metadata/allocation headroom;
+unreadable/malformed evidence or insufficient space refuses before extraction with a disk action. This is not a
+compressed-size multiplier, a space reservation, exact physical allocation accounting, or a guarantee of capacity for
+later clone, restore and product work. Check additional free space for those operations separately.
+
+Retained extraction is sensitive and unencrypted: owner records/sessions, settings and Git bundles can contain secrets.
+URL-password masking and credential exclusions do not prove otherwise; gitleaks scans files, not bundle history.
+Use an owner-controlled local location with appropriate existing access protection; keep it outside sync and repositories.
+The launcher does not change ACLs or machine settings. Review accumulated attempts after verification and obtain separate
+owner authorization before disposal. Retained housekeeping alone does not make an otherwise successful restore fail.
+The launcher's `Restore-Workspace -From` route does not run the child's independent `-Package` extraction cleanup;
+Backup/Restore-Workspace cleanup is unchanged.
 
 Complete the printed actions: revoke old GitHub CLI OAuth authorizations for PlatPlusHub and Shehabhub before
 `gh auth login` for both; `supabase login`; Claude/Codex sign-in; Docker first run; WSL admin/reboot if reported.
@@ -93,7 +113,7 @@ extract once with `7z x <archive> -o<temporary>\pkg`. Clone
 `<temporary>\pkg\orvion-backup-<UTC>\repos\ORVION-Workbench.bundle` into `<temporary>\wb`, check out its
 `backup.json` branch/head, then run
 `pwsh -NoProfile -File <temporary>\wb\lib\Restore-Workspace.ps1 -From <temporary>\pkg\orvion-backup-<UTC>`.
-Use new empty paths; restore never overwrites repositories. Delete staging after success, run CRM/ORVION
+Use new empty paths; restore never overwrites repositories. Retain staging for review and separately owner-authorized disposal; run CRM/ORVION
 `workstation.cmd`, and complete the same checklist above. Use the -Temporary route above for required pinned actionlint. Session archive error acknowledgement remains documented in
 [lib/README.md](../lib/README.md) (keep its acknowledgement archive and journal).
 

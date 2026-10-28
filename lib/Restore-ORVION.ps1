@@ -22,7 +22,7 @@ function Update-RecoveryPath{
 # Resolve existing ancestors too: a junction must not hide a persistent destination inside staging.
 function Get-RecoveryActualPath([string]$Path,[int]$Depth=0){
     if($Depth-gt128){throw 'RECOVERY_PATH_UNRESOLVED'}
-    $full=[IO.Path]::GetFullPath($Path)
+    $full=[IO.Path]::GetFullPath($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path))
     if($full-eq[IO.Path]::GetPathRoot($full)){return $full}
     $full=$full.TrimEnd('\','/')
     $item=Get-Item -LiteralPath $full -Force -ErrorAction SilentlyContinue
@@ -44,6 +44,28 @@ function Invoke-RecoveryProcess([string]$File,[string[]]$Arguments){
     $ErrorActionPreference='Continue'
     & $File @Arguments
     $script:NativeExitCode=$LASTEXITCODE
+}
+function Get-RecoveryExpandedBytes([string]$Archive){
+    $listing=@(Invoke-RecoveryProcess (Get-RecoveryTool '7z') @('l','-slt','-ba',$Archive))
+    if($script:NativeExitCode){$script:RecoveryExit=$script:NativeExitCode;throw 'RECOVERY_DISK_METADATA_UNREADABLE'}
+    [long]$total=0;$entries=0
+    foreach($block in (($listing-join"`n")-split'\r?\n\s*\r?\n')){
+        if(!$block.Trim()){continue}
+        $paths=[regex]::Matches($block,'(?m)^Path = .+\r?$')
+        $sizes=[regex]::Matches($block,'(?m)^Size = ([0-9]+)\r?$')
+        [long]$size=0
+        if($paths.Count-ne1-or$sizes.Count-ne1-or![long]::TryParse($sizes[0].Groups[1].Value,[ref]$size)-or$size-gt([long]::MaxValue-$total)){throw 'RECOVERY_DISK_METADATA_UNREADABLE'}
+        $total+=$size;$entries++
+    }
+    if(!$entries){throw 'RECOVERY_DISK_METADATA_UNREADABLE'}
+    return $total
+}
+function Get-RecoveryFreeBytes([string]$Path){
+    try{
+        $drive=New-Object IO.DriveInfo ([IO.Path]::GetPathRoot($Path))
+        if(!$drive.IsReady){throw 'not ready'}
+        return $drive.AvailableFreeSpace
+    }catch{throw 'RECOVERY_DISK_SPACE_UNREADABLE'}
 }
 function Get-RecoveryPackage([string]$Directory){
     $archive=Get-ChildItem -LiteralPath $Directory -Filter 'orvion-backup-*.7z' -File|Sort-Object Name -Descending|Select-Object -First 1
@@ -97,11 +119,33 @@ function Write-RecoveryChecklist([string]$Target,[string]$ClaudeHome,[string]$Co
 function Invoke-OrvionRecovery([string]$PackageDir,[string]$Staging,[string]$Target,[string]$ClaudeHome,[string]$LegacyTarget,[string]$CodexHome,[switch]$AllowNewProfile,[switch]$SkipProducts){
     $script:RecoveryExit=0;$ownsStaging=$false
     try{
-        if(!$Staging){$Staging=Join-Path $Target ('ORVION-Workbench-temporary\restore-staging\'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ'))}
+        if(!$Staging){$Staging=Join-Path $Target ('ORVION-Workbench-temporary\restore-staging\'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-'+[guid]::NewGuid().ToString('N'))}
+        $Staging=[IO.Path]::GetFullPath($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Staging))
         $actualStage=Get-RecoveryActualPath $Staging
         foreach($destination in @((Join-Path $Target 'ORVION-Workbench'),(Join-Path $Target 'ORVION-Workbench-trusted-main'),(Join-Path $Target 'ORVION-Owner-Tools'),(Join-Path $Target 'CRM'),(Join-Path $Target 'CRM-trusted-main'),(Join-Path $Target 'ORVION'),(Join-Path $Target 'ORVION-trusted-main'),(Join-Path $Target 'ORVION-Workbench-temporary'),$ClaudeHome,$CodexHome)+@($LegacyTarget|Where-Object{$_})){
             $actual=Get-RecoveryActualPath $destination
             if($actual-ieq$actualStage-or$actual.StartsWith($actualStage+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'RECOVERY_DESTINATION_IN_STAGING'}
+        }
+        $protected=@((Join-Path $Target 'ORVION-Workbench'),(Join-Path $Target 'ORVION-Workbench-trusted-main'),(Join-Path $Target 'ORVION-Owner-Tools'),(Join-Path $Target 'CRM'),(Join-Path $Target 'CRM-trusted-main'),(Join-Path $Target 'ORVION'),(Join-Path $Target 'ORVION-trusted-main'),$ClaudeHome,$CodexHome,(Join-Path $env:USERPROFILE '.claude'),(Join-Path $env:USERPROFILE '.codex'))+@($LegacyTarget,$env:ORVION_DATA_ROOT|Where-Object{$_})
+        foreach($path in $protected){
+            $actual=Get-RecoveryActualPath $path
+            if($actualStage-ieq$actual-or$actualStage.StartsWith($actual.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'RECOVERY_STAGING_PLACEMENT_REFUSED'}
+        }
+        foreach($path in @((Join-Path $env:USERPROFILE 'OneDrive'),$env:OneDrive,$env:OneDriveConsumer,$env:OneDriveCommercial)|Where-Object{$_}){
+            $known=[IO.Path]::GetFullPath($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($path)).TrimEnd('\')
+            if($Staging-ieq$known-or$Staging.StartsWith($known+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'RECOVERY_STAGING_PLACEMENT_REFUSED'}
+            # Cloud reparse roots may expose no link Target. Staging resolution itself still
+            # fails closed through such a root; do not require unrelated sync hydration.
+            try{$known=Get-RecoveryActualPath $path}catch{if($_.Exception.Message-ne'RECOVERY_PATH_UNRESOLVED'){throw}}
+            if($actualStage-ieq$known-or$actualStage.StartsWith($known.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'RECOVERY_STAGING_PLACEMENT_REFUSED'}
+        }
+        # Inspect ancestor metadata only, including independently named Git repositories.
+        $ancestor=$actualStage
+        while($ancestor){
+            if((Split-Path $ancestor -Leaf)-ieq'ORVION-Owner-Tools'){throw 'RECOVERY_STAGING_PLACEMENT_REFUSED'}
+            if(Test-Path -LiteralPath (Join-Path $ancestor '.git')){throw 'RECOVERY_STAGING_PLACEMENT_REFUSED'}
+            $parent=Split-Path $ancestor -Parent
+            if($parent-eq$ancestor){break};$ancestor=$parent
         }
         if(Test-Path -LiteralPath $Staging){throw "RECOVERY_STAGING_EXISTS: $Staging must not exist; inspect it before retrying"}
         foreach($item in @(@('git','Git.Git'),@('7z','7zip.7zip'),@('pwsh','Microsoft.PowerShell'))){
@@ -115,6 +159,14 @@ function Invoke-OrvionRecovery([string]$PackageDir,[string]$Staging,[string]$Tar
             if(!(Get-RecoveryTool $item[0])){throw "RECOVERY_COMMAND_MISSING: $($item[0]) after prerequisite setup"}
         }
         $archive=Get-RecoveryPackage $PackageDir
+        try{$expanded=Get-RecoveryExpandedBytes $archive}catch{throw 'RECOVERY_DISK_METADATA_UNREADABLE'}
+        # Separate modest headroom for filesystem metadata/allocation; not a compressed-size multiplier
+        # and not a promise of capacity for later clone/restore/product preparation.
+        [long]$reserve=64MB
+        $free=Get-RecoveryFreeBytes $actualStage
+        if($null-eq$free-or$free-isnot[long]-or$free-lt0){throw 'RECOVERY_DISK_SPACE_UNREADABLE'}
+        Write-Host "STAGING DISK: expanded logical bytes=$expanded; reserve bytes=$reserve; available bytes=$free (snapshot, not reserved)"
+        if($expanded-gt([long]::MaxValue-$reserve)-or$free-lt($expanded+$reserve)){throw 'RECOVERY_DISK_SPACE_INSUFFICIENT'}
         $null=New-Item -ItemType Directory -Path $Staging;$ownsStaging=$true
         $extract=Join-Path $Staging 'pkg'
         Invoke-RecoveryProcess (Get-RecoveryTool '7z') @('x',"-o$extract",$archive)
@@ -157,15 +209,14 @@ function Invoke-OrvionRecovery([string]$PackageDir,[string]$Staging,[string]$Tar
         $code='RECOVERY_FAILED'
         if($_.Exception.Message-match'\A(RECOVERY_[A-Z_]+)(?::|$)'){$code=$Matches[1]}
         Write-Host "ACTION: $code; inspect the package and requested paths before retrying"
+        if($code-like'RECOVERY_DISK_*'){Write-Host 'ACTION: verify 7z l -slt -ba metadata and staging-volume free space; free local capacity or choose another permitted -Staging, then retry'}
     }
     try{Write-RecoveryChecklist $Target $ClaudeHome $CodexHome}catch{if(!$script:RecoveryExit){$script:RecoveryExit=1};Write-Host 'ACTION: RECOVERY_CHECKLIST_FAILED'}
-    if($ownsStaging-and$script:RecoveryExit-eq0){
-        try{
-            Get-ChildItem -LiteralPath $Staging -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'}
-            [IO.Directory]::Delete([IO.Path]::GetFullPath($Staging),$true);$ownsStaging=$false
-        }catch{$script:RecoveryExit=1;Write-Host 'ACTION: RECOVERY_STAGING_CLEANUP_FAILED'}
+    if($ownsStaging){
+        $status='failed';if($script:RecoveryExit-eq0){$status='completed'}
+        Write-Host "ACTION: staging retained at $Staging; status=$status; purpose=extracted recovery package and bootstrap checkout"
+        Write-Host 'ACTION: retained staging is sensitive and unencrypted; protect local access, inspect accumulated attempts, and obtain separate owner authorization for disposal'
     }
-    if($ownsStaging){Write-Host "ACTION: staging retained at $Staging"}
     if($script:RecoveryExit-eq0){Write-Host 'READY: restore and requested preparation completed'}
 }
 Invoke-OrvionRecovery -PackageDir $PackageDir -Staging $Staging -Target $Target -ClaudeHome $ClaudeHome -LegacyTarget $LegacyTarget -CodexHome $CodexHome -AllowNewProfile:$AllowNewProfile -SkipProducts:$SkipProducts

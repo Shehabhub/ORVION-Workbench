@@ -7,6 +7,9 @@ $t=Join-Path ([IO.Path]::GetTempPath()) ('orvion-recovery-check-'+[guid]::NewGui
 $source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Restore-ORVION.ps1'))
 $savedProfile=$env:USERPROFILE;$savedGlobal=$env:GIT_CONFIG_GLOBAL;$savedSystem=$env:GIT_CONFIG_NOSYSTEM
 $savedInjection=@{}
+foreach($key in 'OneDrive','OneDriveConsumer','OneDriveCommercial'){
+    $savedInjection[$key]=[Environment]::GetEnvironmentVariable($key,'Process');[Environment]::SetEnvironmentVariable($key,$null,'Process')
+}
 foreach($key in [Environment]::GetEnvironmentVariables('Process').Keys|Where-Object{$_-match'^GIT_CONFIG_(COUNT|PARAMETERS|KEY_\d+|VALUE_\d+)$'}){
     $savedInjection[$key]=[Environment]::GetEnvironmentVariable($key,'Process');Remove-Item -LiteralPath ('Env:\'+$key)
 }
@@ -21,6 +24,12 @@ function Import-RecoveryFunctions([string]$Text){
     }
 }
 function Set-Sidecar([string]$Archive){[IO.File]::WriteAllText("$Archive.sha256",((Get-FileHash $Archive).Hash+' *'+(Split-Path $Archive -Leaf))) }
+function Get-FixtureTreeState([string]$Path){
+    (@(Get-ChildItem -LiteralPath $Path -Recurse -Force|Sort-Object FullName|ForEach-Object{
+        $hash='directory';if(!$_.PSIsContainer){$hash=(Get-FileHash -LiteralPath $_.FullName).Hash}
+        $_.FullName+'|'+$_.Attributes+'|'+$hash
+    })-join"`n")
+}
 function Invoke-Scenario([string]$Case,[string]$Text=$source){
     Import-RecoveryFunctions $Text
     $root=Join-Path $t ([guid]::NewGuid().ToString('N').Substring(0,8));[void][IO.Directory]::CreateDirectory($root)
@@ -54,8 +63,25 @@ function Invoke-Scenario([string]$Case,[string]$Text=$source){
             if($script:case-ne'verify'){switch($Arguments[2]){'Git.Git'{$script:available.git=$true};'7zip.7zip'{$script:available.'7z'=$true};'Microsoft.PowerShell'{$script:available.pwsh=$true}}}
         }
         if($File-eq'7z'){
+            if($Arguments[0]-eq'l'){
+                if($script:case-eq'disk-list-exit'){$script:NativeExitCode=31;return}
+                if($script:case-eq'disk-metadata'){'Path = bad';return}
+                if($script:case-eq'disk-empty'){return}
+                if($script:case-eq'disk-negative'){"Path = bad`nSize = -1";return}
+                if($script:case-eq'disk-overflow'){"Path = bad`nSize = 9223372036854775808";return}
+                "Path = fixture`nSize = 1024";return
+            }
             if($script:case-eq'extract'){$script:NativeExitCode=18;return}
             $dir=$Arguments[1].Substring(2);[void][IO.Directory]::CreateDirectory($dir)
+            if($script:case-eq'long-retained'){
+                $deep=$dir;while($deep.Length-lt450){$deep=Join-Path $deep ('d'*35)}
+                [void][IO.Directory]::CreateDirectory(('\\?\'+$deep))
+                $script:longFile='\\?\'+(Join-Path $deep 'locked.txt')
+                [IO.File]::WriteAllText($script:longFile,'retained fixture bytes')
+                [IO.File]::SetAttributes($script:longFile,[IO.FileAttributes]::ReadOnly)
+                $script:longAttributes=[IO.File]::GetAttributes($script:longFile)
+                $script:longLock=[IO.File]::Open($script:longFile,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+            }
             if($script:case-ne'layout'){Copy-Item -LiteralPath $script:fakePkg -Destination $dir -Recurse}
         }
         if($File-eq'git'){
@@ -67,7 +93,16 @@ function Invoke-Scenario([string]$Case,[string]$Text=$source){
         if($File-eq'claude'){Write-Output '  > ponytail@ponytail';if($script:case-eq'claude-list-fail'){$script:NativeExitCode=26}}
         if($File-like'*CRM\workstation.cmd'-and$script:case-eq'product'){$script:NativeExitCode=23}
     }
+    function script:Get-RecoveryFreeBytes([string]$Path){
+        if($script:case-eq'disk-unreadable'){throw 'RECOVERY_DISK_SPACE_UNREADABLE'}
+        if($script:case-eq'disk-insufficient'){return [long]1}
+        return [long]1GB
+    }
+    function script:Remove-RecoveryStaging {throw 'CLEANUP_SEAM_CALLED'}
     $stage=Join-Path $root 'stage';$target=Join-Path $root 'target'
+    $outside=Join-Path $root 'outside.txt';[IO.File]::WriteAllText($outside,'outside fixture bytes')
+    [IO.File]::SetAttributes($outside,[IO.FileAttributes]::ReadOnly)
+    $outsideHash=(Get-FileHash $outside).Hash;$outsideAttributes=[IO.File]::GetAttributes($outside)
     if($Case-eq'exception'){function script:Get-RecoveryPackage {throw 'sensitive-exception-fixture'}}
     if($Case-eq'checklist-exception'){function script:Write-RecoveryChecklist {throw 'sensitive-checklist-fixture'}}
     if($Case-eq'staging'){[void][IO.Directory]::CreateDirectory($stage);[IO.File]::WriteAllText((Join-Path $stage 'keep.txt'),'keep')}
@@ -81,12 +116,49 @@ function Invoke-Scenario([string]$Case,[string]$Text=$source){
     if($Case-like'under-*'){$params[$Case.Substring(6)] = Join-Path $stage 'persistent'}
     if($Case-eq'equal-stage'){$params.ClaudeHome=$stage}
     if($Case-eq'alias-stage'){$alias=Join-Path $root 'alias';$null=New-Item -ItemType Junction -Path $alias -Target $root;$params.ClaudeHome=Join-Path $alias 'stage/persistent'}
-    if($Case-eq'default-stage'){$params.Remove('Staging')}
+    if($Case-in'default-stage','repeat-default'){$params.Remove('Staging')}
+    if($Case-eq'placement-repo'){$params.Staging=Join-Path $target 'CRM/stage'}
+    if($Case-eq'placement-data'){$params.Staging=Join-Path $env:ORVION_DATA_ROOT 'stage'}
+    if($Case-eq'placement-profile-home'){$params.Staging=Join-Path $env:USERPROFILE '.codex/stage'}
+    if($Case-eq'placement-owner-other'){$params.Staging=Join-Path $root 'other/ORVION-Owner-Tools/stage'}
+    if($Case-eq'placement-git'){$gitRoot=Join-Path $root 'independent';[void][IO.Directory]::CreateDirectory((Join-Path $gitRoot '.git'));$params.Staging=Join-Path $gitRoot 'stage'}
+    if($Case-eq'placement-sync'){$params.Staging=Join-Path $env:USERPROFILE 'OneDrive/stage'}
+    if($Case-eq'placement-sync-alias'){
+        $sync=Join-Path $env:USERPROFILE 'OneDrive';[void][IO.Directory]::CreateDirectory($sync)
+        $alias=Join-Path $root 'sync-alias';$null=New-Item -ItemType Junction -Path $alias -Target $sync
+        $params.Staging=Join-Path $alias 'stage'
+    }
+    if($Case-eq'relative-stage'){$params.Staging='.\relative-stage'}
     if($Case-eq'default-legacy'){$params.Remove('LegacyTarget')}
     if($Case-eq'allow-profile'){$plan.sourceUserProfile='C:\Users\different';[IO.File]::WriteAllText((Join-Path $script:fakePkg 'backup.json'),($plan|ConvertTo-Json -Depth 6));$params.AllowNewProfile=$true}
     if($Case-eq'skip-products'){$params.SkipProducts=$true}
-    $output=@(Invoke-OrvionRecovery @params *>&1)-join"`n"
-    [pscustomobject]@{Exit=$script:RecoveryExit;Output=$output;Calls=@($script:calls.ToArray());Stage=(Test-Path $stage);Keep=(Test-Path (Join-Path $stage 'keep.txt'));Root=$root;Newer=$newer}
+    $savedLocation=Get-Location
+    try{
+        if($Case-eq'relative-stage'){Set-Location $root}
+        $output=@(Invoke-OrvionRecovery @params *>&1)-join"`n"
+        if($Case-eq'reuse-success'){
+            $before=Get-FixtureTreeState $stage
+            $second=@(Invoke-OrvionRecovery @params *>&1)-join"`n"
+            $script:reusedRefused=$script:RecoveryExit-ne0-and$second-match'RECOVERY_STAGING_EXISTS'-and$second-notmatch'(?m)^READY: '-and(Get-FixtureTreeState $stage)-ceq$before
+            $output+="`n"+$second
+        }
+        if($Case-eq'repeat-default'){
+            $retained=@(Get-ChildItem (Join-Path $target 'ORVION-Workbench-temporary/restore-staging') -Directory)[0].FullName
+            $marker=Join-Path $retained 'keep.txt';[IO.File]::WriteAllText($marker,'first attempt')
+            $before=Get-FixtureTreeState $retained
+            $output+="`n"+(@(Invoke-OrvionRecovery @params *>&1)-join"`n")
+            $script:repeatKept=(Get-FixtureTreeState $retained)-ceq$before
+        }
+    }finally{Set-Location $savedLocation}
+    $longOk=$true;$longLength=0
+    if($Case-eq'long-retained'){
+        try{
+            $longLength=$script:longFile.Length-4
+            $longOk=[IO.File]::ReadAllText($script:longFile)-ceq'retained fixture bytes'-and[IO.File]::GetAttributes($script:longFile)-eq$script:longAttributes
+        }finally{$script:longLock.Dispose()}
+    }
+    $outsideOk=(Get-FileHash $outside).Hash-ceq$outsideHash-and[IO.File]::GetAttributes($outside)-eq$outsideAttributes
+    [pscustomobject]@{Exit=$script:RecoveryExit;Output=$output;Calls=@($script:calls.ToArray());Stage=(Test-Path $stage);Keep=(Test-Path (Join-Path $stage 'keep.txt'));Root=$root;Newer=$newer;LongOk=$longOk;LongLength=$longLength;OutsideOk=$outsideOk;RepeatKept=$script:repeatKept;ReusedRefused=$script:reusedRefused}
 }
 function Test-Refusal([string]$Case,[string]$Token,[string]$Text=$source){
     $r=Invoke-Scenario $Case $Text
@@ -114,7 +186,7 @@ try{
     $refusals=[ordered]@{winget='RECOVERY_WINGET_REQUIRED';package='RECOVERY_PACKAGE_MISSING';sidecar='RECOVERY_SIDECAR_MISSING';invalid='RECOVERY_SIDECAR_INVALID';hash='RECOVERY_HASH_MISMATCH';staging='RECOVERY_STAGING_EXISTS';install='RECOVERY_INSTALL_FAILED';verify='RECOVERY_COMMAND_MISSING';extract='RECOVERY_EXTRACT_FAILED';layout='RECOVERY_LAYOUT_INVALID';profile='RECOVERY_PROFILE_MISMATCH';unrecorded='RECOVERY_PROFILE_MISMATCH';record='RECOVERY_WORKBENCH_RECORD_INVALID';clone='RECOVERY_WORKBENCH_CLONE_FAILED';config='RECOVERY_WORKBENCH_CONFIG_FAILED';checkout='RECOVERY_WORKBENCH_CHECKOUT_FAILED';restore='RECOVERY_RESTORE_FAILED'}
     foreach($caseName in $refusals.Keys){Assert-That ("refusal $caseName") (Test-Refusal $caseName $refusals[$caseName])}
     $r=Invoke-Scenario success;$calls=$r.Calls-join"`n"
-    Assert-That 'newest by name; one extraction; local bundle branch/head; four paths passed; products both run; staging removed' ($r.Exit-eq0-and!$r.Stage-and@($r.Calls|Where-Object{$_-like'7z x *'}).Count-eq1-and$calls.Contains($r.Newer)-and$calls.Contains('repos\ORVION-Workbench.bundle')-and$calls.Contains('checkout --quiet -B recovery-branch '+('a'*40))-and$calls.Contains('-From ')-and$calls.Contains('-Target ')-and$calls.Contains('-ClaudeHome ')-and$calls.Contains('-LegacyTarget ')-and$calls.Contains('-CodexHome ')-and$calls.Contains('CRM\workstation.cmd')-and$calls.Contains('ORVION\workstation.cmd')-and$calls-notmatch'winget install')
+    Assert-That 'newest by name; one extraction; local bundle branch/head; four paths passed; products both run; staging retained' ($r.Exit-eq0-and$r.Stage-and$r.Output.Contains('status=completed')-and$r.Output.Contains((Join-Path $r.Root 'stage'))-and@($r.Calls|Where-Object{$_-like'7z x *'}).Count-eq1-and$calls.Contains($r.Newer)-and$calls.Contains('repos\ORVION-Workbench.bundle')-and$calls.Contains('checkout --quiet -B recovery-branch '+('a'*40))-and$calls.Contains('-From ')-and$calls.Contains('-Target ')-and$calls.Contains('-ClaudeHome ')-and$calls.Contains('-LegacyTarget ')-and$calls.Contains('-CodexHome ')-and$calls.Contains('CRM\workstation.cmd')-and$calls.Contains('ORVION\workstation.cmd')-and$calls-notmatch'winget install')
     $r=Invoke-Scenario no-winget
     Assert-That 'installed prerequisites need no winget lookup; READY is final' ($r.Exit-eq0-and($r.Calls-join' ')-notmatch'lookup winget'-and($r.Output.Trim()-split"`n")[-1]-match'^READY: ')
     foreach($caseName in 'under-Target','under-ClaudeHome','under-CodexHome','under-LegacyTarget','equal-stage','alias-stage'){
@@ -122,7 +194,25 @@ try{
         Assert-That "persistent destination guard $caseName precedes all installers and extraction" ($r.Exit-ne0-and$r.Output-match'RECOVERY_DESTINATION_IN_STAGING'-and$r.Calls.Count-le1-and$r.Output-notmatch'(?m)^READY: ')
     }
     $r=Invoke-Scenario default-stage
-    Assert-That 'default staging is an owned UTC child of temporary restore-staging' ($r.Exit-eq0-and($r.Calls-join' ')-match'ORVION-Workbench-temporary\\restore-staging\\[0-9]+T[0-9]+Z'-and@(Get-ChildItem (Join-Path $r.Root 'target/ORVION-Workbench-temporary/restore-staging') -ErrorAction SilentlyContinue).Count-eq0)
+    Assert-That 'default staging is an owned UTC+GUID child of temporary restore-staging' ($r.Exit-eq0-and($r.Calls-join' ')-match'ORVION-Workbench-temporary\\restore-staging\\[0-9]+T[0-9]+Z-[a-f0-9]{32}'-and@(Get-ChildItem (Join-Path $r.Root 'target/ORVION-Workbench-temporary/restore-staging') -ErrorAction SilentlyContinue).Count-eq1)
+    foreach($caseName in 'placement-repo','placement-data','placement-profile-home','placement-owner-other','placement-git','placement-sync','placement-sync-alias'){
+        $r=Invoke-Scenario $caseName
+        Assert-That "retained placement $caseName refused before extraction" ($r.Exit-ne0-and$r.Output-match'RECOVERY_STAGING_PLACEMENT_REFUSED'-and($r.Calls-join' ')-notmatch'7z x'-and$r.Output-notmatch'(?m)^READY: ')
+    }
+    foreach($pair in @(@('disk-metadata','METADATA_UNREADABLE'),@('disk-empty','METADATA_UNREADABLE'),@('disk-negative','METADATA_UNREADABLE'),@('disk-overflow','METADATA_UNREADABLE'),@('disk-list-exit','METADATA_UNREADABLE'),@('disk-insufficient','SPACE_INSUFFICIENT'),@('disk-unreadable','SPACE_UNREADABLE'))){
+        $r=Invoke-Scenario $pair[0]
+        Assert-That "pre-extraction disk refusal $($pair[0])" ($r.Exit-ne0-and!$r.Stage-and$r.Output.Contains('RECOVERY_DISK_'+$pair[1])-and($r.Calls-join' ')-notmatch'7z x'-and$r.Output-notmatch'(?m)^READY: ')
+        if($pair[0]-eq'disk-list-exit'){Assert-That 'metadata child exit 31 preserved' ($r.Exit-eq31)}
+    }
+    $r=Invoke-Scenario long-retained
+    Assert-That "native $($PSVersionTable.PSVersion) locked readonly path $($r.LongLength) bytes/attributes retained; outside unchanged; READY" ($r.Exit-eq0-and$r.Stage-and$r.LongOk-and$r.LongLength-ge450-and$r.OutsideOk-and$r.Output-match'(?m)^READY: '-and$r.Output-match'status=completed'-and$r.Output-notmatch'CLEANUP_SEAM_CALLED')
+    Assert-That 'launcher has no automatic recursive cleanup or attribute mutation' ($source-notmatch'Directory\]::Delete|Remove-Item|Remove-RecoveryStaging|Attributes\s*=|SetAttributes|-Recurse')
+    $r=Invoke-Scenario repeat-default
+    Assert-That 'two default attempts retain distinct paths and first tree bytes/attributes unchanged' ($r.Exit-eq0-and$r.RepeatKept-and@(Get-ChildItem (Join-Path $r.Root 'target/ORVION-Workbench-temporary/restore-staging') -Directory).Count-eq2)
+    $r=Invoke-Scenario reuse-success
+    Assert-That 'explicit successful staging reuse refused without tree alteration or second extraction' ($r.ReusedRefused-and$r.Stage-and@($r.Calls|Where-Object{$_-like'7z x *'}).Count-eq1)
+    $r=Invoke-Scenario relative-stage
+    Assert-That 'relative staging uses PowerShell location and reports absolute path' ($r.Exit-eq0-and(Test-Path (Join-Path $r.Root 'relative-stage'))-and$r.Output.Contains((Join-Path $r.Root 'relative-stage')))
     $r=Invoke-Scenario default-legacy
     Assert-That 'launcher does not opt into legacy restore by default' ($r.Exit-eq0-and($r.Calls-join' ')-notmatch'-LegacyTarget')
     $r=Invoke-Scenario success
@@ -209,8 +299,9 @@ exit $script:RecoveryExit
     foreach($engine in @($pwsh,'powershell.exe')){
         $stage=Join-Path $t ('real-stage-'+[guid]::NewGuid().ToString('N').Substring(0,5))
         $out=@(& $engine -NoProfile -File $harness (Join-Path $PSScriptRoot 'Restore-ORVION.ps1') $zip $git $pwsh $cloud $stage $t 2>&1);$code=$LASTEXITCODE
-        Assert-That "real 7z/local git/detached checkout/pwsh child under $engine (exit $code)" ($code-eq0-and($out-join' ').Contains('REAL_CHILD_OUTPUT')-and!(Test-Path $stage))
+        Assert-That "real 7z/local git/detached checkout/pwsh child under $engine (exit $code)" ($code-eq0-and($out-join' ').Contains('REAL_CHILD_OUTPUT')-and(Test-Path $stage)-and($out-join' ')-match'status=completed')
         if($code){$out|Select-Object -Last 12}
+        $stage=Join-Path $t ('real-failure-'+[guid]::NewGuid().ToString('N').Substring(0,5))
         $out=@(& $engine -NoProfile -File $harness (Join-Path $PSScriptRoot 'Restore-ORVION.ps1') $zip $git $pwsh $cloud $stage (Join-Path $t 'child-failure') 2>&1);$code=$LASTEXITCODE
         Assert-That "real restore child failure under $engine preserves output, exit 42 and staging" ($code-eq42-and($out-join' ').Contains('REAL_CHILD_OUTPUT')-and($out-join' ').Contains('staging retained')-and(Test-Path $stage))
     }
@@ -219,10 +310,18 @@ exit $script:RecoveryExit
 }finally{
     $env:USERPROFILE=$savedProfile;$env:GIT_CONFIG_GLOBAL=$savedGlobal;$env:GIT_CONFIG_NOSYSTEM=$savedSystem
     foreach($key in $savedInjection.Keys){[Environment]::SetEnvironmentVariable($key,$savedInjection[$key],'Process')}
-    # Own GUID fixture only; never a product clone or real user configuration.
-    if([IO.Path]::GetFullPath($t).StartsWith([IO.Path]::GetFullPath([IO.Path]::GetTempPath()),[StringComparison]::OrdinalIgnoreCase)){
-        Get-ChildItem -LiteralPath $t -Recurse -Force -Attributes ReparsePoint|ForEach-Object{[IO.Directory]::Delete($_.FullName,$false)}
-        Get-ChildItem -LiteralPath $t -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)
-    }else{throw 'FIXTURE_CLEANUP_OUTSIDE_TEMP'}
+    # Test-owned disposal only. The existing pwsh prerequisite handles long fixture paths.
+    $cleanup=Join-Path ([IO.Path]::GetTempPath()) ('fixture-cleanup-'+[guid]::NewGuid().ToString('N')+'.ps1')
+    $cleanupBody=@'
+param($Fixture,$TempBoundary)
+$ErrorActionPreference='Stop'
+$full=[IO.Path]::GetFullPath($Fixture);$boundary=[IO.Path]::GetFullPath($TempBoundary).TrimEnd('\')+'\'
+if(!$full.StartsWith($boundary,[StringComparison]::OrdinalIgnoreCase)-or((Get-Item -LiteralPath $full -Force).Attributes-band[IO.FileAttributes]::ReparsePoint)){throw 'FIXTURE_CLEANUP_REFUSED'}
+Get-ChildItem -LiteralPath $full -Recurse -Force -Attributes ReparsePoint|ForEach-Object{[IO.Directory]::Delete($_.FullName,$false)}
+Get-ChildItem -LiteralPath $full -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'}
+[IO.Directory]::Delete($full,$true)
+'@
+    [IO.File]::WriteAllText($cleanup,$cleanupBody,[Text.Encoding]::ASCII)
+    try{& (Get-Command pwsh -CommandType Application|Select-Object -First 1).Source -NoProfile -File $cleanup $t ([IO.Path]::GetTempPath().TrimEnd('\'));if($LASTEXITCODE){throw 'FIXTURE_CLEANUP_FAILED'}}finally{[IO.File]::Delete($cleanup)}
 }
 if($fail){throw "RESTORE_ORVION_SELFCHECK_FAILED $fail"};'RESTORE_ORVION_SELFCHECK PASS'
