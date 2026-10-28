@@ -42,7 +42,7 @@ if($LASTEXITCODE){$fail++;"FAIL hazards`n$($out-join"`n")"}else{"PASS hazards ($
 foreach($relativeTest in $suiteRecipe.Material.tests){
     $t=Get-Item -LiteralPath (Join-Path $suiteRoot $relativeTest)
     $out=& pwsh -NoProfile -File $t.FullName 2>&1
-    if($LASTEXITCODE){$fail++;"FAIL $($t.Name)`n$(($out|Select-Object -Last 15)-join"`n")"}else{"PASS $($t.Name)"}
+    if($LASTEXITCODE){$fail++;$failedSuiteOutput=$out-join"`n";"FAIL $($t.Name)`n$failedSuiteOutput"}else{"PASS $($t.Name)"}
 }
 if($journalHash-ne$(if(Test-Path $journal){(Get-FileHash $journal).Hash})){$fail++;'FAIL a check wrote into the real journal events\events.jsonl'}else{'PASS the real journal is untouched by the checks'}
 "TESTS: $(if($fail){"$fail FAILED"}else{'all passed'}) in $([int]$sw.Elapsed.TotalSeconds) s"
