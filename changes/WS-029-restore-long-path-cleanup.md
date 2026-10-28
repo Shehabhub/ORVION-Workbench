@@ -4,9 +4,9 @@
 
 [ ] Draft
 [ ] Approved
-[x] In Progress
+[ ] In Progress
 [ ] Complete
-[ ] Cancelled
+[x] Cancelled
 
 ## Objective
 
@@ -504,6 +504,7 @@ Sandbox Receipt: C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools\records\WS-
 Sandbox Receipt SHA256: 239EC336A66752A76F003A92B19A476CA642AF1B66048D486EB9E4673F97CE0E
 Original admission: DELEGATED exact Gate 1 under the owner's exceptional delegation of 2026-10-26 (OWNER-DELEGATION.md SHA-256 94631C14708B783C584D0867AD4AD11221D5394F5FDEDAA48F64FA0BF9788217; decisions D1-D43; D43 explicitly approves Candidate C and the Sol/high clarification for this successor). The owner did not type this digest. Bound to this literal root, the exact V3 digest and the fresh sandbox receipt; no sandbox receipt transplant as original certification.
 Original exact literal implementation applied by accepted native Workbench Execute. Declared filtered blobs match. Fresh root-bound original Finish and independent live Review remain required; sandbox success does not certify this root. This frozen Draft was not expanded.
+Superseded by a separately admitted diagnostic and recovery-certification successor. Exact recovery outputs, frozen assurance and all attempt evidence are retained; cancellation is not completion.
 
 ## Verification Notes
 
