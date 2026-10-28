@@ -2,8 +2,8 @@
 
 ## Status
 
-[x] Draft
-[ ] Approved
+[ ] Draft
+[x] Approved
 [ ] In Progress
 [ ] Complete
 [ ] Cancelled
@@ -495,6 +495,14 @@ Recovery Attempt: 0
 
 
 Authority: DECISIONS.md D43 records the explicit owner Candidate C amendment and subsequent Sol/high clarification, under OWNER-DELEGATION.md's bounded conditional advance authorization. V1/V2 bytes remain frozen. Gate 1 for the exact qualified successor is DELEGATED, not owner-typed; its actual Draft SHA256 and physical execution-root binding must be recorded before original implementation. Sandbox approval is synthetic and grants no original authority.
+Approved Draft: C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools\records\WS-029\package\assurance\V3\DRAFT.md
+Approved SHA256: 87C5B9DB0A4D2B59F468A6BCCB24AF1ACFEE0005154982C2465E39BB5F33880D
+Owner Evidence: C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools\records\delegation-20261026\GATE1-WS029-DELEGATED.md
+Owner Evidence SHA256: E47EAF3EE74FC427AE09E0B409B75CED6DC01D97918E9642D6A71C7ED54C3BF7
+Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
+Sandbox Receipt: C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools\records\WS-029\package\runtime\sandbox-r3\own-finish-receipt.json
+Sandbox Receipt SHA256: 239EC336A66752A76F003A92B19A476CA642AF1B66048D486EB9E4673F97CE0E
+Original admission: DELEGATED exact Gate 1 under the owner's exceptional delegation of 2026-10-26 (OWNER-DELEGATION.md SHA-256 94631C14708B783C584D0867AD4AD11221D5394F5FDEDAA48F64FA0BF9788217; decisions D1-D43; D43 explicitly approves Candidate C and the Sol/high clarification for this successor). The owner did not type this digest. Bound to this literal root, the exact V3 digest and the fresh sandbox receipt; no sandbox receipt transplant as original certification.
 
 ## Verification Notes
 
