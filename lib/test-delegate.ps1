@@ -3,7 +3,7 @@
 $ErrorActionPreference='Stop'
 $t=Join-Path ([IO.Path]::GetTempPath()) "orvion-delegcheck-$([guid]::NewGuid().ToString('N').Substring(0,6))";New-Item -ItemType Directory $t|Out-Null
 $fixtureParent=[IO.Path]::GetFullPath((Split-Path $t -Parent));$fixturePath=[IO.Path]::GetFullPath($t)
-$savedEnvironment=@{};foreach($key in 'WORKBENCH_TEMP_ROOT','WORKBENCH_TEST_ROOT','TEMP','TMP','PATH'){$savedEnvironment[$key]=[Environment]::GetEnvironmentVariable($key)}
+$savedEnvironment=@{};foreach($key in 'WORKBENCH_TEMP_ROOT','WORKBENCH_TEST_ROOT','TEMP','TMP','PATH','CODEX_HOME'){$savedEnvironment[$key]=[Environment]::GetEnvironmentVariable($key)}
 $env:WORKBENCH_TEMP_ROOT=Join-Path $t 'temporary';$env:WORKBENCH_TEST_ROOT=Join-Path $t 'tests'
 $env:TEMP=Join-Path $t 'tmp';$env:TMP=$env:TEMP;[void][IO.Directory]::CreateDirectory($env:TEMP)
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
@@ -49,23 +49,37 @@ try{
         $data=Join-Path $t 'data';[void][IO.Directory]::CreateDirectory($data)
         $cacheFile=Join-Path $t 'models_cache.json';$bin=Join-Path $t 'bin';[void][IO.Directory]::CreateDirectory($bin)
         $fake=Join-Path $bin 'fake-codex.mjs';$stateFile=Join-Path $bin 'state.json';$calls=Join-Path $bin 'calls.jsonl'
+        $originalHome=Join-Path $t 'original-codex-home';[void][IO.Directory]::CreateDirectory($originalHome)
+        $sentinels=@{'config.toml'=[byte[]](0,67,79,78,70,73,71,255);'auth.json'=[byte[]](0,65,85,84,72,254)}
+        foreach($name in $sentinels.Keys){[IO.File]::WriteAllBytes((Join-Path $originalHome $name),$sentinels[$name])}
+        $env:CODEX_HOME=$originalHome;$script:featureProbes=@()
         [IO.File]::WriteAllText($fake,@'
 import fs from 'node:fs';import path from 'node:path';import {fileURLToPath} from 'node:url';
 const dir=path.dirname(fileURLToPath(import.meta.url));
 const s=JSON.parse(fs.readFileSync(path.join(dir,'state.json'),'utf8'));const a=process.argv.slice(2);
-fs.appendFileSync(path.join(dir,'calls.jsonl'),JSON.stringify({argv:a,temp:process.env.TEMP})+'\n');
+const featureCall=a.includes('features');
+fs.appendFileSync(path.join(dir,'calls.jsonl'),JSON.stringify({argv:a,temp:process.env.TEMP,cwd:process.cwd(),
+  codexHome:process.env.CODEX_HOME??null,codexHomeSet:Object.hasOwn(process.env,'CODEX_HOME'),
+  featureHomeEntries:featureCall&&process.env.CODEX_HOME?fs.readdirSync(process.env.CODEX_HOME):null})+'\n');
 if(a.includes('--version')){console.log('codex-cli '+(s.version||'0.0.9'));process.exit(0)}
 const settings={};for(let i=0;i<a.length;i++){if(a[i]==='-c'){const p=a[++i].split('=');settings[p[0]]=p[1]}}
-if(a.includes('features')){
+if(featureCall){
+  // Match the installed feature grammar: exec's isolation flag is unsupported here.
+  for(let i=0;i<a.length-2;i+=2){
+    if(a[i]!=='-c'||!a[i+1]?.includes('=')){console.error('error: unexpected argument '+a[i]);process.exit(2)}
+  }
+  if(a.length%2!==0||a.at(-2)!=='features'||a.at(-1)!=='list'){console.error('error: expected features list');process.exit(2)}
   if(s.featureWarning)console.error(s.featureWarning);
+  if(s.featureExit){process.stdout.write(s.featureStdout||'');process.exit(s.featureExit)}
   for(const name of ['memories','multi_agent','shell_tool','view_image']){
     if(s.missingFeature===name)continue;
-    console.log(name+' experimental '+(s.ignoredFeature===name?'true':(settings['features.'+name]||'true')));
+    console.log(name+' experimental '+(s.malformedFeature===name?'false extra':s.ignoredFeature===name?'true':(settings['features.'+name]||'true')));
      if(s.duplicateFeature===name)console.log(name+' experimental true');
   }
   process.exit(0);
 }
 if(a[0]!=='exec')process.exit(91);
+if(!a.includes('--ignore-user-config')){console.error('error: exec requires --ignore-user-config');process.exit(92)}
 const output=a[a.indexOf('-o')+1];const brief=fs.readFileSync(0,'utf8');
 fs.writeFileSync(output,'synthetic final');fs.writeFileSync(path.join(path.dirname(output),'seen-brief.txt'),brief);
 if(s.escape)fs.writeFileSync(s.escape,'synthetic change');
@@ -106,6 +120,7 @@ process.exit(s.exit||0);
             $script:codexOut=@(& pwsh -NoProfile -File $runner -Parameters $parameters -Entry $de 2>&1)-join"`n"
             $script:codexCode=$LASTEXITCODE
             $script:observed=@([IO.File]::ReadLines($calls)|Where-Object{$_}|ForEach-Object{$_|ConvertFrom-Json})
+            $script:featureProbes+=@($observed|Where-Object{$_.argv-contains'features'})
             $script:evidence=([regex]::Match($codexOut,'CODEX_EVIDENCE: ([^\r\n]+)')).Groups[1].Value
             $codexCode
         }
@@ -115,6 +130,21 @@ process.exit(s.exit||0);
             }
             Join-Path $evidence $Name
         }
+        [IO.File]::WriteAllText($stateFile,'{}')
+        $historicalDiagnostic=@(& node $fake --ignore-user-config -c features.memories=false features list 2>&1)-join"`n";$historicalCode=$LASTEXITCODE
+        Assert-That 'fake feature parser rejects the historical unsupported flag with exit 2' ($historicalCode-eq2-and$historicalDiagnostic-match'unexpected argument --ignore-user-config')
+        $code=Invoke-Codex
+        $setFeature=@($observed|Where-Object{$_.argv-contains'features'});$setExec=@($observed|Where-Object{$_.argv[0]-eq'exec'})
+        $native=Get-Content (Get-CodexEvidenceFile 'native-controls.json') -Raw|ConvertFrom-Json
+        Assert-That 'feature-only home is initially empty while exec retains original home and isolation flag' ($code-eq0-and$setFeature.Count-eq1-and$setFeature[0].codexHomeSet-and$setFeature[0].codexHome-ne$originalHome-and$null-ne$setFeature[0].featureHomeEntries-and$setFeature[0].featureHomeEntries.Count-eq0-and$native.featureHome-ceq$setFeature[0].codexHome-and$setExec.Count-eq1-and$setExec[0].codexHomeSet-and$setExec[0].codexHome-ceq$originalHome-and$setExec[0].argv-contains'--ignore-user-config'-and$setFeature[0].cwd-ceq$setExec[0].cwd)
+        $featureArgv=$setFeature[0].argv-join' '
+        Assert-That 'feature probe retains every fixed common override without exec-only flag' ($featureArgv-notmatch'--ignore-user-config'-and$featureArgv-match'approval_policy=never'-and$featureArgv-match'features.memories=false'-and$featureArgv-match'memories.use_memories=false'-and$featureArgv-match'memories.generate_memories=false'-and$featureArgv-match'features.multi_agent=false'-and$featureArgv-match'project_doc_max_bytes=0')
+        try{
+            Remove-Item -LiteralPath Env:CODEX_HOME
+            $code=Invoke-Codex
+            $unsetFeature=@($observed|Where-Object{$_.argv-contains'features'});$unsetExec=@($observed|Where-Object{$_.argv[0]-eq'exec'})
+            Assert-That 'an unset exec home stays unset and gets a different empty feature-only home' ($code-eq0-and$unsetExec.Count-eq1-and!$unsetExec[0].codexHomeSet-and$null-eq$unsetExec[0].codexHome-and$unsetExec[0].argv-contains'--ignore-user-config'-and$unsetFeature.Count-eq1-and$null-ne$unsetFeature[0].featureHomeEntries-and$unsetFeature[0].featureHomeEntries.Count-eq0-and$unsetFeature[0].codexHome-cne$setFeature[0].codexHome)
+        }finally{$env:CODEX_HOME=$originalHome}
         $code=Invoke-Codex @{} @{ModelCache=(Join-Path $t 'missing-cache.json')}
         $fixtureDiagnostic=try{$null=Get-CodexEvidenceFile 'launcher.json';''}catch{$_.Exception.Message}
         Assert-That 'a refused fixture retains original child diagnostic and exit before dereference' ($code-ne0-and!$observed.Count-and$fixtureDiagnostic.Contains($codexOut)-and$fixtureDiagnostic.Contains("child exit $code")-and$fixtureDiagnostic-match'CODEX_MODEL_AVAILABILITY_UNVERIFIED'-and$fixtureDiagnostic-notmatch'Cannot bind argument')
@@ -247,10 +277,13 @@ process.exit(s.exit||0);
         Write-Cache
         $code=Invoke-Codex @{version='0.0.8'}
         Assert-That 'CLI/cache mismatch fails before a model call' ($code-eq5-and!@($observed|Where-Object{$_.argv[0]-eq'exec'}).Count)
-        foreach($state in @(@{missingFeature='memories'},@{ignoredFeature='multi_agent'},@{duplicateFeature='memories'},@{featureWarning='ignored unsupported setting tools.view_image'})){
+        foreach($state in @(@{missingFeature='memories'},@{ignoredFeature='multi_agent'},@{duplicateFeature='memories'},@{featureWarning='ignored unsupported setting tools.view_image'},@{malformedFeature='memories'})){
             $code=Invoke-Codex $state
             Assert-That 'missing/ignored native controls fail closed before model call' ($code-eq5-and!@($observed|Where-Object{$_.argv[0]-eq'exec'}).Count)
         }
+        $code=Invoke-Codex @{featureExit=23;featureStdout="synthetic partial feature output`n";featureWarning='synthetic native failure diagnostic'}
+        $native=Get-Content (Get-CodexEvidenceFile 'native-controls.json') -Raw|ConvertFrom-Json
+        Assert-That 'nonzero feature status refuses exec and retains complete native output and diagnostic' ($code-eq5-and!@($observed|Where-Object{$_.argv[0]-eq'exec'}).Count-and$native.exitCode-eq23-and$native.featureList-ceq"synthetic partial feature output`n"-and$native.diagnostics-ceq"synthetic native failure diagnostic`n")
         foreach($state in @(@{stderr='ignored tools.view_image'},@{removeControls=$true},@{corruptControls='{torn'},@{corruptControls='{}'},@{badEvents=$true},@{events=@()},@{events=@(@{})},@{events=@(@{type='item.completed';item='invalid'})},@{events=@(@{type='warning';message='unknown feature'})},@{events=@(@{type='turn.failed';error=@{message='synthetic failure'}})})){
             $code=Invoke-Codex $state
             Assert-That 'runtime ignored controls or missing/unreadable evidence cannot return success' ($code-eq5-and$codexOut-match'CODEX_CONTROLS_UNVERIFIED')
@@ -293,9 +326,13 @@ process.exit(s.exit||0);
         Assert-That 'unreadable initial watch fails exit 4 without CLI and preserves evidence' ($code-eq4-and!$observed.Count-and$codexOut-match'CODEX_TRIPWIRE'-and(Test-Path (Join-Path $evidence 'SHA256SUMS')))
         $code=Invoke-Codex @{} @{Relay=(Join-Path $t 'untrusted-relay.mjs')}
         Assert-That 'a relay override cannot bypass fixed controls' ($code-ne0-and!$observed.Count-and$codexOut-match'CODEX_RELAY_OVERRIDE_REFUSED')
+        Assert-That 'all feature calls use distinct initially empty task-temporary homes, including refusals' ($featureProbes.Count-gt1-and@($featureProbes|Where-Object{!$_.codexHomeSet-or$null-eq$_.featureHomeEntries-or$_.featureHomeEntries.Count-ne0-or!$_.codexHome.StartsWith($_.temp+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)}).Count-eq0-and@($featureProbes.codexHome|Sort-Object -Unique).Count-eq$featureProbes.Count)
+        $sentinelsUnchanged=$true
+        foreach($name in $sentinels.Keys){if([Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $originalHome $name)))-cne[Convert]::ToBase64String($sentinels[$name])){$sentinelsUnchanged=$false}}
+        Assert-That 'original synthetic config and auth sentinel bytes remain unchanged' $sentinelsUnchanged
     }finally{$env:WORKBENCH_TEMP_ROOT=$savedTempRoot}
 }finally{
-    foreach($key in $savedEnvironment.Keys){[Environment]::SetEnvironmentVariable($key,$savedEnvironment[$key])}
+    foreach($key in $savedEnvironment.Keys){if($null-eq$savedEnvironment[$key]){Remove-Item -LiteralPath "Env:$key" -ErrorAction SilentlyContinue}else{[Environment]::SetEnvironmentVariable($key,$savedEnvironment[$key])}}
     if(![IO.Path]::GetFullPath($t).Equals($fixturePath)-or!$fixturePath.StartsWith($fixtureParent+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)){throw 'FIXTURE_CLEANUP_ROOT_REFUSED'}
     Get-ChildItem -LiteralPath $t -Recurse -Force -File|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)
 }

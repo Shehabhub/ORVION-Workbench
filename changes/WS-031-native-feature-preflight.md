@@ -294,7 +294,7 @@ Minimum Commit GB: 3
 
 ## Runtime Checkpoint
 
-Resume Step: 1
+Resume Step: DONE
 Blocker: None
 Recovery Attempt: 0
 
@@ -308,6 +308,7 @@ Owner Evidence SHA256: 28E40260B221C4C1F5EB6B7FC6360AFE1C3BCB7348F00D1EF27F0F00B
 Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
 Sandbox Receipt: C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools\records\WS-031\package\runtime\sandbox\own-finish-receipt.json
 Sandbox Receipt SHA256: C95FF88794B58BDB09134156D838C1C29C72E00EC384E18A91E4B4D893BC99B7
+Original exact three declared outputs applied by accepted native Execute; fresh own Finish and independent Review/Complete remain required. Other protected roots unchanged; prior failed attempts retained.
 
 ## Verification Notes
 
