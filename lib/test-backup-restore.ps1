@@ -1,7 +1,310 @@
 # Round trip for Backup-Workspace.ps1 / Restore-Workspace.ps1 on a synthetic workspace (temp GitHub root, bare remote):
 # exact HEAD and refs, a DISABLED push URL kept, branch upstream single-valued, an ignored receipt byte-identical, stash
 # loss warned, records-based memory, old-package compatibility, tampering and destination conflicts refused.
-param([switch]$RootProbeOnly)
+param([switch]$RootProbeOnly,[switch]$DailyBackupOnly,[switch]$DailyPathOnly,[string]$DailyEvidenceRoot)
+function Invoke-BackupDestinationChecks {
+    # Execute the actual production helpers; synthetic metadata never probes the supplied real paths.
+    $guardTokens=$null;$guardErrors=$null
+    $guardAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'Backup-Workspace.ps1'),[ref]$guardTokens,[ref]$guardErrors)
+    if($guardErrors){throw 'BACKUP_DESTINATION_PARSE_FAILED'}
+    foreach($helperName in 'Assert-BackupPath','ConvertTo-BackupDestination','Test-BackupWithin'){
+        $helperNode=$guardAst.Find({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]-and$n.Name-eq$helperName},$false)
+        . ([scriptblock]::Create($helperNode.Extent.Text))
+    }
+    $guardFixture=Join-Path ([IO.Path]::GetTempPath()) ('backup-destination-'+[guid]::NewGuid().ToString('N'))
+    $guardAncestor=Join-Path $guardFixture 'cloud';$guardLeaf=Join-Path $guardAncestor 'not-created/output'
+    & {
+        Set-Item Function:Get-Item -Value {param([string]$LiteralPath,[switch]$Force,[string]$ErrorAction)
+            if($LiteralPath-eq$guardAncestor){[pscustomobject]@{Attributes=[IO.FileAttributes]$guardCase.Attributes;LinkType=$guardCase.LinkType}}
+        }
+        foreach($guardCase in @(
+            @{Name='ordinary directory';Attributes='Directory';LinkType=$null;Refused=$false},
+            @{Name='supplied cloud directory metadata';Attributes='Directory,Archive,ReadOnly,ReparsePoint';LinkType=$null;Refused=$false},
+            @{Name='supplied executable alias metadata';Attributes='Archive,ReparsePoint';LinkType=$null;Refused=$false},
+            @{Name='junction ancestor';Attributes='Directory,ReparsePoint';LinkType='Junction';Refused=$true},
+            @{Name='directory symbolic link ancestor';Attributes='Directory,ReparsePoint';LinkType='SymbolicLink';Refused=$true},
+            @{Name='file symbolic link';Attributes='ReparsePoint';LinkType='SymbolicLink';Refused=$true}
+        )){
+            $guardOutcome='ALLOWED';try{Assert-BackupPath $guardLeaf}catch{$guardOutcome=$_.Exception.Message}
+            $guardExpected=if($guardCase.Refused){'BACKUP_REPARSE_REFUSED'}else{'ALLOWED'}
+            if($guardOutcome-cne$guardExpected){throw ('BACKUP_DESTINATION_CHECK_FAILED '+$guardCase.Name+' '+$guardOutcome)}
+            'PASS destination metadata '+$guardCase.Name
+        }
+    }
+    # Real local junction, with an absent descendant: checking only the output itself is insufficient.
+    [void][IO.Directory]::CreateDirectory((Join-Path $guardFixture 'target'))
+    $guardJunction=Join-Path $guardFixture 'junction'
+    $null=New-Item -ItemType Junction -Path $guardJunction -Target (Join-Path $guardFixture 'target')
+    $junctionOutcome='ALLOWED';try{Assert-BackupPath (Join-Path $guardJunction 'absent/output')}catch{$junctionOutcome=$_.Exception.Message}
+    if($junctionOutcome-cne'BACKUP_REPARSE_REFUSED'){throw ('BACKUP_JUNCTION_CHECK_FAILED '+$junctionOutcome)}
+    'PASS actual owned junction ancestor refused'
+    foreach($usbPath in 'E:\ORVION-Recovery','E:\ORVION-Recovery\','E:/ORVION-Recovery/','E:\parent\..\ORVION-Recovery\'){
+        if((ConvertTo-BackupDestination $usbPath)-cne'E:\ORVION-Recovery'){throw 'BACKUP_USB_FOLDER_NORMALIZATION_FAILED'}
+        'PASS pure USB child folder '+$usbPath
+    }
+    if(!(Test-BackupWithin 'E:\ORVION-Recovery\child' 'E:\ORVION-Recovery')-or(Test-BackupWithin 'E:\ORVION-Recovery-other' 'E:\ORVION-Recovery')){throw 'BACKUP_COMPONENT_OVERLAP_FAILED'}
+    'PASS lexical component overlap retains child and excludes prefix sibling'
+}
+Invoke-BackupDestinationChecks
+function Invoke-BackupRuntimePathChecks {
+    $pathFixture=Join-Path ([IO.Path]::GetTempPath()) ('backup-path-'+[guid]::NewGuid().ToString('N'))
+    $null=[IO.Directory]::CreateDirectory($pathFixture)
+    $pathMap=Join-Path $pathFixture 'map.json';[IO.File]::WriteAllText($pathMap,'{"schema":1,"inputs":[]}')
+    [IO.File]::WriteAllText((Join-Path $pathFixture 'pwsh.exe'),'synthetic nonexecutable runtime placeholder')
+    # Every Scheduler entry is trapped even if a future path-guard regression reaches it.
+    foreach($schedulerCommand in 'Get-ScheduledTask','Get-ScheduledTaskInfo','New-ScheduledTaskAction','New-ScheduledTaskTrigger','New-ScheduledTaskSettingsSet','New-ScheduledTaskPrincipal','Register-ScheduledTask'){
+        Set-Item -Path ('Function:'+$schedulerCommand) -Value {throw 'SCHEDULER_TRAP_UNEXPECTED'}
+    }
+    foreach($runtimeCase in @(
+        @{Name='runtime inside supplied temporary root refused';Path=(Join-Path $pathFixture 'pwsh.exe')},
+        @{Name='nonexistent installed runtime refused';Path=(Join-Path $pathFixture 'missing/pwsh.exe')}
+    )){
+        $runtimeRefused=$false
+        try{& (Join-Path $PSScriptRoot 'Backup-Workspace.ps1') -Install -Package -Destination (Join-Path $pathFixture 'out') -RecoveryInputs $pathMap -DataRoot $pathFixture -TemporaryRoot $pathFixture -RuntimePath $runtimeCase.Path -ExecutionLimitMinutes 10}catch{$runtimeRefused=$_.Exception.Message-eq'BACKUP_INSTALL_DURABLE_RUNTIME_REQUIRED'}
+        if(!$runtimeRefused){throw ('BACKUP_RUNTIME_PATH_CHECK_FAILED '+$runtimeCase.Name)}
+        'PASS '+$runtimeCase.Name
+    }
+}
+Invoke-BackupRuntimePathChecks
+if($DailyPathOnly){return}
+function Invoke-DailyBackupChecks {
+    $dailyTestsRoot=if($env:WORKBENCH_TEST_ROOT){$env:WORKBENCH_TEST_ROOT}else{[IO.Path]::GetTempPath()}
+    $dailyEvidence=if($DailyEvidenceRoot){$DailyEvidenceRoot}else{Join-Path $dailyTestsRoot ('daily-evidence-'+[guid]::NewGuid().ToString('N'))}
+    [void][IO.Directory]::CreateDirectory($dailyEvidence)
+# Synthetic processes and local clones only; never imports ScheduledTasks or contacts a remote.
+$ErrorActionPreference='Stop'
+$checkout=Split-Path $PSScriptRoot -Parent
+$fixture=Join-Path $dailyTestsRoot ('focus-'+[guid]::NewGuid().ToString('N').Substring(0,8))
+$github=Join-Path $fixture 'GitHub';$data=Join-Path $fixture 'data';$managed=Join-Path $fixture 'managed'
+$probe=Join-Path $github "probe ' 雪/lib";$destination=Join-Path $fixture "cloud ' 雪 `$ (literal)";$map=Join-Path $fixture "map ' 雪.json"
+$runtime=Join-Path $PSHOME 'pwsh.exe';$script:cases=[Collections.Generic.List[object]]::new();$script:processes=[Collections.Generic.List[object]]::new()
+$caseResults=Join-Path $dailyEvidence 'focused-cases.json'
+function Save-FocusedEvidence { [ordered]@{fixture=$fixture;cases=@($script:cases);processes=@($script:processes)}|ConvertTo-Json -Depth 12|Set-Content -LiteralPath $caseResults }
+function Assert-Focused([string]$Name,[bool]$Condition,[string]$Evidence=''){
+    $script:cases.Add([ordered]@{name=$Name;passed=$Condition;evidence=$Evidence});Save-FocusedEvidence
+    if(!$Condition){throw ('FOCUSED_FAILED '+$Name)};'PASS '+$Name
+}
+function Invoke-FixtureGit([string]$Directory,[string[]]$GitArguments){
+    $output=@(& git -C $Directory @GitArguments 2>&1);if($LASTEXITCODE){throw "FIXTURE_GIT_FAILED $($GitArguments[0]) $output"};$output
+}
+function Start-FocusedProcess([string]$Label,[string[]]$NativeArguments){
+    $start=[Diagnostics.ProcessStartInfo]::new($runtime);$start.UseShellExecute=$false;$start.CreateNoWindow=$true;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
+    foreach($argument in $NativeArguments){$start.ArgumentList.Add($argument)}
+    $timer=[Diagnostics.Stopwatch]::StartNew();$child=[Diagnostics.Process]::Start($start)
+    [pscustomobject]@{label=$Label;child=$child;stdout=$child.StandardOutput.ReadToEndAsync();stderr=$child.StandardError.ReadToEndAsync();timer=$timer;arguments=$NativeArguments}
+}
+function Complete-FocusedProcess($Running,[int]$TimeoutSeconds=120){
+    $timedOut=!$Running.child.WaitForExit($TimeoutSeconds*1000)
+    if($timedOut){$Running.child.Kill($true);$Running.child.WaitForExit()}
+    $Running.timer.Stop();$output=$Running.stdout.GetAwaiter().GetResult();$errors=$Running.stderr.GetAwaiter().GetResult()
+    $record=[ordered]@{label=$Running.label;pid=$Running.child.Id;arguments=$Running.arguments;exitCode=$Running.child.ExitCode;durationSeconds=$Running.timer.Elapsed.TotalSeconds;timeout=$timedOut;processExited=$Running.child.HasExited}
+    [IO.File]::WriteAllText((Join-Path $dailyEvidence ($Running.label+'.stdout.txt')),$output)
+    [IO.File]::WriteAllText((Join-Path $dailyEvidence ($Running.label+'.stderr.txt')),$errors)
+    $script:processes.Add($record);Save-FocusedEvidence;$Running.child.Dispose()
+    [pscustomobject]@{code=$record.exitCode;text=$output+"`n"+$errors;duration=$record.durationSeconds;timeout=$timedOut}
+}
+function Invoke-FocusedProcess([string]$Label,[string[]]$NativeArguments){Complete-FocusedProcess (Start-FocusedProcess $Label $NativeArguments)}
+function Read-FocusedStatus {Get-Content -LiteralPath ($destination+'.status/latest.json') -Raw|ConvertFrom-Json}
+try{
+    foreach($directory in $github,$data,$managed,$probe,(Join-Path $data 'events'),(Join-Path $data 'sessions/raw')){[void][IO.Directory]::CreateDirectory($directory)}
+    [IO.File]::WriteAllText((Join-Path $data 'events/events.jsonl'),'{"synthetic":true}')
+    [IO.File]::WriteAllText((Join-Path $data 'sessions/raw/s.jsonl'),'synthetic session')
+    # Reuse public clone objects via LOCAL clone, with independent object stores. No commits/push/reset.
+    foreach($repoName in 'CRM','ORVION','CRM-trusted-main','ORVION-trusted-main','ORVION-Workbench','ORVION-Workbench-trusted-main'){
+        $repo=Join-Path $github $repoName
+        $null=Invoke-FixtureGit $github @('clone','-q','--no-hardlinks',$checkout,$repo)
+        $null=Invoke-FixtureGit $repo @('config','remote.origin.url',('https://github.com/fixture/'+$repoName+'.git'))
+        $null=Invoke-FixtureGit $repo @('config','remote.origin.pushurl','DISABLED')
+    }
+    $wb=Join-Path $github 'ORVION-Workbench';$receipt=[ordered]@{digest=('B'*64);root=$wb;result='READY'}|ConvertTo-Json
+    [void][IO.Directory]::CreateDirectory((Join-Path $wb '.workbench-certifications'))
+    [IO.File]::WriteAllText((Join-Path $wb '.workbench-local-certification.json'),$receipt)
+    [IO.File]::WriteAllText((Join-Path $wb ('.workbench-certifications/'+('B'*64)+'.json')),$receipt)
+    $proof=Join-Path $fixture "proof ' 雪.txt";[IO.File]::WriteAllText($proof,'synthetic approved proof bytes')
+    $proofBytes=[IO.File]::ReadAllBytes($proof);$proofHash=(Get-FileHash -LiteralPath $proof).Hash
+    [ordered]@{schema=1;inputs=@(@{name='required-proof';path=$proof;sha256=$proofHash})}|ConvertTo-Json -Depth 5|Set-Content -LiteralPath $map
+    foreach($file in 'Backup-Workspace.ps1','Restore-Workspace.ps1','Restore-ORVION.cmd','Restore-ORVION.ps1','workspace-layout.ps1'){Copy-Item -LiteralPath (Join-Path $checkout ('lib/'+$file)) -Destination $probe}
+    $backup=Join-Path $probe 'Backup-Workspace.ps1'
+    $env:ORVION_DATA_ROOT=$data;$env:WORKBENCH_TEMP_ROOT=$managed
+    # Pure root normalization regressions: execute the production function, no filesystem probes.
+    $normalTokens=$null;$normalErrors=$null
+    $normalAst=[Management.Automation.Language.Parser]::ParseFile($backup,[ref]$normalTokens,[ref]$normalErrors)
+    $normalFunction=$normalAst.Find({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]-and$n.Name-eq'ConvertTo-BackupDestination'},$false).Extent.Text
+    . ([scriptblock]::Create($normalFunction))
+    foreach($rootInput in 'C:\','C:/','\\fixture-server\share\'){
+        $rootRefused=$false;try{$null=ConvertTo-BackupDestination $rootInput}catch{$rootRefused=$_.Exception.Message-eq'BACKUP_DESTINATION_ROOT_REFUSED'}
+        Assert-Focused ('pure volume/share-root destination refusal '+$rootInput) $rootRefused
+    }
+    $normalizationPath="C:\fixture ' 雪 `$ (literal)\child\..\destination\"
+    Assert-Focused 'pure child normalization remains fully qualified and literal' ((ConvertTo-BackupDestination $normalizationPath)-ceq"C:\fixture ' 雪 `$ (literal)\destination"-and[IO.Path]::IsPathFullyQualified((ConvertTo-BackupDestination $normalizationPath)))
+    $relativeRefused=$false;try{$null=ConvertTo-BackupDestination 'C:relative'}catch{$relativeRefused=$_.Exception.Message-eq'BACKUP_DESTINATION_ABSOLUTE_REQUIRED'}
+    Assert-Focused 'drive-relative destination is refused without filesystem access' $relativeRefused
+    $normalMutant=$normalFunction.Replace("throw 'BACKUP_DESTINATION_ROOT_REFUSED'","return `$trimmed")
+    if($normalMutant-ceq$normalFunction){throw 'ROOT_MUTANT_STALE'}
+    . ([scriptblock]::Create($normalMutant))
+    Assert-Focused 'MUTANT killed: root guard removed yields drive-relative result' (![IO.Path]::IsPathFullyQualified((ConvertTo-BackupDestination 'C:\')))
+    . ([scriptblock]::Create($normalFunction))
+    $overlapMap=Join-Path $destination 'map.json'
+    $overlapMapResult=Invoke-FocusedProcess 'action-map-overlap' @('-NoProfile','-File',$backup,'-Destination',$destination,'-RecoveryInputs',$overlapMap,'-Package')
+    Assert-Focused 'map inside output refuses before replacing existing application status' ($overlapMapResult.code-ne0-and$overlapMapResult.text.Contains('BACKUP_OUTPUT_SOURCE_OVERLAP')-and!(Test-Path -LiteralPath ($destination+'.status')))
+    $fixtureBytes=(Get-ChildItem -LiteralPath $github,$data -Recurse -File -Force|Measure-Object Length -Sum).Sum
+    $fixtureFiles=@(Get-ChildItem -LiteralPath $github,$data -Recurse -File -Force).Count
+    "FIXTURE $fixtureFiles files $fixtureBytes bytes (six independent local clones of public baseline, synthetic proof/receipts/journal)"
+    # Every ScheduledTasks function resolves to one of these isolated mocks. The virtual runtime
+    # is never read: Get-Item/Test-Path intercept its complete ancestry. Nothing is registered.
+    $virtualRuntime='C:\WS027_SYNTHETIC_RUNTIME\pwsh.exe';$global:WS027DailyMock=[pscustomobject]@{registered=$null;registrations=0;forceValues=@()}
+    Set-Item Function:Get-Item -Value {param([string]$LiteralPath,[switch]$Force,[string]$ErrorAction)
+        if($LiteralPath-in'C:\','C:\WS027_SYNTHETIC_RUNTIME',$virtualRuntime){return}
+        $parameters=@{LiteralPath=$LiteralPath;Force=$Force};if($ErrorAction){$parameters.ErrorAction=$ErrorAction}
+        Microsoft.PowerShell.Management\Get-Item @parameters
+    }
+    Set-Item Function:Test-Path -Value {param([string]$LiteralPath,[string]$Path,[string]$PathType)
+        if($LiteralPath-eq$virtualRuntime){return $true}
+        $parameters=@{};if($LiteralPath){$parameters.LiteralPath=$LiteralPath}else{$parameters.Path=$Path};if($PathType){$parameters.PathType=$PathType}
+        Microsoft.PowerShell.Management\Test-Path @parameters
+    }
+    Set-Item Function:Get-ScheduledTask -Value {param($TaskName,$TaskPath,$ErrorAction) $global:WS027DailyMock.registered}
+    Set-Item Function:New-ScheduledTaskAction -Value {param($Execute,$Argument) [pscustomobject]@{Execute=$Execute;Arguments=$Argument}}
+    Set-Item Function:New-ScheduledTaskTrigger -Value {param([switch]$Daily,$At) [pscustomobject]@{Daily=[bool]$Daily;At=$At}}
+    Set-Item Function:New-ScheduledTaskSettingsSet -Value {param([switch]$StartWhenAvailable,$MultipleInstances,$ExecutionTimeLimit) [pscustomobject]@{StartWhenAvailable=[bool]$StartWhenAvailable;MultipleInstances=$MultipleInstances;ExecutionTimeLimit=$ExecutionTimeLimit}}
+    Set-Item Function:New-ScheduledTaskPrincipal -Value {param($UserId,$LogonType,$RunLevel) [pscustomobject]@{UserId=$UserId;LogonType=$LogonType;RunLevel=$RunLevel}}
+    Set-Item Function:Register-ScheduledTask -Value {param($TaskName,$TaskPath,$Description,$Action,$Trigger,$Settings,$Principal,[switch]$Force)
+        $global:WS027DailyMock.registrations++;$global:WS027DailyMock.forceValues+=([bool]$Force)
+        $global:WS027DailyMock.registered=[pscustomobject]@{TaskName=$TaskName;TaskPath=$TaskPath;Description=$Description;Actions=@($Action);Triggers=@($Trigger);Settings=$Settings;Principal=$Principal};$global:WS027DailyMock.registered
+    }
+    # The real candidate refuses installation from this disposable fixture. Registration mocks
+    # below use one explicit scratch-only durability seam; original bytes are restored before
+    # the captured action executes. This is configuration proof, never runtime admission.
+    $originalBackup=[IO.File]::ReadAllText($backup)
+    $actualInstallRefused=$false
+    try{& $backup -Destination $destination -Package -Install -RecoveryInputs $map -DataRoot $data -TemporaryRoot $managed -RuntimePath $virtualRuntime -ExecutionLimitMinutes 10}catch{$actualInstallRefused=$_.Exception.Message-match'BACKUP_INSTALL_DURABLE_INPUT_REQUIRED'}
+    Assert-Focused 'actual candidate refuses disposable installed script/map/data before registration' ($actualInstallRefused-and$global:WS027DailyMock.registrations-eq0)
+    $durableAnchor='foreach($durable in $PSCommandPath,$RecoveryInputs,$DataRoot)'
+    if(!$originalBackup.Contains($durableAnchor)){throw 'DURABILITY_SEAM_STALE'}
+    [IO.File]::WriteAllText($backup,$originalBackup.Replace($durableAnchor,'foreach($durable in @())'))
+    Set-Item Function:Get-ScheduledTaskInfo -Value {param($TaskName,$TaskPath,$ErrorAction)
+        if($global:WS027DailyMock.infoUnavailable){throw 'synthetic task info unavailable'}
+        [pscustomobject]@{LastRunTime=[datetime]'2026-10-30T23:00:00Z';LastTaskResult=2147942402;NextRunTime=[datetime]'2026-10-31T03:17:00Z'}
+    }
+    $installArguments=@{Destination=$destination;Package=$true;Install=$true;RecoveryInputs=$map;DataRoot=$data;TemporaryRoot=$managed;RuntimePath=$virtualRuntime;ExecutionLimitMinutes=10;DailyAt='03:17'}
+    $before=$global:WS027DailyMock.registrations;$missingRefused=$false
+    try{& $backup -Destination $destination -Install}catch{$missingRefused=$_.Exception.Message-match'BACKUP_INSTALL_EXPLICIT_ARGUMENTS_REQUIRED'}
+    Assert-Focused 'installation requires explicit arguments, no registration' ($missingRefused-and$global:WS027DailyMock.registrations-eq$before)
+    & $backup @installArguments
+    $ownedTask=$global:WS027DailyMock.registered|ConvertTo-Json -Depth 10|ConvertFrom-Json
+    Assert-Focused 'mock registration is daily, limited interactive user, IgnoreNew, explicit ten-minute fixture limit' ($ownedTask.Triggers[0].Daily-and$ownedTask.Triggers[0].At.ToString('HH:mm')-eq'03:17'-and$ownedTask.Settings.MultipleInstances-eq'IgnoreNew'-and$ownedTask.Principal.LogonType-eq'Interactive'-and$ownedTask.Principal.RunLevel-eq'Limited'-and$ownedTask.Settings.ExecutionTimeLimit.TotalMinutes-eq10-and!$global:WS027DailyMock.forceValues[0])
+    $encoded=($ownedTask.Actions[0].Arguments-split' ')[-1];$decoded=[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($encoded))
+    [IO.File]::WriteAllText((Join-Path $dailyEvidence 'mock-action-command.txt'),$decoded)
+    $ownedTask|ConvertTo-Json -Depth 10|Set-Content (Join-Path $dailyEvidence 'mock-registration.json')
+    Assert-Focused 'action preserves literal apostrophe, space, Unicode and metacharacter paths' ($decoded.Contains($destination.Replace("'","''"))-and$decoded.Contains($map.Replace("'","''"))-and$decoded.Contains($backup.Replace("'","''")))
+    & $backup @installArguments
+    Assert-Focused 'exact owned reinstall alone permits Force' ($global:WS027DailyMock.registrations-eq2-and$global:WS027DailyMock.forceValues[1])
+    $currentUser=[Security.Principal.WindowsIdentity]::GetCurrent()
+    foreach($sameUser in @($currentUser.Name,($currentUser.Name-split'\\')[-1],$currentUser.User.Value)){
+        $global:WS027DailyMock.registered=$ownedTask|ConvertTo-Json -Depth 10|ConvertFrom-Json
+        $global:WS027DailyMock.registered.Principal.UserId=$sameUser
+        $before=$global:WS027DailyMock.registrations
+        & $backup @installArguments
+        Assert-Focused ('same-user representation permits owned reinstall '+$sameUser) ($global:WS027DailyMock.registrations-eq($before+1)-and$global:WS027DailyMock.forceValues[-1])
+        $global:WS027DailyMock.registered.Principal.UserId=$sameUser
+        $sameStatus=(& $backup -Destination $destination -Status)|ConvertFrom-Json
+        Assert-Focused ('same-user representation permits status readback '+$sameUser) ($sameStatus.scheduler.state-eq'READBACK_ONLY'-and$sameStatus.scheduler.lastTaskResult-eq2147942402-and!$sameStatus.scheduler.configurationVerified)
+    }
+    foreach($foreignUser in @('S-1-5-18','WS027-no-such-local-user','S-1-invalid','')){
+        $global:WS027DailyMock.registered=$ownedTask|ConvertTo-Json -Depth 10|ConvertFrom-Json
+        $global:WS027DailyMock.registered.Principal.UserId=$foreignUser
+        $before=$global:WS027DailyMock.registrations;$identityRefused=$false
+        try{& $backup @installArguments}catch{$identityRefused=$_.Exception.Message-eq'BACKUP_TASK_OWNERSHIP_COLLISION'}
+        Assert-Focused ('foreign or unresolvable principal refuses reinstall '+$foreignUser) ($identityRefused-and$global:WS027DailyMock.registrations-eq$before)
+        $foreignUserStatus=(& $backup -Destination $destination -Status)|ConvertFrom-Json
+        Assert-Focused ('foreign or unresolvable principal refuses status attribution '+$foreignUser) ($foreignUserStatus.scheduler.state-eq'OWNERSHIP_COLLISION'-and$null-eq$foreignUserStatus.scheduler.lastTaskResult)
+    }
+    Set-Item Function:Get-ScheduledTask -Value {param($TaskName,$TaskPath,$ErrorAction) throw [UnauthorizedAccessException]::new('synthetic access denied')}
+    $before=$global:WS027DailyMock.registrations;$accessRefused=$false
+    try{& $backup @installArguments}catch{$accessRefused=$_.Exception.Message-eq'synthetic access denied'}
+    Assert-Focused 'task access denied never falls back to registration' ($accessRefused-and$global:WS027DailyMock.registrations-eq$before)
+    $accessStatus=(& $backup -Destination $destination -Status)|ConvertFrom-Json
+    Assert-Focused 'task access denied reports unavailable without result' ($accessStatus.scheduler.state-eq'UNAVAILABLE'-and$null-eq$accessStatus.scheduler.lastTaskResult)
+    Set-Item Function:Get-ScheduledTask -Value {param($TaskName,$TaskPath,$ErrorAction) $global:WS027DailyMock.registered}
+    foreach($collision in 'description','principal','action'){
+        $global:WS027DailyMock.registered=$ownedTask|ConvertTo-Json -Depth 10|ConvertFrom-Json
+        switch($collision){description{$global:WS027DailyMock.registered.Description='unrelated task'}principal{$global:WS027DailyMock.registered.Principal.UserId='unrelated user'}action{$global:WS027DailyMock.registered.Actions[0].Arguments='unrelated arguments'}}
+        $before=$global:WS027DailyMock.registrations;$collisionRefused=$false
+        try{& $backup @installArguments}catch{$collisionRefused=$_.Exception.Message-match'BACKUP_TASK_OWNERSHIP_COLLISION'}
+        Assert-Focused ('mock '+$collision+' collision refuses replacement') ($collisionRefused-and$global:WS027DailyMock.registrations-eq$before)
+    }
+    [IO.File]::WriteAllText($backup,$originalBackup)
+    $global:WS027DailyMock.registered=$ownedTask
+    $emptyStatus=(& $backup -Destination $destination -Status)|ConvertFrom-Json
+    Assert-Focused 'status separates absent application record from newer Scheduler launcher failure' ($emptyStatus.applicationState-eq'NEVER_RECORDED'-and$null-eq$emptyStatus.application-and$emptyStatus.scheduler.state-eq'READBACK_ONLY'-and$emptyStatus.scheduler.lastTaskResult-eq2147942402-and!$emptyStatus.scheduler.configurationVerified)
+    $global:WS027DailyMock.registered.Description='foreign description'
+    $foreignStatus=(& $backup -Destination $destination -Status)|ConvertFrom-Json
+    Assert-Focused 'status refuses attributing foreign task info to backup' ($foreignStatus.scheduler.state-eq'OWNERSHIP_COLLISION'-and$null-eq$foreignStatus.scheduler.lastTaskResult)
+    $global:WS027DailyMock.registered=$ownedTask|ConvertTo-Json -Depth 10|ConvertFrom-Json
+    # The ownedTask object was mutated by reference above; reset its known description.
+    $global:WS027DailyMock.registered.Description='ORVION Backup v1 | '+[Security.Principal.WindowsIdentity]::GetCurrent().Name+' | '+$backup+' | '+$destination
+    # Direct native invocation of the exact captured action arguments; virtual executable replaced
+    # by supplied 7.6.8 solely for this synthetic proof. This is NOT a scheduled run/runtime proof.
+    $actionArguments=@('-NoProfile','-NonInteractive','-WindowStyle','Hidden','-EncodedCommand',$encoded)
+    $success=Invoke-FocusedProcess 'action-success' $actionArguments
+    $status=Read-FocusedStatus;$verified=$status.lastVerified;$verifiedJson=$verified|ConvertTo-Json -Compress
+    Assert-Focused 'native captured action publishes verified package and SUCCESS status' ($success.code-eq0-and$status.result-eq'SUCCESS'-and$verified.archive-and(Test-Path -LiteralPath $verified.archive)-and$success.text.Contains('PACKAGE:')) $success.text
+    $visible=(& $backup -Destination $destination -Status)|ConvertFrom-Json
+    Assert-Focused 'persisted SUCCESS remains explicitly separate from Scheduler failure' ($visible.application.result-eq'SUCCESS'-and$visible.scheduler.lastTaskResult-eq2147942402-and$visible.interpretation.Contains('last persisted attempt only'))
+    $global:WS027DailyMock|Add-Member -NotePropertyName infoUnavailable -NotePropertyValue $true
+    $unavailable=(& $backup -Destination $destination -Status)|ConvertFrom-Json
+    Assert-Focused 'unavailable TaskInfo cannot promote stale application success to Scheduler success' ($unavailable.application.result-eq'SUCCESS'-and$unavailable.scheduler.state-eq'UNAVAILABLE'-and$null-eq$unavailable.scheduler.lastTaskResult)
+    $global:WS027DailyMock.infoUnavailable=$false
+    $originalArchiveHash=(Get-FileHash -LiteralPath $verified.archive).Hash
+    Assert-Focused 'independent archive hash equals sidecar and lastVerified' ($originalArchiveHash-ceq$verified.sha256-and[IO.File]::ReadAllText($verified.archive+'.sha256').Trim()-ceq($originalArchiveHash+' *'+[IO.Path]::GetFileName($verified.archive)))
+    $zip=(Get-Command 7z -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1).Source;if(!$zip){$zip=Join-Path $env:ProgramFiles '7-Zip/7z.exe'}
+    $zipOutput=@(& $zip t $verified.archive 2>&1);$zipExit=$LASTEXITCODE
+    [IO.File]::WriteAllText((Join-Path $dailyEvidence 'independent-7z.txt'),($zipOutput-join"`n")+"`nEXIT $zipExit")
+    Assert-Focused 'real 7z independently verifies published archive' ($zipExit-eq0)
+    $restoreTarget=Join-Path $fixture 'restored'
+    $restore=Invoke-FocusedProcess 'focused-restore' @('-NoProfile','-NonInteractive','-File',(Join-Path $probe 'Restore-Workspace.ps1'),'-Package',$verified.archive,'-Target',$restoreTarget,'-ClaudeHome',(Join-Path $fixture 'restored-claude'),'-CodexHome',(Join-Path $fixture 'restored-codex'))
+    $restoredProof=Join-Path $restoreTarget 'ORVION-Owner-Tools/records/recovery-inputs/required-proof'
+    Assert-Focused 'focused scratch restore preserves proof and Workbench HEAD' ($restore.code-eq0-and(Get-FileHash -LiteralPath $restoredProof).Hash-ceq$proofHash-and(Invoke-FixtureGit (Join-Path $restoreTarget 'ORVION-Workbench') @('rev-parse','HEAD'))-ceq(Invoke-FixtureGit $wb @('rev-parse','HEAD'))) $restore.text
+    $statusPath=$destination+'.status/latest.json';$statusBefore=[IO.File]::ReadAllBytes($statusPath)
+    $held=[IO.File]::Open(($destination+'.status/operation.lock'),'Open','ReadWrite','None')
+    try{$busy=Invoke-FocusedProcess 'action-busy' $actionArguments}finally{$held.Dispose()}
+    Assert-Focused 'manual-held destination lease refuses independent action without status overwrite' ($busy.code-ne0-and$busy.text.Contains('BACKUP_BUSY')-and[Convert]::ToBase64String($statusBefore)-ceq[Convert]::ToBase64String([IO.File]::ReadAllBytes($statusPath)))
+    $heldStatus=[IO.File]::Open($statusPath,'Open','Read','Read')
+    try{$writeFailed=Invoke-FocusedProcess 'action-status-write-failure' $actionArguments}finally{$heldStatus.Dispose()}
+    Assert-Focused 'atomic status replacement failure preserves previous record and verified pointer' ($writeFailed.code-ne0-and$writeFailed.text.Contains('BACKUP_STATUS_WRITE_FAILED')-and[Convert]::ToBase64String($statusBefore)-ceq[Convert]::ToBase64String([IO.File]::ReadAllBytes($statusPath)))
+    $launcher=Join-Path $destination 'Restore-ORVION.ps1';$launcherHash=(Get-FileHash -LiteralPath $launcher).Hash
+    $heldLauncher=[IO.File]::Open($launcher,'Open','Read','Read')
+    try{$publication=Invoke-FocusedProcess 'action-launcher-failure' $actionArguments}finally{$heldLauncher.Dispose()}
+    $failedStatus=Read-FocusedStatus
+    Assert-Focused 'launcher publication failure retains lastVerified and original archive; new archive has no success sidecar' ($publication.code-ne0-and$failedStatus.result-eq'FAILURE'-and($failedStatus.lastVerified|ConvertTo-Json -Compress)-ceq$verifiedJson-and(Get-FileHash -LiteralPath $verified.archive).Hash-ceq$originalArchiveHash-and(Get-FileHash -LiteralPath $launcher).Hash-ceq$launcherHash-and@(Get-ChildItem -LiteralPath $destination -Filter '*.sha256').Count-eq1) $publication.text
+    [IO.File]::WriteAllText($proof,'controlled changed proof')
+    $refusal=Invoke-FocusedProcess 'action-proof-refusal' $actionArguments;$failedStatus=Read-FocusedStatus
+    Assert-Focused 'changed required proof gives nonzero failure, sanitized cause and unchanged lastVerified' ($refusal.code-ne0-and$failedStatus.result-eq'FAILURE'-and$failedStatus.errorCode-eq'BACKUP_RECOVERY_INPUT_REQUIRED_OR_CHANGED'-and($failedStatus.lastVerified|ConvertTo-Json -Compress)-ceq$verifiedJson-and(Get-FileHash -LiteralPath $verified.archive).Hash-ceq$originalArchiveHash-and!$refusal.text.Contains('PACKAGE:')) $refusal.text
+    [IO.File]::WriteAllBytes($proof,$proofBytes)
+    $running=Start-FocusedProcess 'action-interrupted' $actionArguments;$observedRunning=$false;$wait=[Diagnostics.Stopwatch]::StartNew()
+    while(!$running.child.HasExited-and$wait.Elapsed.TotalSeconds-lt15){
+        $active=Read-FocusedStatus;if($active.result-eq'RUNNING'-and$active.runId-ne$failedStatus.runId){$observedRunning=$true;break};Start-Sleep -Milliseconds 25
+    }
+    if(!$running.child.HasExited){$running.child.Kill($true);$running.child.WaitForExit()}
+    $interrupted=Complete-FocusedProcess $running
+    $interruptedStatus=Read-FocusedStatus
+    Assert-Focused 'hard termination leaves distinguishable RUNNING status and prior verified pointer' ($observedRunning-and$interrupted.code-ne0-and$interruptedStatus.result-eq'RUNNING'-and($interruptedStatus.lastVerified|ConvertTo-Json -Compress)-ceq$verifiedJson)
+    [IO.File]::WriteAllText($proof,'controlled changed proof after interruption')
+    $afterKill=Invoke-FocusedProcess 'action-after-interruption' $actionArguments
+    Assert-Focused 'abandoned file does not block new owner; controlled refusal updates status' ($afterKill.code-ne0-and(Read-FocusedStatus).errorCode-eq'BACKUP_RECOVERY_INPUT_REQUIRED_OR_CHANGED'-and!$afterKill.text.Contains('BACKUP_BUSY'))
+    [IO.File]::WriteAllText((Join-Path $data '.git'),'synthetic forbidden data-root metadata')
+    $preamble=Invoke-FocusedProcess 'action-preamble-refusal' $actionArguments;$failedStatus=Read-FocusedStatus
+    Assert-Focused 'original preamble data-root refusal is visible with retained lastVerified' ($preamble.code-ne0-and$failedStatus.result-eq'FAILURE'-and$failedStatus.errorCode-eq'BACKUP_DATA_ROOT_GIT_REFUSED'-and($failedStatus.lastVerified|ConvertTo-Json -Compress)-ceq$verifiedJson)
+    $overlapDestination=Join-Path $data 'unsafe-output'
+    $overlap=Invoke-FocusedProcess 'action-overlap-refusal' @('-NoProfile','-NonInteractive','-File',$backup,'-Destination',$overlapDestination,'-RecoveryInputs',$map,'-Package')
+    Assert-Focused 'output within copied data refuses before unsafe output or status writes' ($overlap.code-ne0-and$overlap.text.Contains('BACKUP_OUTPUT_SOURCE_OVERLAP')-and!(Test-Path -LiteralPath $overlapDestination)-and!(Test-Path -LiteralPath ($overlapDestination+'.status')))
+    [ordered]@{files=$fixtureFiles;bytes=$fixtureBytes;packageBytes=(Get-Item -LiteralPath $verified.archive).Length;successfulBackupSeconds=$success.duration;reportedBackupSeconds=$status.elapsedSeconds;fixtureLimitMinutes=10;productionLimit='NOT_YET_PROVEN';actualScheduledSuccess='NOT_YET_PROVEN';actualScheduledRefusal='NOT_YET_PROVEN'}|ConvertTo-Json|Set-Content (Join-Path $dailyEvidence 'measurements.json')
+    'FOCUSED PASS '+$script:cases.Count
+}finally{Save-FocusedEvidence}
+
+}
+Invoke-DailyBackupChecks
+if($DailyBackupOnly){return}
 $ErrorActionPreference='Stop'
 $zip=(Get-Command 7z -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1).Source;if(!$zip){$zip=Join-Path $env:ProgramFiles '7-Zip\7z.exe'}
 if(!(Test-Path -LiteralPath $zip)){throw 'BACKUP_RESTORE_SELFCHECK_7ZIP_REQUIRED: package self-checks require 7z'}

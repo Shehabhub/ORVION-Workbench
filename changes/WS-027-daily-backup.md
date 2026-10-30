@@ -806,7 +806,7 @@ All entries remain unchecked for native delivery. V3 preparation observations in
 
 ## Runtime Checkpoint
 
-Resume Step: 1
+Resume Step: DONE
 Blocker: None
 Recovery Attempt: 0
 
@@ -822,6 +822,7 @@ Owner Evidence SHA256: 1C2E3D654FC044D3BE09B0A4DF4583F9542A63A60948CBCA3BD4675B1
 Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
 Sandbox Receipt: C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools\records\WS-027\package\runtime\sandbox\own-finish-receipt.json
 Sandbox Receipt SHA256: C69708556DD71517370406CB5E3FE289C92215676CC61C26ABB03C769DFE7911
+Original exact six declared outputs applied by accepted native Execute; fresh own Finish and independent Review/Complete remain required. Other protected roots unchanged; prior failed attempts retained.
 
 ## Verification Notes
 

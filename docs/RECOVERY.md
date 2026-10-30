@@ -1,9 +1,9 @@
 # Workbench recovery: before and after reinstalling Windows
 
-Updated 2026-10-27. [Workspace layout](WORKSPACE-LAYOUT.md) owns the source/private/disposable boundary.
+Updated 2026-10-30 (WS027 V3 candidate, not installed approval). [Workspace layout](WORKSPACE-LAYOUT.md) owns the source/private/disposable boundary.
 
 Owner procedure. GitHub alone does not restore this workstation: sessions, the event journal, ignored receipts,
-approvals, evidence, unique sandbox commits and Claude memory exist only locally. They travel in ONE compressed package
+approvals, evidence and Claude memory exist only locally. The selected coverage below travels in ONE compressed package
 made by `lib\Backup-Workspace.ps1 -Package` and restored by `lib\Restore-Workspace.ps1 -Package`. Credential stores
 (gh/Supabase/Claude/Codex logins, Windows Credential Manager) are deliberately not packaged; this file says how each is
 recovered.
@@ -21,8 +21,8 @@ not into this folder. Never put the package or its scan in a Git repository.
 | --- | --- |
 | Every ref of CRM, ORVION, both trusted clones, ORVION-Workbench and its trusted clone (bundles), their ignored receipts and safe local git config | Credential stores and logins (re-login, below) |
 | One private data root resolved as documented in [lib/README.md](../lib/README.md): records, sessions, events and protected working evidence | Disposable temporary tree: rebuild clones, fixtures, scratch and tools |
-| Reviewed retained legacy inputs and Windows-Memory-Config; historical source locations below | node_modules (reinstalled from lockfiles) |
-| Per nested clone: its ignored files in place, `.clone-state\unique.bundle` (HEAD and every tip the main bundles lack), `staged.diff`, `worktree.diff`, `untracked\` | Claude/Codex program files, plugins, other projects' transcripts |
+| Explicit reviewed recovery-input files with approved hashes; no automatic inclusion of former legacy directories | node_modules (reinstalled from lockfiles), former legacy directories unless explicitly inventoried |
+| Required evidence retained in the data root or declared as recovery inputs | Disposable nested clones, their ignored/uncommitted files and unique refs not preserved elsewhere; Claude/Codex program files and plugins |
 | Claude settings, statusline and ORVION project memory; Codex config.toml (URL passwords masked); declared recovery inputs (owner approvals, sealed proofs) | Everything outside the folders listed on the left |
 
 The package refuses (no archive) rather than lose state a bundle cannot carry: uncommitted work, more than one stash or
@@ -42,7 +42,7 @@ the folders above. Copy what you need separately before reinstalling.
    `pwsh -NoProfile -File "C:\Users\My Lab\Documents\GitHub\ORVION-Workbench\lib\Backup-Workspace.ps1" -Destination "C:\Users\My Lab\OneDrive\ORVION-Recovery" -RecoveryInputs "<reviewed map>" -Package`
    Keep the archive, its `.sha256` and both `Restore-ORVION` launcher files together. Record the `PACKAGE:` line
    (path, size, SHA256) and read the `SECRET SCAN:` report (see above). If a run is
-   interrupted, inspect its owned staging under the managed temporary root before removing it. Keep the newest two or three packages; retire older copies only after required evidence/retention checks.
+   interrupted, inspect its owned staging under the managed temporary root. Retain verified packages; there is no automatic pruning. Disposal needs separate owning authority and retention checks.
 2. Prove the cloud copy, not the sync icon: wait until OneDrive is idle, free the local copy
    (`attrib +U -P "<archive>"`, Files On-Demand), read it again so OneDrive downloads it, and compare `Get-FileHash`
    with the `PACKAGE:` line. Alternatively download it from onedrive.live.com on another device.
@@ -94,7 +94,7 @@ Use `<Target>\ORVION-Owner-Tools` as the data root; repair/unset an old `ORVION_
 
 Rebuild disposable storage with `pwsh -NoProfile -File <Target>\ORVION-Workbench\lib\Restore-Workspace.ps1 -Temporary -Target <Target>`. This narrow route needs no package or private journal and provisions the verified pinned `<Target>\ORVION-Workbench-temporary\tools\actionlint.exe`; it refuses corrupt existing bytes. Actionlint is required for owning workflow checks, not an optional global install. Set WORKBENCH_ACTIONLINT to that executable for focused tests.
 
-The launcher invokes both the narrow -Temporary rebuild and Map-Repos -Install after restore. The latter restores the hourly/logon refresh task and regenerates ai-map.html/json, the named source-root exceptions. Use the explicit commands above for manual fallback or an owning failed-step recovery. A restored task or map is discovery evidence, never certification.
+The launcher invokes both the narrow -Temporary rebuild and Map-Repos -Install after restore. The latter registers the hourly/logon refresh task and returns without generating ai-map.html/json. Run `pwsh -NoProfile -File <Target>\ORVION-Workbench\lib\Map-Repos.ps1 -GitHub <Target>` explicitly when immediate map generation is required. Those outputs are named source-root exceptions. Use the explicit commands above for manual fallback or an owning failed-step recovery. A restored task or map is discovery evidence, never certification. The daily backup task needs its own explicit registration below.
 
 Run `pwsh -NoProfile -File scripts\check_agent_continuity.ps1 -Boot` in CRM and ORVION: both must print `ORVION: READY`.
 Run `pwsh -NoProfile -File lib\Workbench.ps1 -Boot` in Workbench: require `WORKBENCH: READY`.
@@ -117,16 +117,100 @@ Use new empty paths; restore never overwrites repositories. Retain staging for r
 `workstation.cmd`, and complete the same checklist above. Use the -Temporary route above for required pinned actionlint. Session archive error acknowledgement remains documented in
 [lib/README.md](../lib/README.md) (keep its acknowledgement archive and journal).
 
-Rebuild a nested clone only when needed: clone its `.clone-state\state.json` origin (or the restored main repository
+Historical packages only: if an older package actually contains `.clone-state` evidence, rebuild a nested clone only when needed from its `.clone-state\state.json` origin (or the restored main repository
 if that origin is gone). If `unique.bundle` needs prerequisites, fetch the restored main repositories first:
 `git fetch <Target>\<name> '+refs/*:refs/main-<name>/*'`. Then `git fetch <unique.bundle> '+refs/*:refs/restored/*'`,
 plus `git fetch <unique.bundle> HEAD` only if `git bundle list-heads <unique.bundle>` lists HEAD. Check out the recorded
 HEAD, run `git apply --index staged.diff` and `git apply worktree.diff` where present, and copy `untracked\` and the
 restored ignored files back. Keep a sandbox's push disabled: `git remote set-url --push origin DISABLED`.
 
+## Daily backup opt-in and observation
+
+WS027 V3 extends the existing engine with explicit `-Install`; an ordinary backup does not register or start a task.
+After exact native admission, supply reviewed absolute paths in this interface (angle-bracket values are operator inputs, not executable examples):
+
+`pwsh -NoProfile -File <durable-checkout>\lib\Backup-Workspace.ps1 -Install -Package -Destination <folder> -RecoveryInputs <map.json> -DataRoot <data-root> -TemporaryRoot <managed-temporary> -RuntimePath <installed-pwsh.exe> -ExecutionLimitMinutes <measured-limit> -DailyAt 02:00`
+
+The destination must be an absolute child folder, never a volume/share root. An existing USB child folder such as
+`E:\ORVION-Recovery\` remains valid; root refusal avoids drive-relative normalization and a status folder inside the output.
+The ancestor metadata walk refuses PowerShell LinkType Junction or SymbolicLink. A ReparsePoint flag with null LinkType,
+as in the supplied approved OneDrive metadata, is allowed. This does not prove other reparse tags safe, resolve all
+namespace/volume aliases, prevent path changes between checks and use, or prove cloud hydration/access/atomicity.
+Output/status must not overlap copied sources or the recovery map. The task is daily, StartWhenAvailable, IgnoreNew, interactive current user, limited
+privilege. Logged-out execution, missed-trigger behavior and actual ScheduledTasks/runtime compatibility are
+NOT_YET_PROVEN. No password, elevation, runtime installation, task execution or automatic deletion is added.
+One shared OS file handle excludes manual and scheduled publishers at the destination. An abandoned
+`<destination>.status/operation.lock` file is not an active lease; do not remove a live publisher's lock.
+
+Read `Backup-Workspace.ps1 -Destination <folder> -Status`. The JSON envelope separates `applicationState` and
+`application` from `scheduler`. Application bytes come from `<destination>.status/latest.json`: attempt runId,
+UTC start/end, duration, RUNNING/SUCCESS/FAILURE, sanitized errorCode, and lastVerified package path/hash/runId/map
+reference. This is the last persisted application attempt, never a claim about the latest Scheduler outcome.
+Binding, root/overlap/reparse preflight and install refusals may occur without a record. Hard termination can leave
+RUNNING; status-write failure can leave prior bytes. NEVER_RECORDED and UNREADABLE are explicit observations.
+
+The Scheduler section reads only the destination-derived task name at `\`, checks description/account/principal,
+then reads Get-ScheduledTaskInfo's LastRunTime, LastTaskResult and NextRunTime. READBACK_ONLY is observation,
+not complete action/configuration verification; `configurationVerified` remains false. Foreign identity yields
+OWNERSHIP_COLLISION; absent/unavailable module/task/info yields UNAVAILABLE, not success. Correlate timestamps,
+task/action/account and application runId during actual proof. A newer launch/preflight failure must not be described
+as a fresh success because an older application SUCCESS exists. Scheduler exit zero alone does not verify an archive.
+
+For installation ownership and status attribution, Windows resolves short or qualified account names to a SID;
+a reported SID is parsed directly. Only the current Windows user's SID matches. Foreign, empty, malformed or
+unresolvable identities refuse ownership; lookup/access failure grants no fallback. Description, limited interactive
+principal and one-action checks remain, with exact executable/arguments required for replacement.
+
+lastVerified advances only after archive test/hash, staging cleanup, launcher copies and hash-sidecar publication.
+A successful directory backup does not advance it. Refusal, partial publication and interruption retain the previous
+verified pointer and archive. Scanner findings/failure/skipping do not block successful publication or pointer advancement;
+previous archives remain retained. Status replacement is one same-directory
+move; local failure preservation is tested, cloud/remote atomicity and crash durability are unproven. Failed pending
+records/partial archives can remain for inspection. Nothing prunes archives. Scan findings,
+failure or skipping are report-only; Git history inside bundles is outside scan coverage. Concurrent source changes
+are possible: this is not a coherent snapshot. Shared restore launchers and second-resolution archive-name refusal
+remain engine limitations. Candidate C launcher's staging retention above is unchanged and separate.
+
+### Durable recovery inputs and runtime
+
+The owner/reviewer supplies and approves the map; no script generates approval by recomputing changed hashes.
+Keep it and its input files in durable owner-selected private records, for example
+`<data-root>/records/recovery-inputs-approved/map.json`, outside disposable tools/fixtures. Schema 1 is
+`{"schema":1,"inputs":[{"name":"required-proof","path":"C:\\durable\\proof.json","sha256":"<64 uppercase hexadecimal characters>"}]}`.
+Inputs must be a nonempty array with unique lowercase names matching `[a-z][a-z0-9-]{0,47}`, absolute file paths and
+approved uppercase SHA256. Record each entry's producer, purpose, durable original location, map location and approved
+map/file hashes in the owning reviewed inventory. Existing receipt and journal requirements still apply. The engine
+checks original and copied bytes; it refuses missing/changed inputs. The map path in status is only a reference.
+Restore puts approved files at `<Target>/ORVION-Owner-Tools/records/recovery-inputs/<name>` and the source inventory
+in that directory's source-map.json (or a hash-suffixed source map when retaining an earlier map). Review recovered
+paths and explicitly author/approve a durable map for the new configuration; old physical paths are historical.
+
+Use an existing supported installed absolute pwsh.exe, a durable Workbench checkout, durable data root and map.
+Installation refuses runtime/script/map/data under ORVION-Workbench-temporary or the supplied temporary root and
+refuses output/input overlap. These bounded lexical/reparse checks do not detect every alias or guarantee future
+availability. Approved input files' individual durability remains an inventory/proof obligation. Portable 7.6.8 is a
+test dependency only. Installed Store 7.6.9 is a possible runtime only after its exact path/version/account access,
+module loading, encoded action and readback are actually proven. No tool-tree copy or installation is implied.
+Changed runtime/action paths intentionally fail exact ownership matching on reinstall. Inspect the exact task,
+description/account/action/destination, then use its admitted owning lifecycle to remove only the verified owned
+registration and explicitly re-register/re-prove reviewed inputs. Never replace a foreign task. No removal is done here.
+
+### Required execution proof
+
+Actual scheduled success, scheduled controlled refusal, durable installed runtime and production execution limit:
+NOT_YET_PROVEN. Synthetic direct-action/mock results are feasibility only. Before each owning live native Review/Complete,
+measure a complete representative run including packaging, verification, staging cleanup and publication, choose
+headroom against the real workload, and read back the selected execution limit. A fixture duration cannot bound the
+owner workspace. After exact admission let an owned near-term trigger actually fire success and then a controlled
+refusal, capture correlated Scheduler/application results, and independently verify/hash/restore the successful package
+and prove refusal preserves it. Inspect the daily definition separately. Direct invocation/manual task start/mock
+registration cannot substitute. Sandbox proof covers synthetic roots; original durable configuration and representative
+workload need their own Gate and root-bound receipt before original Review/Complete. Full native gates and the two
+independent fresh same-candidate reviews remain mandatory. No clean-machine or cloud recovery proof is claimed.
+
 ## Not yet proven
 
-The separate USB route remains available: Backup-Workspace -Destination <drive> requires an encrypted drive and reports a dirty checkout (uncommitted work is not in a bundle). Enable BitLocker To Go before that route. Restore-Workspace -From <backup> verifies every manifest hash before writes, never overwrites, and restores refs/HEAD, safe local configuration and bound records. Re-login to both GitHub accounts and run each owning Boot afterward. The earlier backup/restore fixture proved identical refs, bytes and expected Boots, plus corrupt/existing-target refusals; that simulated proof never established clean-Windows recovery. System-drive BitLocker remains an owner choice, distinct from the unencrypted package decision.
+The separate USB route remains available: Backup-Workspace -Destination <absolute USB child folder> requires an encrypted drive and reports a dirty checkout (uncommitted work is not in a bundle). Enable BitLocker To Go before that route. Restore-Workspace -From <backup> verifies every manifest hash before writes, never overwrites, and restores refs/HEAD, safe local configuration and bound records. Re-login to both GitHub accounts and run each owning Boot afterward. The earlier backup/restore fixture proved identical refs, bytes and expected Boots, plus corrupt/existing-target refusals; that simulated proof never established clean-Windows recovery. System-drive BitLocker remains an owner choice, distinct from the unencrypted package decision.
 
 - Recovery on a clean Windows installation, including the launcher's tool installs: accepted as residual risk by the owner on 2026-10-27.
 - Confidentiality of the package: it is unencrypted by owner decision; it is as private as the OneDrive account.
