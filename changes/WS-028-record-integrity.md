@@ -574,7 +574,7 @@ Operational buffer: 5 GB physical / 8 GB commit before any own Finish. Preparati
 
 ## Runtime Checkpoint
 
-Resume Step: 1
+Resume Step: DONE
 Blocker: None
 Recovery Attempt: 0
 
@@ -588,6 +588,7 @@ Owner Evidence SHA256: 969225270CF5B80C467CCC63998DD15D673F8A02B70E3E9D62CB50346
 Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
 Sandbox Receipt: C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools\records\WS-028\package\runtime\sandbox\own-finish-receipt.json
 Sandbox Receipt SHA256: 92CC6A6B5C04C9F0D4EB3A5110017DD3670C9FE304D60737C656DFB2FFF81AA3
+Original exact three declared outputs applied by accepted native Execute; fresh own Finish and independent Review/Complete remain required. Other protected roots unchanged; prior failed attempts retained.
 
 ## Verification Notes
 

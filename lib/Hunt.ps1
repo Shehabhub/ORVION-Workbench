@@ -1,9 +1,12 @@
 # The hunting dogs: bug and gap hunters for this workspace. Each hound checks something that must always hold, or
 # that must fail when broken, and reports BUG (wrong) or GAP (missing); every finding is recorded as an event
 # (source hunter) so Pulse, Events -Find and the Spider show it to the next agent, and work\hunt-last.txt keeps the
-# last result for Pulse. Read-only except that log, the events log and temp folders.
+# last result for Pulse. Read-only except that log, the events log, temp folders and, with -DeletionReadiness, its
+# report work\deletion-readiness.json.
 #   invariants  archived transcripts are still a prefix of their source; index rows match their files; event
-#               evidence paths exist; lessons whose raw session is not archived
+#               evidence paths exist; lessons whose raw session is not archived; every declared decision
+#               supersession is named on both sides (C2: declared links only, no script judges meaning)
+#   readiness   opt-in -DeletionReadiness <inputs.json>: C1 deletion/placement readiness (see Test-DeletionReadiness)
 #   live        the archiver follows while agents run; hook and Codex pointers exist; hook errors were logged
 #   versioned   tool changes not committed to the tools repo
 #   tested      every tool has a self-check that names it
@@ -11,9 +14,9 @@
 #               against broken code is a gap)
 #   capability  NEED (history shows a missing MCP server, hook or skill) and PRUNE (configured, never used) proposals
 #   lint        PSScriptAnalyzer bug-relevant rules, when installed (known false positives listed below)
-# -NoRecord suppresses events only; work\hunt-last.txt is still written in the data root.
+# -NoRecord suppresses events only; work\hunt-last.txt (and any C1 report) is still written in the data root.
 # -Quick skips mutants and lint (about 5 s instead of about 60 s).
-param([string]$Root=(Split-Path $PSScriptRoot -Parent),[switch]$Quick,[switch]$NoRecord,[object[]]$MutantSet,[string]$DataRoot=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools'}),[scriptblock]$GetMapTask={Get-ScheduledTask -TaskName 'ORVION Repository Map' -ErrorAction Stop | Get-ScheduledTaskInfo -ErrorAction Stop})  # test seams
+param([string]$Root=(Split-Path $PSScriptRoot -Parent),[switch]$Quick,[switch]$NoRecord,[object[]]$MutantSet,[string]$DecisionsPath,[string]$DeletionReadiness,[string]$DataRoot=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools'}),[scriptblock]$GetMapTask={Get-ScheduledTask -TaskName 'ORVION Repository Map' -ErrorAction Stop | Get-ScheduledTaskInfo -ErrorAction Stop})  # test seams
 $ErrorActionPreference='Stop'
 if(!$PSBoundParameters.ContainsKey('DataRoot')-and!$env:ORVION_DATA_ROOT-and!(Test-Path -LiteralPath (Join-Path $DataRoot 'events') -PathType Container)){throw 'ORVION_DATA_ROOT_UNAVAILABLE'}
 . (Join-Path $PSScriptRoot 'workspace-layout.ps1')
@@ -76,6 +79,21 @@ if($missingEv){Add-Finding GAP event-evidence "evidence path missing for: $($mis
 # a session already recorded as lost to the 30-day cleanup is a known, accepted loss, not a new gap
 $lost=@($events|Where-Object{"$($_.evidence) $($_.summary)"-match'deleted by (the )?30-day cleanup'}|ForEach-Object session)
 $orphan=@(if(!$indexIncomplete){$events|Where-Object{$_.session-and$_.session-notlike'hunter-*'-and!$ids[$_.session]-and$_.session-notin$lost}|ForEach-Object session|Select-Object -Unique})
+# C2: "Dn supersedes/amends/reopens Dm" and "Dm ... superseded/amended/revised/reopened ... by Dn" each need both
+# sections to name the other. A missing record is a GAP; an unreadable one is a BUG, never a clean result.
+# Owned here, so a caller's variables of the same name (an in-process & invocation) never reach the closure guard.
+$decisions=@{};$c1=$null
+if(!$DecisionsPath){$DecisionsPath=Join-Path $DataRoot 'records\delegation-20261026\DECISIONS.md'}
+if(!(Test-Path -LiteralPath $DecisionsPath -PathType Leaf)){Add-Finding GAP decision-record-missing "no decision record at $DecisionsPath`: supersession back-pointers unchecked" 'decision record missing supersession'}
+else{try{
+    $decisions=@{};foreach($m in [regex]::Matches([IO.File]::ReadAllText($DecisionsPath),'(?ms)^## (D\d+)\b.*?(?=^## D\d+\b|\z)')){$decisions[$m.Groups[1].Value]+=$m.Value}
+    if(!$decisions.Count){throw 'no decision headings'}
+    $unpaired=@(@(foreach($n in $decisions.Keys){
+        foreach($m in [regex]::Matches($decisions[$n],'(?i)(?<!\bD\d+\s)\b(?:supersedes|amends|reopens)\s+(D\d+)\b')){$o=$m.Groups[1].Value;if(!$decisions.ContainsKey($o)-or$decisions[$o]-notmatch"\b$n\b"){"$n->$o"}}
+        foreach($m in [regex]::Matches($decisions[$n],'(?i)\b(?:superseded|amended|revised|reopened)\b[^.;()\r\n]{0,60}?\bby\s+(D\d+)')){$o=$m.Groups[1].Value;if(!$decisions.ContainsKey($o)-or$decisions[$o]-notmatch"\b$n\b"){"$o->$n"}}
+    })|Sort-Object -Unique)
+    if($unpaired){Add-Finding BUG decision-backpointer "$($unpaired.Count) declared supersession(s) not named on both sides (newer->older): $($unpaired-join', ')" 'decision supersession back-pointer'}
+}catch{Add-Finding BUG decision-record-unreadable "decision record $DecisionsPath unreadable: $($_.Exception.Message)" 'decision record unreadable'}}
 if($orphan){Add-Finding GAP lesson-raw-missing "$($orphan.Count) session(s) behind recorded lessons are not in the archive (deleted before it existed or not yet synced): $(($orphan|ForEach-Object{$_.Substring(0,[Math]::Min(8,$_.Length))})-join', ')" 'lesson session raw missing archive'}
 
 # live
@@ -176,19 +194,126 @@ if(!$Quick){
     }else{Add-Finding GAP lint-unavailable 'PSScriptAnalyzer is not installed: Install-Module PSScriptAnalyzer -Scope CurrentUser' 'lint static analysis'}
 }
 
+# C1 deletion/placement readiness (records/audit-20261027/codex-place/AUDIT-ANSWER.md rules 1-9; rule 2 resolves only
+# absolute and Documents-relative spellings and rule 6's ambiguous current reader is not judged). Reports only: it never
+# deletes, moves or authorizes. Inputs (schema 1, every path fully qualified): deletionRoots, temporaryRoot, profileRoot,
+# live[] and historical[] (files or directories; every line, every match; a junction or symlink inside is never followed
+# and is INCOMPLETE), manifest (TSV OriginalPath,RecordPath,Bytes,SHA256; RecordPath may be relative to the manifest's
+# folder), protected[] (roots whose copies carry
+# package/cloud protection evidence), harmless[{source,line,target,reason}], acceptedBreaks[{target,decision}].
+# PASS needs zero FAIL edges and complete coverage; anything unread is INCOMPLETE.
+function Test-DeletionReadiness([string]$InputsPath){
+    $edges=[Collections.Generic.List[object]]::new();$incomplete=[Collections.Generic.List[string]]::new()
+    function Get-Full([string]$p){[IO.Path]::GetFullPath($p).TrimEnd('\')}
+    function Test-Under([string]$p,[string]$r){$p-ieq$r-or$p.StartsWith($r+'\',[StringComparison]::OrdinalIgnoreCase)}
+    try{$spec=Get-Content -LiteralPath $InputsPath -Raw -ErrorAction Stop|ConvertFrom-Json
+        if($spec.schema-ne1-or!@($spec.deletionRoots).Count-or!$spec.temporaryRoot-or!$spec.profileRoot){throw 'schema 1 with deletionRoots, temporaryRoot, profileRoot required'}
+        $roots=@($spec.deletionRoots|ForEach-Object{Get-Full $_});$temp=Get-Full $spec.temporaryRoot;$userProfile=Get-Full $spec.profileRoot
+        # A relative path has no known base (rule 2): a relative root would silently match nothing.
+        if(@(@($spec.deletionRoots)+$spec.temporaryRoot+$spec.profileRoot+@($spec.protected)+@($spec.live)+@($spec.historical)+@($spec.manifest)+@($spec.harmless|ForEach-Object source)+@($spec.acceptedBreaks|ForEach-Object target)|Where-Object{$_-and![IO.Path]::IsPathFullyQualified($_)}).Count){throw 'every input path must be fully qualified'}
+        $protected=@($spec.protected|Where-Object{$_}|ForEach-Object{Get-Full $_})
+        # A harmless declaration exempts one target on one source line, never every hit on that line.
+        $harmless=@{};foreach($h in @($spec.harmless|Where-Object{$_})){if(!$h.reason){throw 'harmless entry without reason'};$harmless["$((Get-Full $h.source).ToUpperInvariant())|$($h.line)|$((Get-Full $h.target).ToUpperInvariant())"]=$h.reason}
+        $breaks=@{};foreach($b in @($spec.acceptedBreaks|Where-Object{$_})){if(!$b.decision){throw 'accepted break without decision pointer'};$breaks[(Get-Full $b.target).ToUpperInvariant()]=$b.decision}
+    }catch{return [pscustomobject]@{outcome='INCOMPLETE';edges=@();incomplete=@("inputs ${InputsPath}: $($_.Exception.Message)")}}
+    $manifest=@{}
+    if($spec.manifest){try{foreach($row in [IO.File]::ReadAllLines($spec.manifest)){
+        if(!$row.Trim()-or$row-like'OriginalPath*'){continue};$c=$row-split"`t"
+        if($c.Count-ne4-or$c[3]-cnotmatch'^[A-F0-9]{64}$'-or![IO.Path]::IsPathFullyQualified($c[0])-or!$c[1]){throw "malformed row: $row"}
+        # A relative RecordPath has one known base, the manifest's folder; every row of an original listed twice is checked.
+        $manifest[(Get-Full $c[0]).ToUpperInvariant()]+=@([pscustomobject]@{original=Get-Full $c[0];record=[IO.Path]::GetFullPath($c[1],[IO.Path]::GetDirectoryName($spec.manifest)).TrimEnd('\');bytes=[long]$c[2];sha256=$c[3]})
+    }}catch{$incomplete.Add("manifest $($spec.manifest): $($_.Exception.Message)")}}
+    # Anchors: each absolute root plus Documents-relative spellings of roots under the profile's Documents.
+    $anchors=@(foreach($r in @($roots)+$temp){$r;$d=Join-Path $userProfile 'Documents';if(Test-Under $r $d){$r.Substring($d.Length-'Documents'.Length)}})
+    function Add-Edge($Source,$Line,$Role,$Target,$Result,$Reason){$edges.Add([pscustomobject]@{source=$Source;line=$Line;role=$Role;target=$Target;result=$Result;reason=$Reason})}
+    function Test-Copy($Source,$Line,$Role,$Target){
+        $rows=@($manifest.Values|ForEach-Object{$_}|Where-Object{Test-Under $_.original $Target})
+        if(!$rows){
+            if((Test-Under $Target $temp)-and(Test-Path -LiteralPath $Target)){Add-Edge $Source $Line $Role $Target FAIL 'exists under temporary, but required evidence has no protected copy (permanence)'}
+            else{Add-Edge $Source $Line $Role $Target FAIL 'no manifest identity for required evidence'};return}
+        foreach($row in $rows){
+            $why=$null
+            if(@($roots+$temp|Where-Object{Test-Under $row.record $_}).Count){$why='copy lies inside a deletion/temporary root (protection)'}
+            elseif(!(Test-Path -LiteralPath $row.record -PathType Leaf)){$why='manifest copy missing'}
+            elseif((Get-Item -LiteralPath $row.record).Length-ne$row.bytes-or(Get-FileHash -LiteralPath $row.record).Hash-cne$row.sha256){$why='manifest copy bytes/SHA256 differ'}
+            elseif((Test-Path -LiteralPath $row.original -PathType Leaf)-and(Get-FileHash -LiteralPath $row.original).Hash-cne$row.sha256){$why='original differs from its supposedly identical copy'}
+            elseif(!@($protected|Where-Object{Test-Under $row.record $_}).Count){$why='copy has no protection evidence (protection)'}
+            if($why){Add-Edge $Source $Line $Role $row.original FAIL $why}else{Add-Edge $Source $Line $Role $row.original PASS "protected copy $($row.record) $($row.sha256)"}
+        }
+        # A junction or symlink inside a cited directory is never followed and is an omission, as for declared inputs.
+        if((Test-Path -LiteralPath $Target -PathType Container)){foreach($f in Get-ChildItem -LiteralPath $Target -Recurse -Force){if($f.LinkType-in'Junction','SymbolicLink'){$incomplete.Add("$Role ${Source}:$Line cited $($f.FullName): $($f.LinkType) to $($f.LinkTarget) not followed")}elseif(!$f.PSIsContainer-and!$manifest.ContainsKey((Get-Full $f.FullName).ToUpperInvariant())){Add-Edge $Source $Line $Role $f.FullName FAIL 'file in cited directory has no manifest identity'}}}
+    }
+    foreach($group in @(@('LIVE',$spec.live),@('HISTORICAL',$spec.historical))){
+        $role=$group[0]
+        foreach($entry in @($group[1]|Where-Object{$_})){
+            $files=try{if(Test-Path -LiteralPath $entry -PathType Container){$items=@(Get-ChildItem -LiteralPath $entry -Recurse -Force -ErrorAction Stop)
+                    # Recursion does not enter a junction or symlink: each one is an omission, never silently complete.
+                    foreach($link in @($items|Where-Object LinkType -in 'Junction','SymbolicLink')){$incomplete.Add("$role input $($link.FullName): $($link.LinkType) to $($link.LinkTarget) not followed")}
+                    @($items|Where-Object{!$_.PSIsContainer-and$_.LinkType-notin'Junction','SymbolicLink'}|ForEach-Object FullName)}elseif(Test-Path -LiteralPath $entry -PathType Leaf){@($entry)}else{throw 'missing'}}catch{$incomplete.Add("$role input ${entry}: $($_.Exception.Message)");continue}
+            foreach($file in $files){
+                $source=Get-Full $file
+                try{$lines=[IO.File]::ReadAllLines($source)}catch{$incomplete.Add("$role input ${source}: unreadable");continue}
+                for($i=0;$i-lt$lines.Count;$i++){
+                    # JSON escapes (also nested ones), slashes, file:/// and \\?\ prefixes, MSYS //c/ drives and
+                    # $env:USERPROFILE/${env:USERPROFILE}/$HOME/$env:HOME/${HOME}/%USERPROFILE%/~ spellings.
+                    $text=$lines[$i].Replace('/','\')-replace'\\{2,}','\'-replace'(?i)\bfile:\\+(?=[a-z]:)|\\+\?\\(?=[a-z]:)',''-replace'(?<=^|[\s"''(=,;\[])\\{1,2}([A-Za-z])(?=\\)','$1:'-replace'(?i)\$\{?env:USERPROFILE\}?|%USERPROFILE%|\$\{?(?:env:)?HOME\b\}?|(?<![\w~])~(?=\\)',$userProfile.Replace('$','$$')
+                    foreach($anchor in $anchors){
+                        foreach($m in [regex]::Matches($text,'(?i)(?<![\w\\])'+[regex]::Escape($anchor)+'(?![\w-])(?:\\[^"''`<>|*?\s,;)\]]*)?')){
+                            $raw=$m.Value.TrimEnd('.','\');try{$target=if([IO.Path]::IsPathFullyQualified($raw)){Get-Full $raw}else{Get-Full (Join-Path $userProfile $raw)}}catch{$incomplete.Add("$role ${source}:$($i+1) unparsable path $raw");continue}
+                            $key="$($source.ToUpperInvariant())|$($i+1)|$($target.ToUpperInvariant())"
+                            if($harmless.ContainsKey($key)){Add-Edge $source ($i+1) $role $target PASS "HARMLESS: $($harmless[$key])";continue}
+                            # The match ends at the first stop character; every stop character except " < > | * ? (which no
+                            # file name holds) may still belong to the cited name, so the class is closed by construction:
+                            # after any run of them (any Unicode whitespace , ; ' ) ] backtick), INCOMPLETE, never a PASS or
+                            # FAIL for the shortened prefix, when the next token is path-like (\ or .ext) or an existing
+                            # sibling is named "<leaf><run><next>...". Checked before the target-only accepted-break lookup,
+                            # so a break on a prefix never exempts a longer cited path (only a line-keyed HARMLESS does).
+                            try{$cut=[regex]::Match($text.Substring($m.Index+$m.Length),'^([\s,;'')\]`]+)([^"''`<>|*?\s,;)\]]*)');$sep=$cut.Groups[1].Value;$next=$cut.Groups[2].Value
+                                $space=$sep-match'^ +$';$sibling="$(Split-Path $target -Leaf)$sep$next*"
+                                $continues=$cut.Success-and(!$space-or$next)-and($next-match'\\|\.\w+$'-or[bool](Get-ChildItem -LiteralPath (Split-Path $target) -Filter $sibling -Force -ErrorAction Ignore))}catch{$incomplete.Add("$role ${source}:$($i+1) $target unreadable: $($_.Exception.Message)");continue}
+                            if($continues){$incomplete.Add("$role ${source}:$($i+1) $(if($space){'path continues after a space'}else{"path may continue after '$sep'"}): $target$sep$next");continue}
+                            if($breaks.ContainsKey($target.ToUpperInvariant())){Add-Edge $source ($i+1) $role $target PASS "accepted break: $($breaks[$target.ToUpperInvariant()])";continue}
+                            if($role-eq'LIVE'){Add-Edge $source ($i+1) $role $target FAIL $(if(Test-Under $target $temp){'live dependency left under temporary'}else{'live read/write/binding into a deletion root'})}
+                            else{try{Test-Copy $source ($i+1) $role $target}catch{$incomplete.Add("$role ${source}:$($i+1) $target unreadable: $($_.Exception.Message)")}}
+                        }
+                    }
+                }
+                # A live recovery-input map's selected targets must exist with their approved digests (an item without
+                # one FAILs); a live JSON that cannot be parsed or hashed is unread, not a clean map.
+                if($role-eq'LIVE'-and$source-like'*.json'){try{$map=Get-Content -LiteralPath $source -Raw|ConvertFrom-Json
+                    foreach($item in @($map.inputs|Where-Object{$_.path})){
+                        if(!$item.sha256-or![IO.Path]::IsPathFullyQualified($item.path)-or!(Test-Path -LiteralPath $item.path -PathType Leaf)-or(Get-FileHash -LiteralPath $item.path).Hash-cne$item.sha256){Add-Edge $source 0 LIVE (Get-Full $item.path) FAIL 'selected recovery input absent, hash-changed or without an approved digest'}}
+                }catch{$incomplete.Add("LIVE input ${source}: JSON unparsable or map input unreadable")}}
+            }
+        }
+    }
+    $fails=@($edges|Where-Object result -eq FAIL)
+    [pscustomobject]@{outcome=$(if($incomplete.Count){'INCOMPLETE'}elseif($fails.Count){'FAIL'}else{'PASS'});edges=@($edges);incomplete=@($incomplete)}
+}
+$readinessLine=$null
+if($DeletionReadiness){
+    $c1=Test-DeletionReadiness $DeletionReadiness;$report=Join-Path $DataRoot 'work\deletion-readiness.json'
+    New-Item -ItemType Directory (Join-Path $DataRoot 'work') -Force|Out-Null
+    [ordered]@{schema=1;at=[DateTime]::UtcNow.ToString('o');inputs=$DeletionReadiness;outcome=$c1.outcome;incomplete=$c1.incomplete;edges=$c1.edges}|ConvertTo-Json -Depth 5|Set-Content -LiteralPath $report -Encoding utf8NoBOM
+    $failCount=@($c1.edges|Where-Object result -eq FAIL).Count
+    if($c1.outcome-eq'PASS'){$readinessLine="C1 PASS: $(@($c1.edges).Count) edge(s), zero unresolved, coverage complete; report $report (readiness only, never deletion authority)"}
+    else{Add-Finding BUG "c1-$($c1.outcome.ToLower())" "C1 $($c1.outcome): $failCount failing edge(s), $(@($c1.incomplete).Count) unread input(s); report $report" 'deletion readiness c1 placement'}
+}
 $bugs=@($findings|Where-Object kind -eq BUG).Count;$gaps=@($findings|Where-Object kind -eq GAP).Count;$props=@($findings|Where-Object kind -in NEED,PRUNE).Count
 $summary="HUNT $([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm')) UTC$(if($Quick){' (quick)'}): $bugs bug(s), $gaps gap(s), $props capability proposal(s) in $([int]$sw.Elapsed.TotalSeconds) s"
-$summary;$findings|ForEach-Object{"  $($_.kind) $($_.hound): $($_.text)"}
+$summary;if($readinessLine){"  $readinessLine"};$findings|ForEach-Object{"  $($_.kind) $($_.hound): $($_.text)"}
 New-Item -ItemType Directory (Join-Path $DataRoot 'work') -Force|Out-Null
-[IO.File]::WriteAllLines((Join-Path $DataRoot 'work\hunt-last.txt'),[string[]](@($summary)+@($findings|ForEach-Object{"  $($_.kind) $($_.hound): $($_.text)"})))
+[IO.File]::WriteAllLines((Join-Path $DataRoot 'work\hunt-last.txt'),[string[]](@($summary)+@($readinessLine|Where-Object{$_}|ForEach-Object{"  $_"})+@($findings|ForEach-Object{"  $($_.kind) $($_.hound): $($_.text)"})))
 if(!$NoRecord){foreach($x in $findings){
     $null=& (Join-Path $PSScriptRoot 'Events.ps1') -Root $DataRoot -Add -Pattern "hunt-$($x.hound)" -Source hunter -Session "hunter-$([DateTime]::UtcNow.ToString('yyyy-MM-dd'))" -Category $(if($x.kind-eq'BUG'){'failure'}elseif($x.kind-in'NEED','PRUNE'){'proposal'}else{'observation'}) -Severity $(if($x.kind-eq'BUG'){'high'}else{'warn'}) -Cause confirmed -Summary "$($x.kind): $($x.text)" -Tool 'Hunt.ps1' -Tags "hunt $($x.kind.ToLower()) $($x.tags)"
 }
-    # A hound that no longer finds what it reported closes its own finding; hounds -Quick skipped cannot judge.
+    # A hound that no longer finds what it reported closes its own finding; hounds -Quick skipped cannot judge, nor can
+    # C2 without readable decisions or C1 that did not run (no -DeletionReadiness) or was INCOMPLETE.
     $skipped=if($Quick){'^hunt-(mutant-|lint-|mcp-|docs-|hook-candidates)'}else{'^$'}
     $now=@($findings|ForEach-Object{"hunt-$($_.hound)"})
     foreach($g in @($events|Where-Object{$_.pattern-like'hunt-*'}|Group-Object pattern)){
         if($indexIncomplete-and$g.Name-match'^hunt-(index-|lesson-raw-missing$)'){continue}
+        if(($g.Name-eq'hunt-decision-backpointer'-and!$decisions.Count)-or($g.Name-like'hunt-c1-*'-and$c1.outcome-notin'PASS','FAIL')){continue}
         $z=@($g.Group|Sort-Object at)[-1]
         if($z.status-eq'open'-and$g.Name-notin$now-and$g.Name-notmatch$skipped){
             $null=& (Join-Path $PSScriptRoot 'Events.ps1') -Root $DataRoot -Add -Pattern $g.Name -Source hunter -Session "hunter-$([DateTime]::UtcNow.ToString('yyyy-MM-dd'))" -Category $z.category -Cause confirmed -Status resolved -Summary "no longer found by Hunt.ps1 ($([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm')) UTC)" -Tool 'Hunt.ps1' -Tags $z.tags

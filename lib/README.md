@@ -22,6 +22,34 @@ counts and pointers first, then owner waits in urgency order, ending with an exa
 SessionStart waits at most 6 s for Pulse (then kills its process tree and says live state is UNREADABLE) and caps its context at 8192.
 Hunt reports malformed or unreadable `sessions\index.jsonl` rows as `BUG index-unreadable` with a count and keeps going.
 Hunt's `-Root` stays this checkout (its source and lint scope).
+Hunt C2 reads `<data>\records\delegation-20261026\DECISIONS.md` (`-DecisionsPath`): a declared "Dn supersedes/amends/reopens Dm"
+or "Dm ... superseded/amended/revised/reopened ... by Dn" must name the other decision in both sections, else
+`BUG decision-backpointer`; unreadable is `BUG decision-record-unreadable`, absent is `GAP decision-record-missing`.
+Declared links only, in these adjacent forms (`supersedes D39's`, `superseded for X by D43`, within one clause): list or
+prose forms (`Supersedes: D33 ..., D34 ...`) and undeclared semantic conflicts stay residuals. Own Finish runs Hunt
+Quick, so an unpaired real decision blocks Finish until the section that does not yet name the other gains the pointer.
+Hunt C1 (`-DeletionReadiness <inputs.json>`, opt-in) reports deletion/placement readiness only and never deletes or
+authorizes. It scans every line and match of the declared live/historical files or directories for the deletion and
+temporary roots (absolute, JSON-escaped (also nested), slash, `file:///`, `\\?\` and MSYS `//c/` variants, `Documents\...`,
+`$env:USERPROFILE`, `$HOME`, `$env:HOME`, `${HOME}`, `%USERPROFILE%` and `~` against the profile), classifies each edge
+LIVE, HISTORICAL or declared HARMLESS (by source line and target), checks manifest identity (OriginalPath, RecordPath
+absolute or relative to the manifest's folder, bytes, SHA256; every row of an original listed twice), copies outside
+deletion/temporary roots under declared protected roots, accepted breaks and live map digests (a map input without one
+FAILs). A live reference into the temporary root FAILs unless declared HARMLESS or an accepted break. Every edge goes to
+`<data>\work\deletion-readiness.json`; `C1 PASS` needs zero failing edges and no unread input, otherwise `BUG c1-fail`
+or `BUG c1-incomplete` (exit 1). INCOMPLETE also covers a relative input path, a junction or symlink inside a declared
+or cited directory (never followed; a declared or cited path that is itself a link is read through, one level), an
+unparsable live JSON, an unreadable copy and a cited path that may go on past any run of the characters that end a
+match but a file name can hold (any Unicode whitespace, `,` `;` `'` `)` `]` or a backtick; only `"` `<` `>` `|` `*` `?`
+end a path for certain): the next token holds `\` or an extension, or a `<leaf><run><next>...` sibling exists. This
+holds for live and historical lines and is checked before accepted breaks, so a break (keyed by target only) on a
+prefix never exempts a longer cited path. A command line naming a preserved original then its copy is therefore
+INCOMPLETE until declared HARMLESS for that source line and target (which does not re-verify the copy). Only a complete C1 run closes an earlier C1 finding, and it closes it whatever
+inputs produced it. A cited path that goes on past such a run with a plain word and no such sibling (for example,
+already deleted) is still checked as its prefix. Not seen: computed paths (`Join-Path $docs 'ORVION-Sandbox'`), `..\`, 8.3 short names, `\/` and `\u`
+JSON escapes, percent-encoded `file:` URIs and `work\`, repository- or temporary-root-relative spellings; rule 6's
+ambiguous current reader is not judged. The inputs (roots, manifest, protection, harmless and break declarations)
+remain owner-reviewed evidence.
 
 Codex archival reads the compact first session-metadata line. Its cwd selector accepts a `Documents\GitHub\CRM`
 or `Documents\GitHub\ORVION` prefix, or `ORVION` anywhere in cwd (PowerShell's case-insensitive match).
@@ -93,7 +121,7 @@ instead of automatically rerunning an expensive test. General management/observe
 ## Workspace memory and recovery
 | Tool | Purpose |
 |---|---|
-| `Hunt.ps1 [-Quick]` | the hunting dogs: invariants, liveness, versioning, untested tools, planted-bug mutants, lint; every BUG/GAP becomes an event, the last result shows in Pulse |
+| `Hunt.ps1 [-Quick] [-DeletionReadiness <inputs.json>]` | the hunting dogs: invariants (incl. C2 decision back-pointers), liveness, versioning, untested tools, planted-bug mutants, lint, opt-in C1 deletion readiness; every BUG/GAP becomes an event, the last result shows in Pulse |
 | `Coordinator.ps1` / `-Brief` / `-Check` / `-Snapshot` / `-Assign` / `-Close` / `-Dispatch` | one event-journal classifier: UNOWNED, OVERDUE, OWNER, DISPATCHED, ACTIVE. Snapshot returns one schema1 object with Readable, Items and the same Brief lines; an incomplete snapshot explicitly has Readable=false. Explicit Owner=owner or Cause=owner-decision routes owner choices; technical decisions can remain ACTIVE. Text consumers retain UNREADABLE/exit 2 and mutation refuses before writes. Explicit empty journal is valid. Hunts/certifies nothing. |
 | `Pulse.ps1` | arrival state from actual Git reads and one Coordinator snapshot shared by owner waits and queue. Inherited assignments stay intact; technical decisions are not owner waits. Missing/failed selected Git or journal evidence is UNREADABLE/exit 2; explicit empty journal or genuinely absent upstream is readable. DIRTY is an observation, never write authority. No fetch, test, retry or certification. |
 | `Delegate.ps1 -Pattern <id> -Question '...' [-ReadRoots ...]` / `-Report <folder> -Reply <file>` / `-List` / `-CodexBrief <brief> -Clone <temporary\cx\...> [-Research] [-OutDir <data/records/new>]` | bounded briefs and their verdict return road; Codex controls, evidence paths and refusals are [below](#codex-delegation-controls) |
