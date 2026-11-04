@@ -15,7 +15,7 @@ foreach($key in [Environment]::GetEnvironmentVariables('Process').Keys|Where-Obj
 }
 $env:USERPROFILE=Join-Path $t 'profile';$env:GIT_CONFIG_GLOBAL=Join-Path $t 'empty.gitconfig';$env:GIT_CONFIG_NOSYSTEM='1'
 $fail=0
-function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
+function Assert-That([string]$Name,[bool]$Ok,[object[]]$Detail){if($Ok){"PASS $Name"}else{"FAIL $Name";foreach($line in $Detail){"  $line"};$script:fail++}}
 function Import-RecoveryFunctions([string]$Text){
     $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseInput($Text,[ref]$tokens,[ref]$errors)
     if($errors.Count){throw "FIXTURE_PARSE_FAILED: $errors"}
@@ -120,7 +120,9 @@ function Invoke-Scenario([string]$Case,[string]$Text=$source){
     if($Case-eq'placement-repo'){$params.Staging=Join-Path $target 'CRM/stage'}
     if($Case-eq'placement-data'){$params.Staging=Join-Path $env:ORVION_DATA_ROOT 'stage'}
     if($Case-eq'placement-profile-home'){$params.Staging=Join-Path $env:USERPROFILE '.codex/stage'}
-    if($Case-eq'placement-owner-other'){$params.Staging=Join-Path $root 'other/ORVION-Owner-Tools/stage'}
+    if($Case-eq'placement-owner-other'){[void][IO.Directory]::CreateDirectory((Join-Path $root 'other/ORVION-Owner-Tools/events'));$params.Staging=Join-Path $root 'other/ORVION-Owner-Tools/stage'}
+    if($Case-eq'placement-moved-data'){[void][IO.Directory]::CreateDirectory((Join-Path $root 'moved/store/events'));$params.Staging=Join-Path $root 'moved/store/stage'}
+    if($Case-eq'data-alias-stage'){[void][IO.Directory]::CreateDirectory((Join-Path $stage 'persistent'));[void][IO.Directory]::CreateDirectory((Join-Path $target 'ORVION-Workbench'));$null=New-Item -ItemType Junction -Path (Join-Path $target 'ORVION-Workbench/data') -Target (Join-Path $stage 'persistent')}
     if($Case-eq'placement-git'){$gitRoot=Join-Path $root 'independent';[void][IO.Directory]::CreateDirectory((Join-Path $gitRoot '.git'));$params.Staging=Join-Path $gitRoot 'stage'}
     if($Case-eq'placement-sync'){$params.Staging=Join-Path $env:USERPROFILE 'OneDrive/stage'}
     if($Case-eq'placement-sync-alias'){
@@ -178,7 +180,7 @@ try{
     $parse='param($p) $t=$null; $e=$null; [void][System.Management.Automation.Language.Parser]::ParseFile($p,[ref]$t,[ref]$e); if($e.Count){$e | Out-String | Write-Output; exit 1}; if($PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1){exit 2}; exit 0'
     $parseFile=Join-Path $t 'parse.ps1';[IO.File]::WriteAllText($parseFile,$parse)
     $parsed=@(& powershell.exe -NoProfile -File $parseFile (Join-Path $PSScriptRoot 'Restore-ORVION.ps1') 2>&1)
-    Assert-That 'Windows PowerShell 5.1 parses launcher (exit 0)' ($LASTEXITCODE-eq0)
+    Assert-That 'Windows PowerShell 5.1 parses launcher (exit 0)' ($LASTEXITCODE-eq0) $parsed
     # Explicit requested -Command parser check, in addition to -File above.
     $commandCheck="`$t=`$null; `$e=`$null; [void][System.Management.Automation.Language.Parser]::ParseFile('"+(Join-Path $PSScriptRoot 'Restore-ORVION.ps1').Replace("'","''")+"',[ref]`$t,[ref]`$e); if(`$e.Count){exit 1}; exit 0"
     & powershell.exe -NoProfile -Command $commandCheck
@@ -189,13 +191,13 @@ try{
     Assert-That 'newest by name; one extraction; local bundle branch/head; four paths passed; products both run; staging retained' ($r.Exit-eq0-and$r.Stage-and$r.Output.Contains('status=completed')-and$r.Output.Contains((Join-Path $r.Root 'stage'))-and@($r.Calls|Where-Object{$_-like'7z x *'}).Count-eq1-and$calls.Contains($r.Newer)-and$calls.Contains('repos\ORVION-Workbench.bundle')-and$calls.Contains('checkout --quiet -B recovery-branch '+('a'*40))-and$calls.Contains('-From ')-and$calls.Contains('-Target ')-and$calls.Contains('-ClaudeHome ')-and$calls.Contains('-LegacyTarget ')-and$calls.Contains('-CodexHome ')-and$calls.Contains('CRM\workstation.cmd')-and$calls.Contains('ORVION\workstation.cmd')-and$calls-notmatch'winget install')
     $r=Invoke-Scenario no-winget
     Assert-That 'installed prerequisites need no winget lookup; READY is final' ($r.Exit-eq0-and($r.Calls-join' ')-notmatch'lookup winget'-and($r.Output.Trim()-split"`n")[-1]-match'^READY: ')
-    foreach($caseName in 'under-Target','under-ClaudeHome','under-CodexHome','under-LegacyTarget','equal-stage','alias-stage'){
+    foreach($caseName in 'under-Target','under-ClaudeHome','under-CodexHome','under-LegacyTarget','equal-stage','alias-stage','data-alias-stage'){
         $r=Invoke-Scenario $caseName
         Assert-That "persistent destination guard $caseName precedes all installers and extraction" ($r.Exit-ne0-and$r.Output-match'RECOVERY_DESTINATION_IN_STAGING'-and$r.Calls.Count-le1-and$r.Output-notmatch'(?m)^READY: ')
     }
     $r=Invoke-Scenario default-stage
     Assert-That 'default staging is an owned UTC+GUID child of temporary restore-staging' ($r.Exit-eq0-and($r.Calls-join' ')-match'ORVION-Workbench-temporary\\restore-staging\\[0-9]+T[0-9]+Z-[a-f0-9]{32}'-and@(Get-ChildItem (Join-Path $r.Root 'target/ORVION-Workbench-temporary/restore-staging') -ErrorAction SilentlyContinue).Count-eq1)
-    foreach($caseName in 'placement-repo','placement-data','placement-profile-home','placement-owner-other','placement-git','placement-sync','placement-sync-alias'){
+    foreach($caseName in 'placement-repo','placement-data','placement-profile-home','placement-owner-other','placement-moved-data','placement-git','placement-sync','placement-sync-alias'){
         $r=Invoke-Scenario $caseName
         Assert-That "retained placement $caseName refused before extraction" ($r.Exit-ne0-and$r.Output-match'RECOVERY_STAGING_PLACEMENT_REFUSED'-and($r.Calls-join' ')-notmatch'7z x'-and$r.Output-notmatch'(?m)^READY: ')
     }

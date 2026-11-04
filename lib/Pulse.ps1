@@ -7,7 +7,7 @@
 #   queue      the coordinator's queue (Coordinator.ps1 -Brief): counts by state, the three most urgent items
 #   map        ai-map freshness: each mapped repository's saved head against its live HEAD
 # Read-only except one side effect: a stale map starts its refresh task. A failing read prints UNREADABLE, never a guess.
-param([string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools'}),[string]$Session=$env:CLAUDE_CODE_SESSION_ID,
+param([string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) 'data'}),[string]$Session=$env:CLAUDE_CODE_SESSION_ID,
       [string[]]$Repos=@('CRM','ORVION'|ForEach-Object{Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) $_}),
       [scriptblock]$StartMapTask={Start-ScheduledTask -TaskName 'ORVION Repository Map' -ErrorAction Stop},
       [string]$MapPath=(Join-Path (Split-Path $PSScriptRoot -Parent) 'ai-map.json'))  # owner-fixed generated map location

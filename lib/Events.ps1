@@ -28,7 +28,7 @@ param(
     [Parameter(ParameterSetName='find',Mandatory)][string]$Find,
     [Parameter(ParameterSetName='brief')][switch]$Brief,
     [int]$Top=5,
-    [string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools'})  # the data root: ORVION_DATA_ROOT, else sibling ORVION-Owner-Tools; missing readers are UNAVAILABLE
+    [string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) 'data'})  # the data root: ORVION_DATA_ROOT, else the checkout's data\; missing readers are UNAVAILABLE
 )
 $ErrorActionPreference='Stop'
 $log=Join-Path $Root 'events\events.jsonl'
@@ -103,7 +103,7 @@ function Format-View($v,[switch]$WithSession){
     # the newest occurrence whose transcript is archived (an older one may predate the archive)
     $s=if($WithSession){@($v.sessionList|ForEach-Object{$script:sessionIndex[$_]}|Where-Object{$_})[-1]}
     if($s){$when=try{([datetime]$s.start).ToUniversalTime().ToString('yyyy-MM-dd')}catch{'?'}  # an index row may lack a start
-        $line+="`n    raw record: session $($s.id.Substring(0,[Math]::Min(8,$s.id.Length))) $when `"$($s.title)`" -> $(Join-Path $Root $s.raw)"}
+        $line+="`n    raw record: session $($s.id.Substring(0,[Math]::Min(8,$s.id.Length))) $when `"$($s.title)`" -> $(if($s.raw){Join-Path $Root $s.raw}else{'deleted past retention'})"}
     Hide-Secret $line  # every rendered field (summary, action, evidence, title) leaves masked
 }
 # The session index links an event to its full raw transcript (written by Sync-Sessions.ps1).
@@ -115,6 +115,8 @@ if($Find){
     $words=@([regex]::Matches($Find.ToLower(),'[a-z0-9$_]{2,}')|ForEach-Object Value|Where-Object{$_-notin$stop}|Select-Object -Unique)
     # Rare words decide (idf): "script" matches everything, "pid" or "stall" matches what the task is about.
     $n=@($views).Count;$idf=@{};foreach($q in $words){$df=@($views|Where-Object{Test-WordMatch $q $_.words}).Count;if($df){$idf[$q]=[math]::Log(($n+1)/$df)}}
+    # A query with no space names one thing (SPEC-291, W33-ABSENT-a5ac): every part must match, or one common part answers for an identifier the journal does not hold.
+    if($Find-cnotmatch'\s'-and$idf.Count-lt$words.Count){$idf=@{}}
     # A word in the curated tags or pattern id (the event's index terms) outweighs one met in prose; exact beats stem.
     $hits=foreach($v in $views){$s=0.0;foreach($q in $idf.Keys){$s+=$idf[$q]*(2*(Test-WordMatch $q $v.tagWords)+(Test-WordMatch $q $v.words))/6};if($s){[pscustomobject]@{v=$v;s=$s}}}
     $hits=@($hits|Sort-Object @{e='s';Descending=$true},@{e={$_.v.sessions};Descending=$true})

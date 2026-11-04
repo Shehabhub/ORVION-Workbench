@@ -30,13 +30,21 @@ try{
     $unborn=Join-Path $gh 'RepoD';& git init -q $unborn 2>&1|Out-Null
     $broken=Join-Path $gh 'RepoE\.git';[void][IO.Directory]::CreateDirectory($broken);[IO.File]::WriteAllText((Join-Path $broken 'HEAD'),'not a repository')
     [void](New-Repo 'RepoB' @{'notes.md'="# Notes`nBack to [guide](../RepoA/docs/guide.md).`n"})
-    [void](New-Repo 'ORVION-Workbench-temporary' @{'README.md'="# disposable`n"})
+    $temporary=New-Repo 'ORVION-Workbench-temporary' @{'README.md'="# disposable`n"}
+    $data=Join-Path $t 'data';$savedDataRoot=$env:ORVION_DATA_ROOT;$env:ORVION_DATA_ROOT=$data
+    foreach($file in @((Join-Path $temporary 'scratch/run/note.txt'),(Join-Path $temporary 'cx/clone/inner.txt'),(Join-Path $temporary 'cx/clone/.git/HEAD'),(Join-Path $data 'records/a.md'),(Join-Path $data 'sessions/raw/s.jsonl'))){
+        [void][IO.Directory]::CreateDirectory((Split-Path $file -Parent));[IO.File]::WriteAllText($file,'body-never-in-the-second-map')
+    }
+    $linked=Join-Path $t 'linked';[void][IO.Directory]::CreateDirectory($linked);[IO.File]::WriteAllText((Join-Path $linked 'outside.txt'),'outside')
+    $null=New-Item -ItemType Junction -Path (Join-Path $temporary 'scratch/link') -Target $linked
+    $store=Join-Path $gh 'ORVION-Owner-Tools';[void][IO.Directory]::CreateDirectory((Join-Path $store 'records'));[IO.File]::WriteAllText((Join-Path $store 'records/r.md'),'# a store without .git')
     [void](New-Repo 'RepoA-trusted-main' @{'README.md'="# copy`n"})
     $script=Join-Path $PSScriptRoot 'Map-Repos.ps1'
     $o=@(& pwsh -NoProfile -File $script -GitHub $gh -Out $out 2>&1);if($LASTEXITCODE){throw ('MAP_RUN_FAILED: '+($o-join' '))}
     $m=Get-Content (Join-Path $out 'ai-map.json') -Raw|ConvertFrom-Json
     function Has-Edge([string]$From,[string]$To,[string]$Kind){@($m.edges|Where-Object{$_.from-ceq$From-and$_.to-ceq$To-and$_.kind-ceq$Kind}).Count-ge1}
     Assert-That 'discovers repositories, skips trusted and temporary copies, reports unborn and broken ones without failing' ((@($m.repos.name)-join',')-ceq'RepoA,RepoB,RepoD'-and@($m.problems|Where-Object{$_.repo-ceq'RepoD'-and$_.problem-match'no commits'}).Count-eq1-and@($m.problems|Where-Object{$_.repo-ceq'RepoE'}).Count-eq1)
+    Assert-That 'a folder without .git is no repository and no problem, under any name' (@($m.repos.name)-cnotcontains'ORVION-Owner-Tools'-and@($m.problems|Where-Object{$_.repo-ceq'ORVION-Owner-Tools'}).Count-eq0-and!@($m.files|Where-Object{$_.repo-ceq'ORVION-Owner-Tools'}).Count)
     Assert-That 'each repository records its full HEAD' (@($m.repos|Where-Object{$_.name-ne'RepoD'-and$_.head-notmatch'^[0-9a-f]{40}$'}).Count-eq0)
     Assert-That 'a nested folder named like a sibling repository resolves locally' (Has-Edge 'RepoA:docs/guide.md' 'RepoA:RepoB/local.md' 'link')
     Assert-That 'two anchors into one file stay two edges' (@($m.edges|Where-Object{$_.from-ceq'RepoA:README.md'-and$_.to-ceq'RepoA:docs/guide.md'}).Count-eq3)
@@ -54,6 +62,18 @@ try{
     Assert-That 'only committed content enters: no untracked, ignored, staged or working-tree text' ($raw-notmatch'secret\.md'-and$raw-notmatch'never-in-the-map'-and$raw-notmatch'staged\.md'-and$raw-notmatch'Changed but not committed')
     Assert-That 'sessions and origin credentials never enter the map' ($raw-notmatch'session-text-never-mapped'-and$raw-notmatch'sessions/raw'-and$raw-notmatch'origin-secret-123')
     Assert-That 'the interactive view embeds the map data' ($raw-notmatch'/\*MAP_DATA\*/null'-and$raw-match'ORVION Repository Map')
+    $secondJson=Join-Path $temporary 'map/ai-map.json';$s=Get-Content $secondJson -Raw|ConvertFrom-Json;$ids=@($s.files.id)
+    $secondRaw=[IO.File]::ReadAllText($secondJson)+[IO.File]::ReadAllText((Join-Path $temporary 'map/ai-map.html'))
+    Assert-That 'the second map lists the names in temporary and the data root' ((@($s.repos.name)-join',')-ceq'temporary,data'-and$ids-ccontains'temporary:scratch/run/note.txt'-and$ids-ccontains'data:records/a.md'-and$ids-ccontains'data:sessions/raw/s.jsonl'-and!$s.problems.Count)
+    Assert-That 'the second map opens no file' ($secondRaw-notmatch'body-never-in-the-second-map')
+    Assert-That 'the second map keeps a Git checkout as one row' ($ids-ccontains'temporary:cx/clone/'-and!@($ids|Where-Object{$_-clike'temporary:cx/clone/?*'-or$_-clike'*.git*'}).Count)
+    Assert-That 'the second map does not follow a link' ($ids-ccontains'temporary:scratch/link/'-and!@($ids|Where-Object{$_-clike'temporary:scratch/link/?*'}).Count)
+    Assert-That 'the repository map stays apart from the second map' ($raw-notmatch'note\.txt|records/a\.md')
+    $o=@(& pwsh -NoProfile -File $script -GitHub $gh -Out $out -Root (Join-Path $t 'no-data') 2>&1);$exit=$LASTEXITCODE;$s=Get-Content $secondJson -Raw|ConvertFrom-Json
+    Assert-That 'a missing data root is UNAVAILABLE, never zero names' ($exit-eq0-and($o-join"`n")-match'SECOND MAP: .*UNAVAILABLE'-and@($s.problems|Where-Object{$_.repo-ceq'data'-and$_.problem-match'^UNAVAILABLE'}).Count-eq1-and@($s.files.id)-ccontains'temporary:scratch/run/note.txt')
+    $alone=Join-Path $t 'alone';$aloneOut=Join-Path $t 'alone-out';[void][IO.Directory]::CreateDirectory($alone);[void][IO.Directory]::CreateDirectory($aloneOut)
+    $o=@(& pwsh -NoProfile -File $script -GitHub $alone -Out $aloneOut 2>&1)
+    Assert-That 'without temporary the second map is UNAVAILABLE, creates nothing and the repository map still lands' ($LASTEXITCODE-eq0-and($o-join"`n")-match'SECOND MAP: UNAVAILABLE'-and!(Test-Path (Join-Path $alone 'ORVION-Workbench-temporary'))-and(Test-Path (Join-Path $aloneOut 'ai-map.json')))
     $links=@(& pwsh -NoProfile -File $script -Out $out -Links 'docs/guide.md' 2>&1)
     Assert-That '-Links prints outgoing links and backlinks' ($LASTEXITCODE-eq0-and($links-join"`n")-match'<- RepoA:README\.md'-and($links-join"`n")-match'-> RepoB:notes\.md')
     $orph=@(& pwsh -NoProfile -File $script -Out $out -Orphans 2>&1)
@@ -61,5 +81,23 @@ try{
     [void](New-Repo 'RepoC' @{'README.md'="# C`n"})
     & pwsh -NoProfile -File $script -GitHub $gh -Out $out 2>&1|Out-Null
     Assert-That 'a new repository joins on the next run' ((@((Get-Content (Join-Path $out 'ai-map.json') -Raw|ConvertFrom-Json).repos.name)-join',')-ceq'RepoA,RepoB,RepoC,RepoD')
-}finally{$env:GIT_CONFIG_GLOBAL=$savedGitGlobal;$env:GIT_CONFIG_NOSYSTEM=$savedGitNoSystem;Get-ChildItem $t -Recurse -Force -File -ErrorAction SilentlyContinue|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}
+    # G07, G08: -Check compares without writing, skips the stamp, and each view names its generator.
+    function Invoke-MapCheck{$checked=@(& pwsh -NoProfile -File $script -GitHub $gh -Out $out -Check 2>&1|ForEach-Object{"$_"});[pscustomobject]@{Exit=$LASTEXITCODE;Text=$checked-join"`n"}}
+    $mapJson=Join-Path $out 'ai-map.json';$mapHtml=Join-Path $out 'ai-map.html';$jsonKept=[IO.File]::ReadAllText($mapJson);$htmlKept=[IO.File]::ReadAllText($mapHtml)
+    Assert-That 'G08 both views say generated, do not edit' ($jsonKept-cmatch'generated from each repository''s HEAD, do not edit'-and$htmlKept-cmatch'<!-- generated by lib/Map-Repos\.ps1 from lib/ai-map\.template\.html')
+    $checked=Invoke-MapCheck
+    Assert-That 'G07 a fresh map is not stale though its stamp differs' ($checked.Exit-eq0-and!$checked.Text);if($checked.Text){"  $($checked.Text)"}
+    Assert-That 'G07 Check writes nothing' ([IO.File]::ReadAllText($mapJson)-ceq$jsonKept-and[IO.File]::ReadAllText($mapHtml)-ceq$htmlKept)
+    [IO.File]::WriteAllText($mapJson,$jsonKept.Replace('"schema":1','"schema":2'));$checked=Invoke-MapCheck
+    Assert-That 'G07 a hand-edited ai-map.json is stale' ($checked.Exit-eq1-and$checked.Text-ceq"GENERATED STALE: $mapJson");[IO.File]::WriteAllText($mapJson,$jsonKept)
+    [IO.File]::WriteAllText($mapHtml,$htmlKept.Replace('ORVION Repository Map','Edited'));$checked=Invoke-MapCheck
+    Assert-That 'G07 a hand-edited ai-map.html is stale' ($checked.Exit-eq1-and$checked.Text-ceq"GENERATED STALE: $mapHtml");[IO.File]::WriteAllText($mapHtml,$htmlKept)
+    [void](New-Repo 'RepoF' @{'README.md'="# F`n"});$checked=Invoke-MapCheck
+    Assert-That 'G07 a new commit makes the map stale' ($checked.Exit-eq1-and$checked.Text-cmatch[regex]::Escape("GENERATED STALE: $mapJson"))
+    & pwsh -NoProfile -File $script -GitHub $gh -Out $out 2>&1|Out-Null
+    $secondKept=[IO.File]::ReadAllText($secondJson);$old=([regex]'"generated":"[^"]*"').Replace($secondKept,'"generated":"2020-01-01T00:00:00.0000000Z"',1)
+    Assert-That 'the second map keeps its marker' ($secondKept-cmatch'generated from the names in temporary and the data root, do not edit')
+    [IO.File]::WriteAllText($secondJson,$old);$checked=Invoke-MapCheck
+    Assert-That 'G07 a second map older than a day is stale' ($checked.Exit-eq1-and$checked.Text-ceq"GENERATED STALE: $secondJson");[IO.File]::WriteAllText($secondJson,$secondKept)
+}finally{$env:ORVION_DATA_ROOT=$savedDataRoot;$env:GIT_CONFIG_GLOBAL=$savedGitGlobal;$env:GIT_CONFIG_NOSYSTEM=$savedGitNoSystem;Get-ChildItem $t -Recurse -Force -Attributes ReparsePoint -ErrorAction SilentlyContinue|ForEach-Object{[IO.Directory]::Delete($_.FullName,$false)};Get-ChildItem $t -Recurse -Force -File -ErrorAction SilentlyContinue|ForEach-Object{$_.Attributes='Normal'};[IO.Directory]::Delete($t,$true)}
 if($fail){throw "MAP_REPOS_SELFCHECK_FAILED $fail"};'MAP_REPOS_SELFCHECK PASS'

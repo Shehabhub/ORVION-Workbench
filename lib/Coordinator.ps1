@@ -32,7 +32,7 @@ param([Parameter(ParameterSetName='queue')][switch]$Check,
       [Parameter(ParameterSetName='dispatch')][ValidateSet('readonly','sandbox')][string]$Mode='readonly',
       [Parameter(ParameterSetName='dispatch')][int]$Minutes=30,
       [datetime]$Now=[DateTime]::UtcNow,  # the self-check moves the clock
-      [string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools'}))
+      [string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) 'data'}))
 $ErrorActionPreference='Stop'
 if(!$PSBoundParameters.ContainsKey('Root')-and!$env:ORVION_DATA_ROOT-and!(Test-Path -LiteralPath (Join-Path $Root 'events') -PathType Container)){'COORDINATOR_UNAVAILABLE: ORVION_DATA_ROOT_UNAVAILABLE';exit 3}
 $ev=Join-Path $PSScriptRoot 'Events.ps1';$log=Join-Path $Root 'events\events.jsonl'

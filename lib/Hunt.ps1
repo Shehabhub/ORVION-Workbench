@@ -4,8 +4,8 @@
 # last result for Pulse. Read-only except that log, the events log, temp folders and, with -DeletionReadiness, its
 # report work\deletion-readiness.json.
 #   invariants  archived transcripts are still a prefix of their source; index rows match their files; event
-#               evidence paths exist; lessons whose raw session is not archived; every declared decision
-#               supersession is named on both sides (C2: declared links only, no script judges meaning)
+#               evidence paths exist; lessons whose raw session is not archived; every archive item and every mapped
+#               D-number names a DEC entry that exists (C2); the layout passes Organize -Check
 #   readiness   opt-in -DeletionReadiness <inputs.json>: C1 deletion/placement readiness (see Test-DeletionReadiness)
 #   live        the archiver follows while agents run; hook and Codex pointers exist; hook errors were logged
 #   versioned   tool changes not committed to the tools repo
@@ -16,7 +16,7 @@
 #   lint        PSScriptAnalyzer bug-relevant rules, when installed (known false positives listed below)
 # -NoRecord suppresses events only; work\hunt-last.txt (and any C1 report) is still written in the data root.
 # -Quick skips mutants and lint (about 5 s instead of about 60 s).
-param([string]$Root=(Split-Path $PSScriptRoot -Parent),[switch]$Quick,[switch]$NoRecord,[object[]]$MutantSet,[string]$DecisionsPath,[string]$DeletionReadiness,[string]$DataRoot=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools'}),[scriptblock]$GetMapTask={Get-ScheduledTask -TaskName 'ORVION Repository Map' -ErrorAction Stop | Get-ScheduledTaskInfo -ErrorAction Stop})  # test seams
+param([string]$Root=(Split-Path $PSScriptRoot -Parent),[switch]$Quick,[switch]$NoRecord,[object[]]$MutantSet,[string]$DecisionsPath,[string]$DeletionReadiness,[string]$DataRoot=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) 'data'}),[scriptblock]$GetMapTask={Get-ScheduledTask -TaskName 'ORVION Repository Map' -ErrorAction Stop | Get-ScheduledTaskInfo -ErrorAction Stop})  # test seams
 $ErrorActionPreference='Stop'
 if(!$PSBoundParameters.ContainsKey('DataRoot')-and!$env:ORVION_DATA_ROOT-and!(Test-Path -LiteralPath (Join-Path $DataRoot 'events') -PathType Container)){throw 'ORVION_DATA_ROOT_UNAVAILABLE'}
 . (Join-Path $PSScriptRoot 'workspace-layout.ps1')
@@ -27,7 +27,8 @@ $sourceRoot=$Root
 $Root=$sourceRoot
 $findings=[Collections.Generic.List[object]]::new()
 function Add-Finding([string]$Kind,[string]$Hound,[string]$Text,[string]$Tags=''){$findings.Add([pscustomobject]@{kind=$Kind;hound=$Hound;text=$Text;tags=$Tags})}
-try{$mapTaskInfo=& $GetMapTask;if(!$mapTaskInfo-or$null-eq$mapTaskInfo.LastTaskResult-or$mapTaskInfo.LastTaskResult-ne0){throw 'missing or nonzero result'}}catch{Add-Finding GAP map-task 'ORVION Repository Map task missing or last result non-zero/unreadable' 'repository map scheduled task'}
+# 0x41301 is SCHED_S_TASK_RUNNING: the task is at work, not failed.
+try{$mapTaskInfo=& $GetMapTask;if(!$mapTaskInfo-or$null-eq$mapTaskInfo.LastTaskResult-or$mapTaskInfo.LastTaskResult-notin0,0x41301){throw 'missing or nonzero result'}}catch{Add-Finding GAP map-task 'ORVION Repository Map task missing or last result non-zero/unreadable' 'repository map scheduled task'}
 $sw=[Diagnostics.Stopwatch]::StartNew()
 
 # invariants: an archived transcript never diverges from its source (the prefix rule Copy-Grown relies on). Only
@@ -49,10 +50,11 @@ if($indexExists){
         if([string]::IsNullOrWhiteSpace($l)){continue}
         try{
             $r=$l|ConvertFrom-Json -DateKind String -NoEnumerate
-            if($r-isnot[pscustomobject]-or$r.id-isnot[string]-or[string]::IsNullOrWhiteSpace($r.id)-or$r.raw-isnot[string]-or[string]::IsNullOrWhiteSpace($r.raw)){throw 'invalid index row'}
-            $p=Join-Path $DataRoot $r.raw
+            if($r-isnot[pscustomobject]-or$r.id-isnot[string]-or[string]::IsNullOrWhiteSpace($r.id)-or$r.raw-isnot[string]-or($r.raw-cne''-and[string]::IsNullOrWhiteSpace($r.raw))){throw 'invalid index row'}
+            $p=if($r.raw){Join-Path $DataRoot $r.raw}
         }catch{$indexMalformed++;$indexIncomplete=$true;continue}
         $ids[$r.id]=1
+        if(!$r.raw){continue}  # the retention tier deleted it; the row stays (DEC-10)
         try{
             if(!(Test-Path -LiteralPath $p -PathType Leaf)){$bad+="$($r.id): raw file missing";continue}
             $f=Get-Item -LiteralPath $p;$idle=([DateTime]::UtcNow-$f.LastWriteTimeUtc).TotalMinutes-ge20
@@ -79,21 +81,41 @@ if($missingEv){Add-Finding GAP event-evidence "evidence path missing for: $($mis
 # a session already recorded as lost to the 30-day cleanup is a known, accepted loss, not a new gap
 $lost=@($events|Where-Object{"$($_.evidence) $($_.summary)"-match'deleted by (the )?30-day cleanup'}|ForEach-Object session)
 $orphan=@(if(!$indexIncomplete){$events|Where-Object{$_.session-and$_.session-notlike'hunter-*'-and!$ids[$_.session]-and$_.session-notin$lost}|ForEach-Object session|Select-Object -Unique})
-# C2: "Dn supersedes/amends/reopens Dm" and "Dm ... superseded/amended/revised/reopened ... by Dn" each need both
-# sections to name the other. A missing record is a GAP; an unreadable one is a BUG, never a clean result.
+# C2 (WORKSPACE-LAYOUT.md section 11): every item of the archive and every mapped D-number beside docs/DECISIONS.md names
+# a DEC entry that exists. A missing record is a GAP; an unreadable one is a BUG, never a clean result.
 # Owned here, so a caller's variables of the same name (an in-process & invocation) never reach the closure guard.
 $decisions=@{};$c1=$null
-if(!$DecisionsPath){$DecisionsPath=Join-Path $DataRoot 'records\delegation-20261026\DECISIONS.md'}
-if(!(Test-Path -LiteralPath $DecisionsPath -PathType Leaf)){Add-Finding GAP decision-record-missing "no decision record at $DecisionsPath`: supersession back-pointers unchecked" 'decision record missing supersession'}
+if(!$DecisionsPath){$DecisionsPath=Join-Path $sourceRoot 'docs\DECISIONS.md'}
+if(!(Test-Path -LiteralPath $DecisionsPath -PathType Leaf)){Add-Finding GAP decision-record-missing "no decision record at $DecisionsPath`: archive and D-number map unchecked" 'decision record missing'}
 else{try{
-    $decisions=@{};foreach($m in [regex]::Matches([IO.File]::ReadAllText($DecisionsPath),'(?ms)^## (D\d+)\b.*?(?=^## D\d+\b|\z)')){$decisions[$m.Groups[1].Value]+=$m.Value}
+    $decisions=@{};foreach($m in [regex]::Matches([IO.File]::ReadAllText($DecisionsPath),'(?m)^## (DEC-\d{2})\b')){$decisions[$m.Groups[1].Value]=$true}
     if(!$decisions.Count){throw 'no decision headings'}
-    $unpaired=@(@(foreach($n in $decisions.Keys){
-        foreach($m in [regex]::Matches($decisions[$n],'(?i)(?<!\bD\d+\s)\b(?:supersedes|amends|reopens)\s+(D\d+)\b')){$o=$m.Groups[1].Value;if(!$decisions.ContainsKey($o)-or$decisions[$o]-notmatch"\b$n\b"){"$n->$o"}}
-        foreach($m in [regex]::Matches($decisions[$n],'(?i)\b(?:superseded|amended|revised|reopened)\b[^.;()\r\n]{0,60}?\bby\s+(D\d+)')){$o=$m.Groups[1].Value;if(!$decisions.ContainsKey($o)-or$decisions[$o]-notmatch"\b$n\b"){"$o->$n"}}
-    })|Sort-Object -Unique)
-    if($unpaired){Add-Finding BUG decision-backpointer "$($unpaired.Count) declared supersession(s) not named on both sides (newer->older): $($unpaired-join', ')" 'decision supersession back-pointer'}
+    $archive=[IO.Path]::Combine((Split-Path $DecisionsPath -Parent),'history','DECISIONS-ARCHIVE.md');$dMap=[IO.Path]::Combine((Split-Path $DecisionsPath -Parent),'history','DECISIONS-MAP.tsv')
+    $named=@()
+    if(Test-Path -LiteralPath $archive -PathType Leaf){$named+=@(foreach($m in [regex]::Matches([IO.File]::ReadAllText($archive),'(?ms)^## (\S+)[^\n]*\n(.*?)(?=^## |\z)')){[pscustomobject]@{Id=$m.Groups[1].Value;Now=[regex]::Match($m.Groups[2].Value,'(?m)^Now in: .*$').Value;Needed=$true}})}
+    else{Add-Finding GAP decision-archive-missing "no archive at $archive`: its items unchecked" 'decision archive missing'}
+    if(Test-Path -LiteralPath $dMap -PathType Leaf){$named+=@(foreach($row in @(Import-Csv -LiteralPath $dMap -Delimiter "`t")){if(!$row.d-or!$row.status){throw "$dMap needs the columns d, status, now_in"};[pscustomobject]@{Id=$row.d;Now="$($row.now_in)";Needed=$row.status-ceq'DEC'}})}
+    else{Add-Finding GAP decision-map-missing "no D-number map at $dMap`: its rows unchecked" 'decision map missing'}
+    $dangling=@(foreach($one in $named){
+        $entries=@([regex]::Matches($one.Now,'DEC-\d{2}(?!\d)')|ForEach-Object Value)
+        if($one.Needed-and!$entries){"$($one.Id)->none"}
+        foreach($entry in $entries){if(!$decisions.ContainsKey($entry)){"$($one.Id)->$entry"}}
+    })
+    if($dangling){Add-Finding BUG decision-dangling "$($dangling.Count) archive item(s) or mapped D-number(s) name no existing entry: $($dangling-join', ')" 'decision archive map dangling'}
 }catch{Add-Finding BUG decision-record-unreadable "decision record $DecisionsPath unreadable: $($_.Exception.Message)" 'decision record unreadable'}}
+# ponytail: a GAP, so Pulse and Finish see it without stopping, until P7 makes the real layout pass; a BUG from then on.
+try{
+    $layout=@(& (Join-Path $PSScriptRoot 'Organize.ps1') -Check -Quick:$Quick -Checkout $sourceRoot -Temporary $temporaryRoot -Root $DataRoot 2>&1|ForEach-Object{"$_"})
+    $problems=@($layout|Where-Object{$_-cnotmatch'^(ORGANIZE_CHECK |UNAVAILABLE )'})
+    if($problems){Add-Finding GAP organize-check "$($problems.Count) layout problem(s): $(@($problems|Select-Object -First 5)-join'; ')" 'organize layout check'}
+}catch{Add-Finding BUG organize-check-failed "Organize -Check did not finish: $($_.Exception.Message)" 'organize layout check'}
+# G15: enforcement changed between client versions, so a version the write guard was not probed on is a gap. No client (hosted) has nothing to probe; hooks\Probe-Guard.ps1 records the version.
+$guardClient=Get-Command claude -ErrorAction Ignore|Select-Object -First 1
+if($guardClient){
+    $installedClient=try{(@(& $guardClient.Source --version 2>$null)[0]-split'\s')[0]}catch{'unreadable'}
+    $probedClient=try{(Get-Content -LiteralPath (Join-Path $DataRoot 'work\guard-probe.json') -Raw -ErrorAction Stop|ConvertFrom-Json).version}catch{'none'}
+    if($installedClient-cne$probedClient){Add-Finding GAP guard-probe-stale "Claude Code $installedClient is installed and the write guard was last probed on $probedClient; run lib\hooks\Probe-Guard.ps1" 'guard probe client version'}
+}
 if($orphan){Add-Finding GAP lesson-raw-missing "$($orphan.Count) session(s) behind recorded lessons are not in the archive (deleted before it existed or not yet synced): $(($orphan|ForEach-Object{$_.Substring(0,[Math]::Min(8,$_.Length))})-join', ')" 'lesson session raw missing archive'}
 
 # live
@@ -130,7 +152,7 @@ if(!$Quick){
         ,@('Sync-Sessions.ps1','if(Test-Path "$raw\claude"){foreach($p in Get-ChildItem "$raw\claude"','if(Test-Path "$ClaudeProjects"){foreach($p in Get-ChildItem "$ClaudeProjects"','test-sync-sessions-survival.ps1','indexing the archive, not the sources')
         ,@('Spider.ps1','$Line=Hide-Secret $Line','$Line=$Line','test-spider.ps1','masking credential values in snippets')
         ,@('Spider.ps1','if($LASTEXITCODE-gt1){throw','if($false){throw','test-spider.ps1','refusing a failing git read')
-        ,@('Events.ps1','if($last.Count){"EVENT DUPLICATE','if($false){"EVENT DUPLICATE','test-events.ps1','duplicate refusal')
+        ,@('Events.ps1','if($same){"EVENT DUPLICATE','if($false){"EVENT DUPLICATE','test-events.ps1','duplicate refusal')
         ,@('Events.ps1','$s+=$idf[$q]*(2*(Test-WordMatch $q $v.tagWords)+(Test-WordMatch $q $v.words))/6','$s+=$idf[$q]*[int]((Test-WordMatch $q $v.words)-gt0)','test-events-retrieval.ps1','tag and exact-word ranking')
         ,@('Delegate.ps1','- You MUST NOT commit, push','- You may commit, push','test-delegate.ps1','the authority limits in every brief')
         ,@('Coordinator.ps1','elseif($z.source-eq''delegate-road''){','elseif($false){','test-coordinator.ps1','holding a dispatched item until its report returns')
@@ -155,6 +177,19 @@ if(!$Quick){
     }finally{if(Test-Path $t){$null=Remove-OrvionOwnedTree -Path $t -AllowedRoots @([IO.Path]::GetTempPath())}}
     # capabilities: what the session history says is missing (NEED) or unused (PRUNE). Proposals only: installing or
     # removing a plugin, MCP server, hook or skill stays the owner's decision.
+    # The decided list (records/WS-033/hunt-gaps.tsv): sessions at decision (a lesson that recurs beyond it re-raises), reason and decision, items. Anything not listed is still reported.
+    $decided=@{}
+    foreach($row in @(
+        ,@(0,'G04: no pruning, decided 2026-10-27: Delegate runs every Codex relay with --ignore-user-config, so these never load in agent runs','codex:node_repl','codex:github','codex:github-secondary','codex:postgres-founder','codex:marketing-google-ads','codex:marketing-analytics','codex:marketing-chrome','codex:marketing-search-console','codex:marketing-pagespeed','codex:marketing-gcloud','codex:openai-docs','codex:deepwiki')
+        ,@(0,'G04: keep, decided 2026-10-27: the local Supabase default on localhost in ORVION .mcp.json, no exposure','postgres-founder')
+        ,@(0,'G05: no GitHub MCP for Claude, decided 2026-10-27: account-explicit gh (CTRL-19); revisit only for a proven recurring read','mcp-github')
+        ,@(0,'G06: decided 2026-10-27: the Context7 connector injects its own instruction; RULES L16 carries the method','docs-by-hand')
+        ,@(2,'G07: a hook did not earn its cost, decided 2026-10-27; Test-ScriptHazards holds it','ps-reserved-name')
+        ,@(3,'G07: a hook did not earn its cost, decided 2026-10-27; absolute-path caller tests and the RUNBOOK traps hold it','relative-path-wrong-location')
+        ,@(2,'G07: workstream-state records superseded 2026-10-27, not lessons','workbench-hosted-security-readiness','workbench-p0-public-recovery-continuation')
+        ,@(2,'G25: fixed in Invoke-DraftSteps with its test and mutant','draft-steps-non-ascii-mojibake')
+        ,@(2,'G26: resolved, every later package captures its baseline; G28: deferred to the WS-033 Finishes, where a failure is diagnosable','ws029-missing-pre-sandbox-baseline','ws029-watch-reminder-native-failure')
+    )){foreach($item in $row[2..($row.Count-1)]){$decided[$item]=$row[0]}}
     $use=@{};$skillUse=@{};$gh=0;$docs=0;$sessions=@{}
     if(Test-Path $raw){foreach($f in Get-ChildItem $raw -Recurse -File -Filter *.jsonl){
         $sessions[$f.BaseName]=1
@@ -171,30 +206,30 @@ if(!$Quick){
     $cxCfg=Join-Path $env:USERPROFILE '.codex\config.toml'
     if(Test-Path $cxCfg){foreach($n in (Select-String -Path $cxCfg -Pattern '^\[mcp_servers\.([^\].]+)\]'|ForEach-Object{$_.Matches[0].Groups[1].Value})){$configured["codex:$n"]='~\.codex\config.toml'}}
     if($sessions.Count-ge10){
-        $idle=@($configured.Keys|Where-Object{!$use[($_-replace'^codex:','')]})
+        $idle=@($configured.Keys|Where-Object{!$use[($_-replace'^codex:','')]-and!$decided.ContainsKey($_)})
         if($idle){Add-Finding PRUNE mcp-unused "$($idle.Count) configured MCP server(s) never called in $($sessions.Count) archived transcripts (each costs context every session): $($idle-join', ')" 'mcp server unused prune context'}
     }
-    if($gh-ge50-and!$configured.Contains('github')){Add-Finding NEED mcp-github "agents called gh api $gh times by hand; Claude has no GitHub MCP server (Codex has $(@($configured.Keys|Where-Object{$_-like'codex:github*'})-join', ')); a per-account server must respect CTRL-19" 'mcp github gh api'}
+    if($gh-ge50-and!$configured.Contains('github')-and!$decided.ContainsKey('mcp-github')){Add-Finding NEED mcp-github "agents called gh api $gh times by hand; Claude has no GitHub MCP server (Codex has $(@($configured.Keys|Where-Object{$_-like'codex:github*'})-join', ')); a per-account server must respect CTRL-19" 'mcp github gh api'}
     $c7=[int]$use['context7']+[int]$use['claude_ai_Context7']
-    if($docs-ge15-and$c7-le5){Add-Finding NEED docs-by-hand "agents fetched documentation pages by hand $docs times while Context7 (installed) was called $c7 times: surface it at the point of need" 'docs documentation context7 webfetch library'}
+    if($docs-ge15-and$c7-le5-and!$decided.ContainsKey('docs-by-hand')){Add-Finding NEED docs-by-hand "agents fetched documentation pages by hand $docs times while Context7 (installed) was called $c7 times: surface it at the point of need" 'docs documentation context7 webfetch library'}
     $hookText=@(foreach($s in (Join-Path $env:USERPROFILE '.claude\settings.json'),(Join-Path (Split-Path $Root -Parent) 'CRM\.claude\settings.local.json'),(Join-Path (Split-Path $Root -Parent) 'ORVION\.claude\settings.local.json')){if(Test-Path $s){[IO.File]::ReadAllText($s)}})-join"`n"
     $hookText+=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'hooks\Watch-Reminder.ps1'))
-    $recurring=@($events|Where-Object{$_.category-eq'failure'}|Group-Object pattern|Where-Object{@($_.Group.session|Select-Object -Unique).Count-ge2}|ForEach-Object{
+    $recurring=@($events|Where-Object{$_.category-eq'failure'}|Group-Object pattern|Where-Object{$lessonSessions=@($_.Group.session|Select-Object -Unique).Count;$lessonSessions-ge2-and!($decided.ContainsKey($_.Name)-and$lessonSessions-le$decided[$_.Name])}|ForEach-Object{
         $tool=@($_.Group.tool|Where-Object{$_})[-1];$act=@($_.Group.action|Where-Object{$_})[-1]
         $toolName=if($tool){[IO.Path]::GetFileNameWithoutExtension(($tool-split'\s')[0])}else{''}
         if(!$toolName-or!$hookText.Contains($toolName)){"$($_.Name) ($(@($_.Group.session|Select-Object -Unique).Count) sessions; rule: $act)"}})
     if($recurring){Add-Finding NEED hook-candidates "lessons that recurred across sessions with no hook enforcing them at the point of action (reminders alone did not prevent the repeat): $($recurring-join' | ')" 'hook enforce recurring lesson point of action'}
-    # lint: bug-relevant rules only; the listed hits were triaged as false positives on 2026-10-20
+    # lint: bug-relevant rules only; the listed hits were triaged as false positives (2026-10-20; WS-033 hunt-gaps G10, G11, G13, G14, G18, G24). A finding with no quoted name is keyed by its trimmed source line.
     if(Get-Module -ListAvailable PSScriptAnalyzer){
         Import-Module PSScriptAnalyzer
-        $known='Events.ps1:PSReviewUnusedParameter:Brief','Invoke-ContractStage.ps1:PSReviewUnusedParameter:EntryFile','Sync-Sessions.ps1:PSReviewUnusedParameter:ClaudeProjects','Sync-Sessions.ps1:PSReviewUnusedParameter:CodexSessions','seed-events.ps1:PSReviewUnusedParameter:Root'
+        $known='Events.ps1:PSReviewUnusedParameter:Brief','Invoke-ContractStage.ps1:PSReviewUnusedParameter:EntryFile','Sync-Sessions.ps1:PSReviewUnusedParameter:ClaudeProjects','Sync-Sessions.ps1:PSReviewUnusedParameter:CodexSessions','seed-events.ps1:PSReviewUnusedParameter:Root','Workbench.ps1:PSReviewUnusedParameter:BootstrapJudge','Workbench.ps1:PSReviewUnusedParameter:BootstrapSha256','test-backup-restore.ps1:PSReviewUnusedParameter:DailyEvidenceRoot','test-backup-restore.ps1:PSReviewUnusedParameter:Force','test-backup-restore.ps1:PSReviewUnusedParameter:ErrorAction','test-backup-restore.ps1:PSReviewUnusedParameter:TaskName','test-backup-restore.ps1:PSReviewUnusedParameter:TaskPath','Pulse.ps1:PSUseDeclaredVarsMoreThanAssignments:pulseUnreadable','test-workbench-governance.ps1:PSUseDeclaredVarsMoreThanAssignments:draftDigest','test-watch-reminder.ps1:PSAvoidUsingEmptyCatchBlock:if($rows.Count-ge$Count){foreach($row in $rows){try{$child=Get-Process -Id $row.pid -ErrorAction Stop;if(!$child.WaitForExit(5000)){throw ''HOOK_STUB_EXIT_TIMEOUT''}}catch [Microsoft.PowerShell.Commands.ProcessCommandException]{}};return $rows}','test-watch-reminder.ps1:PSAvoidUsingEmptyCatchBlock:foreach($call in $calls){try{$child=Get-Process -Id $call.pid -ErrorAction Stop;if(!$child.WaitForExit(5000)){throw ''ROOT_CHILD_TIMEOUT''}}catch [Microsoft.PowerShell.Commands.ProcessCommandException]{}}','watch_run.ps1:PSAvoidUsingEmptyCatchBlock:try { if (-not $lock.WaitOne(15000)) { throw "the timing history $Path stayed locked for 15 s" } } catch [Threading.AbandonedMutexException] { }','Workbench.ps1:PSAvoidUsingEmptyCatchBlock:try{[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)}catch{}','Test-WorkbenchChange.ps1:PSAvoidUsingEmptyCatchBlock:try{[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)}catch{}'
         $lint=@(Invoke-ScriptAnalyzer -Path $Root -Recurse -IncludeRule PSReviewUnusedParameter,PSAvoidUsingEmptyCatchBlock,PSAvoidUsingCmdletAliases,PSPossibleIncorrectComparisonWithNull,PSUseDeclaredVarsMoreThanAssignments|
-            Where-Object{$_.ScriptPath-notmatch'\\(work|sessions|events)\\'}|Where-Object{"$($_.ScriptName):$($_.RuleName):$([regex]::Match($_.Message,"'([^']+)'").Groups[1].Value)"-notin$known})
+            Where-Object{$_.ScriptPath-notmatch'\\(work|sessions|events)\\'}|Where-Object{$lintName=[regex]::Match($_.Message,"'([^']+)'").Groups[1].Value;"$($_.ScriptName):$($_.RuleName):$(if($lintName){$lintName}else{$_.Extent.StartScriptPosition.Line.Trim()})"-notin$known})
         foreach($g in $lint|Group-Object RuleName){Add-Finding GAP "lint-$($g.Name.ToLower())" "$($g.Count)x $($g.Name): $(($g.Group|Select-Object -First 3|ForEach-Object{"$($_.ScriptName):$($_.Line)"})-join', ')" 'lint static analysis'}
     }else{Add-Finding GAP lint-unavailable 'PSScriptAnalyzer is not installed: Install-Module PSScriptAnalyzer -Scope CurrentUser' 'lint static analysis'}
 }
 
-# C1 deletion/placement readiness (records/audit-20261027/codex-place/AUDIT-ANSWER.md rules 1-9; rule 2 resolves only
+# C1 deletion/placement readiness (data/records/audit-20261027/codex-place/AUDIT-ANSWER.md rules 1-9; rule 2 resolves only
 # absolute and Documents-relative spellings and rule 6's ambiguous current reader is not judged). Reports only: it never
 # deletes, moves or authorizes. Inputs (schema 1, every path fully qualified): deletionRoots, temporaryRoot, profileRoot,
 # live[] and historical[] (files or directories; every line, every match; a junction or symlink inside is never followed
@@ -313,7 +348,7 @@ if(!$NoRecord){foreach($x in $findings){
     $now=@($findings|ForEach-Object{"hunt-$($_.hound)"})
     foreach($g in @($events|Where-Object{$_.pattern-like'hunt-*'}|Group-Object pattern)){
         if($indexIncomplete-and$g.Name-match'^hunt-(index-|lesson-raw-missing$)'){continue}
-        if(($g.Name-eq'hunt-decision-backpointer'-and!$decisions.Count)-or($g.Name-like'hunt-c1-*'-and$c1.outcome-notin'PASS','FAIL')){continue}
+        if(($g.Name-eq'hunt-decision-dangling'-and!$decisions.Count)-or($g.Name-like'hunt-c1-*'-and$c1.outcome-notin'PASS','FAIL')){continue}
         $z=@($g.Group|Sort-Object at)[-1]
         if($z.status-eq'open'-and$g.Name-notin$now-and$g.Name-notmatch$skipped){
             $null=& (Join-Path $PSScriptRoot 'Events.ps1') -Root $DataRoot -Add -Pattern $g.Name -Source hunter -Session "hunter-$([DateTime]::UtcNow.ToString('yyyy-MM-dd'))" -Category $z.category -Cause confirmed -Status resolved -Summary "no longer found by Hunt.ps1 ($([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm')) UTC)" -Tool 'Hunt.ps1' -Tags $z.tags

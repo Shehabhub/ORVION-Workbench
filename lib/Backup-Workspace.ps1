@@ -2,14 +2,15 @@
 #   repos\<name>.bundle   every ref and commit, including unpushed candidates and pending-tail branches
 #   repos\<name>\         ignored receipts (.orvion-local-certification.json, .orvion-certifications\), .claude\settings*.json,
 #                         local git config (identity, remote, per-account credential pin: commands only, never tokens), HEAD
-#   owner-tools\          GitHub\ORVION-Owner-Tools (sessions archive, events journal, work) minus work\sandboxes (disposable clones)
-#   claude\               user settings only; memory lives in owner-tools\records\claude-memory
+#   owner-tools\          the data root, ORVION-Workbench\data (sessions archive, events journal, work) minus work\sandboxes
+#   claude\               user settings only; memory lives in owner-tools\claude-memory (records\claude-memory before WS-033)
 # Session transcripts are sensitive, so the destination must be BitLocker-protected unless -AllowUnencrypted is passed.
 # -Package writes one compressed, UNENCRYPTED 7z instead (owner decision 2026-10-26: recoverability over secrecy), staged under
 # TEMP and removed. gitleaks (when installed) scans the staging first and writes <archive>.secret-scan.txt next to it: rule,
 # file and line only, never a value. The scan reports; it does not block. docs\RECOVERY.md says what to do with findings.
+# After a verified package, Organize -Clean's retention tier runs on the destination (DEC-27); its failure never fails the backup.
 # Never stores GitHub/OAuth tokens: after restore run `gh auth login` for both accounts (see README, Recovery).
-param([Parameter(Mandatory)][string]$Destination,[switch]$AllowUnencrypted,[switch]$SkipLegacy,[string]$RecoveryInputs,[switch]$Package,
+param([Parameter(Mandatory)][string]$Destination,[switch]$AllowUnencrypted,[string]$RecoveryInputs,[switch]$Package,
       [switch]$Install,[switch]$Status,[string]$RuntimePath,[string]$DataRoot,[string]$TemporaryRoot,
       [ValidateRange(1,1440)][int]$ExecutionLimitMinutes,[ValidatePattern('^(?:[01][0-9]|2[0-3]):[0-5][0-9]$')][string]$DailyAt='02:00')
 $ErrorActionPreference='Stop'
@@ -124,9 +125,9 @@ if($Install){
 $lease=$null;$record=$null;$previous=$null;$clock=[Diagnostics.Stopwatch]::StartNew()
 try{
 Assert-BackupPath $Destination;Assert-BackupPath $statusRoot
-# Refuse output feeding the copied inputs. No source/archiving redesign or automatic pruning.
+# Refuse output feeding the copied inputs. No source/archiving redesign; pruning is Organize's, after a verified package.
 $checkout=Split-Path $PSScriptRoot -Parent;$siblings=Split-Path $checkout -Parent
-$dataCandidate=if($env:ORVION_DATA_ROOT){$env:ORVION_DATA_ROOT}else{Join-Path $siblings 'ORVION-Owner-Tools'}
+$dataCandidate=if($env:ORVION_DATA_ROOT){$env:ORVION_DATA_ROOT}else{Join-Path $checkout 'data'}
 $sources=@($dataCandidate,(Join-Path $env:USERPROFILE '.claude'),(Join-Path $env:USERPROFILE '.codex'))
 if($RecoveryInputs){$sources+=$RecoveryInputs}
 foreach($n in 'CRM','ORVION','CRM-trusted-main','ORVION-trusted-main','ORVION-Workbench','ORVION-Workbench-trusted-main'){$sources+=Join-Path $siblings $n}
@@ -140,9 +141,9 @@ try{$lease=[IO.File]::Open((Join-Path $statusRoot 'operation.lock'),'OpenOrCreat
 if(Test-Path -LiteralPath $statusFile){$previous=Get-Content -LiteralPath $statusFile -Raw|ConvertFrom-Json}
 $record=[ordered]@{schema=1;runId=[guid]::NewGuid().ToString('N');startedUtc=[DateTime]::UtcNow.ToString('o');endedUtc=$null;elapsedSeconds=$null;result='RUNNING';errorCode=$null;lastVerified=$previous.lastVerified}
 Write-BackupStatus $record
-$tools=Split-Path $PSScriptRoot -Parent;$gh=Split-Path $tools -Parent;$docs=Split-Path $gh -Parent
+$tools=Split-Path $PSScriptRoot -Parent;$gh=Split-Path $tools -Parent
 # Same data-root default as the readers; the script's checkout is already a repository bundle.
-$ownerTools=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools'})
+$ownerTools=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) 'data'})
 if(!$env:ORVION_DATA_ROOT-and!(Test-Path -LiteralPath (Join-Path $ownerTools 'events') -PathType Container)){throw 'ORVION_DATA_ROOT_UNAVAILABLE'}
 # Selective package v1: on success only stdout is returned; stderr warnings (CRLF) must never count as entries.
 # A failure names the subcommand and masks URL credentials: arguments and output may carry config values.
@@ -348,6 +349,16 @@ if($packageLine){
 $record.result='SUCCESS';$record.endedUtc=[DateTime]::UtcNow.ToString('o');$record.elapsedSeconds=$clock.Elapsed.TotalSeconds
 if($packageLine){$record.lastVerified=[ordered]@{archive=$archive;sha256=$hash;verifiedUtc=$record.endedUtc;runId=$record.runId;recoveryInputs=$RecoveryInputs}}
 Write-BackupStatus $record
+if($packageLine){  # DEC-27: the retention tier follows a verified package. Its failure is reported and never fails the backup, whose record already stands.
+    $retention=[ordered]@{result='FAILED';summary=$null}
+    try{
+        $said=@(& ([Environment]::ProcessPath) -NoProfile -File (Join-Path $PSScriptRoot 'Organize.ps1') -Clean -Retention -Apply -Vault $Destination -Checkout $tools -Temporary $TemporaryRoot -Root $ownerTools -Reason 'daily' 2>&1|ForEach-Object{"$_"});$code=$LASTEXITCODE
+        foreach($line in $said){"RETENTION: $line"}
+        $retention.summary=@($said)[-1];if(!$code){$retention.result='OK'}
+    }catch{"RETENTION: FAILED $($_.Exception.Message)";$retention.summary=$_.Exception.Message}
+    $record.retention=$retention
+    try{Write-BackupStatus $record}catch{Write-Warning 'BACKUP_STATUS_WRITE_FAILED: the package stands; the retention result is only in this output'}
+}
 }catch{
     # Busy contenders and failed preflight cannot overwrite the active publisher's record.
     if($lease-and$record){

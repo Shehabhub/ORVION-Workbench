@@ -73,8 +73,8 @@ try{
         Assert-That 'Add fills Repo from the current git root' ($here-match'EVENT RECORDED'-and$autoRow.Count-eq1-and$autoRow[0].repo-ceq'repo-auto')
         if($EvidenceProbeOnly){if($fail){throw 'EVENTS_EVIDENCE_PROBE_FAILED'};'EVENTS_EVIDENCE_PROBE PASS';return}
     }
-    $expression='$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw ''ORVION_DATA_ROOT_NOT_ABSOLUTE''};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace''[\\/]hooks$'','''') -Parent) -Parent) ''ORVION-Owner-Tools''})'
-    $drift=@(foreach($tool in 'Events','Spider','Pulse','Coordinator','Delegate','Sync-Sessions'){if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot "$tool.ps1")).Contains('[string]$Root='+$expression)){$tool}})+@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Watch-Subagents.ps1')).Contains('[string]$EventRoot='+$expression)){'Watch-Subagents'})+@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Hunt.ps1')).Contains('[string]$DataRoot='+$expression)){'Hunt'})
+    $expression='$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw ''ORVION_DATA_ROOT_NOT_ABSOLUTE''};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path ($PSScriptRoot-replace''[\\/]hooks$'','''') -Parent) ''data''})'
+    $drift=@(foreach($tool in 'Events','Spider','Pulse','Coordinator','Delegate','Sync-Sessions','Map-Repos','Organize'){if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot "$tool.ps1")).Contains('[string]$Root='+$expression)){$tool}})+@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Watch-Subagents.ps1')).Contains('[string]$EventRoot='+$expression)){'Watch-Subagents'})+@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Hunt.ps1')).Contains('[string]$DataRoot='+$expression)){'Hunt'})
     $drift+=@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Backup-Workspace.ps1')).Contains('$ownerTools='+$expression)){'Backup-Workspace'})
     $drift+=@(if(![IO.File]::ReadAllText((Join-Path $PSScriptRoot 'hooks\Watch-Reminder.ps1')).Contains('$dataRoot='+$expression)){'Watch-Reminder'})
     Assert-That "every data tool carries the one identical data-root default$(if($drift.Count){' (drifted: '+($drift-join', ')+')'})" (!$drift.Count)
@@ -83,7 +83,7 @@ try{
     $layout=Join-Path $t 'relative-roots';$checkout=Join-Path $layout 'ORVION-Workbench';$copy=Join-Path $checkout 'lib'
     [void][IO.Directory]::CreateDirectory($copy)
     Copy-Item (Join-Path $PSScriptRoot '*') $copy -Recurse
-    [void][IO.Directory]::CreateDirectory((Join-Path $layout 'ORVION-Owner-Tools\events'))
+    [void][IO.Directory]::CreateDirectory((Join-Path $checkout 'data\events'))
     $relativeCases=@(
         @{tool='Events';arguments=@('-Brief')},
         @{tool='Spider';arguments=@('fixture')},
@@ -92,8 +92,9 @@ try{
         @{tool='Delegate';arguments=@('-List')},
         @{tool='Watch-Subagents';arguments=@('-Session','fixture','-Once')},
         @{tool='Sync-Sessions';arguments=@('-Quiet','-ClaudeProjects',(Join-Path $t 'no-claude'),'-CodexSessions',(Join-Path $t 'no-codex'))},
-        @{tool='Backup-Workspace';arguments=@('-Destination',(Join-Path $t 'relative-backup'),'-AllowUnencrypted','-SkipLegacy')},
+        @{tool='Backup-Workspace';arguments=@('-Destination',(Join-Path $t 'relative-backup'),'-AllowUnencrypted')},
         @{tool='Hunt';arguments=@('-Quick','-NoRecord')},
+        @{tool='Map-Repos';arguments=@('-Orphans')},
         @{tool='hooks\Watch-Reminder';arguments=@()}
     )
     foreach($case in $relativeCases|Where-Object{!$RelativeTool-or$_.tool-eq$RelativeTool}){foreach($launch in 'a','b'){
@@ -140,6 +141,13 @@ function Get-CimInstance{param([string]$ClassName,[string]$Filter) if($ClassName
     Assert-That 'find links the raw session record' (($f-join"`n")-match'raw record: session s2-bbbbb|raw record: session s1-aaaaa')
     $br=@(& $ev -Root $t -Brief)
     Assert-That 'brief lists open or deferred first, then recurring' ($br[1]-match'watch-run-eta'-and$br[2]-match'ps-reserved-name'-and(($br-join' ')-notmatch'other-script'))
+    # The retention tier keeps a deleted transcript's row with an empty raw path (DEC-10).
+    Add-Content "$t\sessions\index.jsonl" '{"id":"s3-cccccccc","start":"2026-10-03T10:00:00Z","title":"gone session","raw":""}'
+    $null=& $ev -Root $t -Add -Pattern retired-transcript -Session s3-cccccccc -Category observation -Status resolved -Summary 'zebra quokka'
+    $gone=(@(& $ev -Root $t -Find 'zebra quokka')-join"`n")
+    Assert-That 'find says a deleted transcript is deleted, with no path' ($gone-match'raw record: session s3-ccccc.*-> deleted past retention'-and$gone-notmatch'gone session" -> [A-Za-z]:')
+    Assert-That 'a query with no space needs every part to match' ((@(& $ev -Root $t -Find 'zebra-W33-absent')-join"`n")-match'nothing recorded'-and(@(& $ev -Root $t -Find 'zebra-quokka')-join"`n")-match'retired-transcript')
+    Assert-That 'a query with spaces keeps its partial matches' ((@(& $ev -Root $t -Find 'zebra W33-absent')-join"`n")-match'retired-transcript')
     $bad=try{& $ev -Root $t -Add -Pattern 'Bad Pattern' -Summary x;$false}catch{$true}
     Assert-That 'a malformed pattern id is refused' $bad
     $before=(Get-Content "$t\events\events.jsonl").Count
@@ -164,14 +172,14 @@ function Get-CimInstance{param([string]$ClassName,[string]$Filter) if($ClassName
     $none=@(& pwsh -NoProfile -File $ev -Root (Join-Path $t 'no-store') -Find 'process');$noneCode=$LASTEXITCODE
     $null=& pwsh -NoProfile -File $ev -Root (Join-Path $t 'no-store') -Brief;$noneBriefCode=$LASTEXITCODE
     Assert-That 'a missing journal is UNAVAILABLE (exit 3), never "nothing recorded"' ($noneCode-eq3-and$none[0]-match'^EVENTS_UNAVAILABLE'-and($none-join' ')-notmatch'nothing recorded'-and$noneBriefCode-eq3)
-    # The default data root: the sibling ORVION-Owner-Tools store when it has events\, ORVION_DATA_ROOT above all.
+    # The default data root: the checkout's data\ when it has events\, ORVION_DATA_ROOT above all.
     $gh=Join-Path $t 'gh';$copy=Join-Path $gh 'ORVION-Workbench\lib';[void][IO.Directory]::CreateDirectory($copy);Copy-Item $ev,(Join-Path $PSScriptRoot 'Sync-Sessions.ps1') $copy  # Events masks with the archive's rules
-    $null=& $ev -Root (Join-Path $gh 'ORVION-Owner-Tools') -Add -Pattern sibling-store-marker -Session s9 -Summary 'found in the sibling data store' -Tags 'siblingmarker'
+    $null=& $ev -Root (Join-Path $gh 'ORVION-Workbench\data') -Add -Pattern sibling-store-marker -Session s9 -Summary 'found in the sibling data store' -Tags 'siblingmarker'
     $null=& $ev -Root (Join-Path $t 'env store') -Add -Pattern env-store-marker -Session s9 -Summary 'found through ORVION_DATA_ROOT' -Tags 'siblingmarker'
     $savedRoot=$env:ORVION_DATA_ROOT
     try{$env:ORVION_DATA_ROOT=$null;$sib=@(& pwsh -NoProfile -File (Join-Path $copy 'Events.ps1') -Find 'siblingmarker')
         $env:ORVION_DATA_ROOT=(Join-Path $t 'env store')+'\';$viaEnv=@(& pwsh -NoProfile -File (Join-Path $copy 'Events.ps1') -Find 'siblingmarker')}finally{$env:ORVION_DATA_ROOT=$savedRoot}
-    Assert-That 'default root finds the sibling data store; ORVION_DATA_ROOT overrides it' (($sib-join' ')-match'sibling-store-marker'-and($viaEnv-join' ')-match'env-store-marker'-and($viaEnv-join' ')-notmatch'sibling-store-marker')
+    Assert-That 'default root finds the checkout''s data store; ORVION_DATA_ROOT overrides it' (($sib-join' ')-match'sibling-store-marker'-and($viaEnv-join' ')-match'env-store-marker'-and($viaEnv-join' ')-notmatch'sibling-store-marker')
     # A Hijri-calendar culture (ar-SA) must not leak into stored timestamps: readers parse them as Gregorian UTC.
     $hijri=Join-Path $t 'hijri';& pwsh -NoProfile -Command "[Globalization.CultureInfo]::CurrentCulture='ar-SA';& '$($ev.Replace("'","''"))' -Root '$($hijri.Replace("'","''"))' -Add -Pattern locale-check -Summary 'calendar'"|Out-Null
     $stamp=([IO.File]::ReadAllLines((Join-Path $hijri 'events\events.jsonl'))[0]|ConvertFrom-Json -DateKind String).at

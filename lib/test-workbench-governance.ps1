@@ -192,7 +192,7 @@ function New-ContextFixture([string]$Name,[hashtable]$Changes,[switch]$Original)
     foreach($key in $replacements.Keys){
         $pattern='(?m)^'+[regex]::Escape($key)+': [^\n]+$'
         $value=$key+': '+$replacements[$key]
-        $contextBody=[regex]::Replace($contextBody,$pattern,[Text.RegularExpressions.MatchEvaluator]{param($match)$value})
+        $contextBody=[regex]::Replace($contextBody,$pattern,[Text.RegularExpressions.MatchEvaluator]{$value})
     }
     $body=Set-WorkbenchSection $body 'Execution Context' $contextBody
     Write-FixtureFile $file $body;Write-FixtureFile $selected $body
@@ -489,7 +489,7 @@ try {
     $seed=Join-Path $ownedRoot 'seed';[void][IO.Directory]::CreateDirectory($seed)
     $null=Invoke-FixtureGit $seed @('init','--quiet')
     foreach($setting in @(@('user.name','Fixture'),@('user.email','fixture@invalid.local'),@('core.hooksPath','.git/hooks'),@('core.autocrlf','true'),@('gc.auto','0'),@('maintenance.auto','false'))){$null=Invoke-FixtureGit $seed @('config','--local',$setting[0],$setting[1])}
-    foreach($relative in 'lib/Test-WorkbenchChange.ps1','lib/Workbench.ps1','lib/workspace-layout.ps1','lib/run_timed.ps1','lib/watch_run.ps1','lib/apply-draft-steps.ps1','lib/Invoke-DraftSteps.ps1','lib/Events.ps1','lib/Hunt.ps1','lib/Sync-Sessions.ps1','.githooks/pre-commit'){
+    foreach($relative in 'lib/Test-WorkbenchChange.ps1','lib/Workbench.ps1','lib/workspace-layout.ps1','lib/run_timed.ps1','lib/watch_run.ps1','lib/apply-draft-steps.ps1','lib/Invoke-DraftSteps.ps1','lib/Events.ps1','lib/Hunt.ps1','lib/Organize.ps1','lib/data-schemas.json','lib/Save-State.ps1','lib/remove-owned.ps1','lib/Test-MarkdownConsistency.ps1','lib/Sync-Sessions.ps1','.githooks/pre-commit'){
         $source=Join-Path (Split-Path $PSScriptRoot -Parent) $relative
         Write-FixtureFile (Join-Path $seed $relative) ([IO.File]::ReadAllText($source))
     }

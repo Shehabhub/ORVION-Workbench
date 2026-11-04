@@ -1,6 +1,7 @@
 # Restores a Backup-Workspace.ps1 folder onto a fresh machine. Never overwrites: every destination must be absent.
 # Verifies SHA256SUMS.txt first; rebuilds each repository from its bundle with identical refs, HEAD, local config
-# (identity, remote, credential pin, hooks path, branch upstreams: Boot refuses GIT_UPSTREAM_MISSING without them) and ignored receipts; then the workspace, Claude memory and legacy folders.
+# (identity, remote, credential pin, hooks path, branch upstreams: Boot refuses GIT_UPSTREAM_MISSING without them) and ignored receipts; then the data root
+# (the package's owner-tools\, into ORVION-Workbench\data), Claude memory and legacy folders.
 # Afterwards (manual, credentials are never backed up): gh auth login for PlatPlusHub and Shehabhub, then
 # `pwsh -NoProfile -File <repo>\scripts\check_agent_continuity.ps1 -Boot` in each repository.
 # Selective package v1: -Package <file.7z> extracts a Backup-Workspace -Package archive into TEMP first (removed afterwards).
@@ -22,7 +23,7 @@ function Assert-Absent([string]$Path){if(Test-Path -LiteralPath $Path){throw "RE
 if(!$From-eq!$Package){throw 'RESTORE_SOURCE_REQUIRED: pass exactly one of -From or -Package'}
 try{
 if($Package){
-    $temporaryRoot=Initialize-OrvionTemporaryRoot -Checkout (Split-Path $PSScriptRoot -Parent)
+    $null=Initialize-OrvionTemporaryRoot -Checkout (Split-Path $PSScriptRoot -Parent)
     $zip=(Get-Command 7z -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1).Source;if(!$zip){$zip=Join-Path $env:ProgramFiles '7-Zip\7z.exe'}
     if(!(Test-Path -LiteralPath $zip)){throw 'PACKAGE_7ZIP_REQUIRED'}
     $staging=Join-Path ([IO.Path]::GetTempPath()) ("orvion-restore-"+[guid]::NewGuid().ToString('N'))
@@ -79,10 +80,12 @@ if(@($plan.repos|Where-Object{$_.name-like'ORVION-Workbench*'}).Count){
 }
 
 foreach($r in $plan.repos){Assert-Absent (Join-Path $Target $r.name)}
-Assert-Absent (Join-Path $Target 'ORVION-Owner-Tools')
+$dataTarget=Join-Path $Target 'ORVION-Workbench\data';Assert-Absent $dataTarget
+# Memory stays where the package holds it: claude-memory\, or records\claude-memory\ in packages made before WS-033.
+$memoryRoot=if(Test-Path -LiteralPath (Join-Path $From 'owner-tools/claude-memory') -PathType Container){'claude-memory'}else{'records/claude-memory'}
 # Preflight every memory destination, including dangling links, before restoring any repository.
 $memorySources=@{}
-foreach($m in Get-ChildItem -LiteralPath (Join-Path $From 'owner-tools/records/claude-memory') -Directory -ErrorAction SilentlyContinue){$memorySources[$m.Name]=$m.FullName}
+foreach($m in Get-ChildItem -LiteralPath (Join-Path $From "owner-tools/$memoryRoot") -Directory -ErrorAction SilentlyContinue){$memorySources[$m.Name]=$m.FullName}
 foreach($m in Get-ChildItem -LiteralPath (Join-Path $From 'claude/projects') -Directory -ErrorAction SilentlyContinue){
     $source=Join-Path $m.FullName 'memory'
     if(Test-Path -LiteralPath $source -PathType Container){
@@ -93,10 +96,10 @@ foreach($m in Get-ChildItem -LiteralPath (Join-Path $From 'claude/projects') -Di
 foreach($key in $memorySources.Keys){
     $destination=Join-Path $ClaudeHome "projects/$key/memory"
     $existing=Get-Item -LiteralPath $destination -Force -ErrorAction SilentlyContinue
-    $expected=[IO.Path]::GetFullPath((Join-Path $Target "ORVION-Owner-Tools/records/claude-memory/$key")).TrimEnd('\')
+    $expected=[IO.Path]::GetFullPath((Join-Path $dataTarget "$memoryRoot/$key")).TrimEnd('\')
     if($existing-and($existing.LinkType-cne'Junction'-or[IO.Path]::GetFullPath(@($existing.Target)[0]).TrimEnd('\')-ine$expected)){throw 'RESTORE_MEMORY_CONFLICT'}
 }
-$temporaryRoot=Initialize-OrvionTemporaryRoot -Checkout (Split-Path $PSScriptRoot -Parent) -Target $(if($PSBoundParameters.ContainsKey('Target')){$Target})
+$null=Initialize-OrvionTemporaryRoot -Checkout (Split-Path $PSScriptRoot -Parent) -Target $(if($PSBoundParameters.ContainsKey('Target')){$Target})
 
 $created=[Collections.Generic.List[string]]::new()
 try{foreach($r in $plan.repos){
@@ -130,10 +133,11 @@ try{foreach($r in $plan.repos){
     "$(if($ok){'RESTORED'}else{'MISMATCH'}) $($r.name) $($r.branch)@$($head.Substring(0,7)) refs=$($got.Count)/$($want.Count) clean=$($dirty-eq0)"
     if(!$ok){throw "RESTORE_MISMATCH $($r.name)"}
 }}catch{"PARTIAL RESTORE: these were created before the failure; remove them before retrying: $($created-join', ')";throw}
-Copy-Item (Join-Path $From 'owner-tools') (Join-Path $Target 'ORVION-Owner-Tools') -Recurse
-"RESTORED ORVION-Owner-Tools"
+[void][IO.Directory]::CreateDirectory((Split-Path $dataTarget -Parent))
+Copy-Item (Join-Path $From 'owner-tools') $dataTarget -Recurse
+"RESTORED data root $dataTarget"
 foreach($key in $memorySources.Keys){
-    $memoryTarget=Join-Path $Target "ORVION-Owner-Tools/records/claude-memory/$key"
+    $memoryTarget=Join-Path $dataTarget "$memoryRoot/$key"
     if(!(Test-Path -LiteralPath $memoryTarget)){
         [void][IO.Directory]::CreateDirectory((Split-Path $memoryTarget -Parent))
         Copy-Item -LiteralPath $memorySources[$key] -Destination $memoryTarget -Recurse
@@ -159,7 +163,7 @@ if(!$SkipLegacy-and$PSBoundParameters.ContainsKey('LegacyTarget')-and$LegacyTarg
     $d=Join-Path $LegacyTarget $l.Name;if(Test-Path $d){"SKIPPED legacy $($l.Name) (exists)"}else{Copy-Item $l.FullName $d -Recurse;"RESTORED legacy $($l.Name)"}
 }}elseif(Test-Path -LiteralPath (Join-Path $From 'legacy')){'ACTION: old package legacy files were not restored; pass -LegacyTarget explicitly to recover them'}
 if($plan.workbenchRecovery){
-    $inputsTarget=Join-Path $Target 'ORVION-Owner-Tools/records/recovery-inputs'
+    $inputsTarget=Join-Path $dataTarget 'records/recovery-inputs'
     [void][IO.Directory]::CreateDirectory($inputsTarget)
     foreach($inputFile in Get-ChildItem -LiteralPath (Join-Path $From 'recovery-inputs') -File){
         $destination=Join-Path $inputsTarget $inputFile.Name

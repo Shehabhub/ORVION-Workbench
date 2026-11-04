@@ -114,7 +114,7 @@ function Write-RecoveryChecklist([string]$Target,[string]$ClaudeHome,[string]$Co
     Write-RecoveryPluginChecklist (Join-Path $ClaudeHome 'settings.json') $installed
     foreach($product in 'CRM','ORVION'){Write-Host "ACTION: in $Target\$product run pwsh -NoProfile -File scripts\check_agent_continuity.ps1 -Boot; require ORVION: READY"}
     Write-Host "ACTION: in $Target\ORVION-Workbench run pwsh -NoProfile -File lib\Workbench.ps1 -Boot; require WORKBENCH: READY"
-    Write-Host "ACTION: use restored ORVION-Owner-Tools as the data root (repair/unset ORVION_DATA_ROOT if needed); record C2 with restore and all three Boot outputs per HANDOFF.md section 12"
+    Write-Host "ACTION: the data root is the restored ORVION-Workbench\data (repair/unset ORVION_DATA_ROOT if needed); record C2 with restore and all three Boot outputs per HANDOFF.md section 12"
 }
 function Invoke-OrvionRecovery([string]$PackageDir,[string]$Staging,[string]$Target,[string]$ClaudeHome,[string]$LegacyTarget,[string]$CodexHome,[switch]$AllowNewProfile,[switch]$SkipProducts){
     $script:RecoveryExit=0;$ownsStaging=$false
@@ -122,11 +122,11 @@ function Invoke-OrvionRecovery([string]$PackageDir,[string]$Staging,[string]$Tar
         if(!$Staging){$Staging=Join-Path $Target ('ORVION-Workbench-temporary\restore-staging\'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-'+[guid]::NewGuid().ToString('N'))}
         $Staging=[IO.Path]::GetFullPath($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Staging))
         $actualStage=Get-RecoveryActualPath $Staging
-        foreach($destination in @((Join-Path $Target 'ORVION-Workbench'),(Join-Path $Target 'ORVION-Workbench-trusted-main'),(Join-Path $Target 'ORVION-Owner-Tools'),(Join-Path $Target 'CRM'),(Join-Path $Target 'CRM-trusted-main'),(Join-Path $Target 'ORVION'),(Join-Path $Target 'ORVION-trusted-main'),(Join-Path $Target 'ORVION-Workbench-temporary'),$ClaudeHome,$CodexHome)+@($LegacyTarget|Where-Object{$_})){
+        foreach($destination in @((Join-Path $Target 'ORVION-Workbench'),(Join-Path $Target 'ORVION-Workbench-trusted-main'),(Join-Path $Target 'ORVION-Workbench\data'),(Join-Path $Target 'CRM'),(Join-Path $Target 'CRM-trusted-main'),(Join-Path $Target 'ORVION'),(Join-Path $Target 'ORVION-trusted-main'),(Join-Path $Target 'ORVION-Workbench-temporary'),$ClaudeHome,$CodexHome)+@($LegacyTarget|Where-Object{$_})){
             $actual=Get-RecoveryActualPath $destination
             if($actual-ieq$actualStage-or$actual.StartsWith($actualStage+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'RECOVERY_DESTINATION_IN_STAGING'}
         }
-        $protected=@((Join-Path $Target 'ORVION-Workbench'),(Join-Path $Target 'ORVION-Workbench-trusted-main'),(Join-Path $Target 'ORVION-Owner-Tools'),(Join-Path $Target 'CRM'),(Join-Path $Target 'CRM-trusted-main'),(Join-Path $Target 'ORVION'),(Join-Path $Target 'ORVION-trusted-main'),$ClaudeHome,$CodexHome,(Join-Path $env:USERPROFILE '.claude'),(Join-Path $env:USERPROFILE '.codex'))+@($LegacyTarget,$env:ORVION_DATA_ROOT|Where-Object{$_})
+        $protected=@((Join-Path $Target 'ORVION-Workbench'),(Join-Path $Target 'ORVION-Workbench-trusted-main'),(Join-Path $Target 'CRM'),(Join-Path $Target 'CRM-trusted-main'),(Join-Path $Target 'ORVION'),(Join-Path $Target 'ORVION-trusted-main'),$ClaudeHome,$CodexHome,(Join-Path $env:USERPROFILE '.claude'),(Join-Path $env:USERPROFILE '.codex'))+@($LegacyTarget,$env:ORVION_DATA_ROOT|Where-Object{$_})
         foreach($path in $protected){
             $actual=Get-RecoveryActualPath $path
             if($actualStage-ieq$actual-or$actualStage.StartsWith($actual.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'RECOVERY_STAGING_PLACEMENT_REFUSED'}
@@ -139,10 +139,10 @@ function Invoke-OrvionRecovery([string]$PackageDir,[string]$Staging,[string]$Tar
             try{$known=Get-RecoveryActualPath $path}catch{if($_.Exception.Message-ne'RECOVERY_PATH_UNRESOLVED'){throw}}
             if($actualStage-ieq$known-or$actualStage.StartsWith($known.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'RECOVERY_STAGING_PLACEMENT_REFUSED'}
         }
-        # Inspect ancestor metadata only, including independently named Git repositories.
+        # Inspect ancestor metadata only: independently named Git repositories and data roots (a folder holding events\).
         $ancestor=$actualStage
         while($ancestor){
-            if((Split-Path $ancestor -Leaf)-ieq'ORVION-Owner-Tools'){throw 'RECOVERY_STAGING_PLACEMENT_REFUSED'}
+            if(Test-Path -LiteralPath (Join-Path $ancestor 'events') -PathType Container){throw 'RECOVERY_STAGING_PLACEMENT_REFUSED'}
             if(Test-Path -LiteralPath (Join-Path $ancestor '.git')){throw 'RECOVERY_STAGING_PLACEMENT_REFUSED'}
             $parent=Split-Path $ancestor -Parent
             if($parent-eq$ancestor){break};$ancestor=$parent

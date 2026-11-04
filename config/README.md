@@ -1,6 +1,6 @@
 # Configuration examples - SCAFFOLDED / NOT IMPLEMENTED
 
-This source-owned directory is reserved for reviewed non-secret configuration examples under [the canonical workspace layout](../docs/WORKSPACE-LAYOUT.md), section 2. It is not an active configuration interface, a second roots authority or an installation instruction.
+This source-owned directory is reserved for reviewed non-secret configuration examples under the workspace layout, WORKSPACE-LAYOUT.md section 3.1 ([layout](../docs/WORKSPACE-LAYOUT.md#31-orvion-workbench-tracked-in-git-unless-marked-ignored)). It is not an active configuration interface, a second roots authority or an installation instruction.
 
 No roots.example.psd1 schema, local binding, generated index, executable, credentials, approval or receipt is provided. A future consumer and its exact schema require their own approved contract and tests before any example can be operational.
 

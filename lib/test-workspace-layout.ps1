@@ -148,7 +148,7 @@ try{
         $entryTarget=Join-Path $scratch 'entry target'
         $entryResult=Invoke-LayoutChild 'pwsh' @('-NoProfile','-File',(Join-Path $entryLib 'Restore-Workspace.ps1'),'-Temporary','-Target',$entryTarget) @{USERPROFILE=(Join-Path $scratch 'absent-profile');ORVION_DATA_ROOT=(Join-Path $scratch 'absent-data');PATH=$env:PATH}
         if($entryResult.Exit){'TEMPORARY_ENTRY_DIAGNOSTIC: '+$entryResult.Text}
-        Assert-Layout 'actual Temporary entry needs no package, journal, sessions, client homes or credentials' ($entryResult.Exit-eq0-and(Test-Path (Join-Path $entryTarget 'ORVION-Workbench-temporary/tools/actionlint.exe'))-and@(Get-ChildItem $entryTarget).Count-eq1-and!(Test-Path (Join-Path $scratch 'absent-profile/.claude'))-and!(Test-Path (Join-Path $scratch 'absent-profile/.codex'))-and!(Test-Path (Join-Path $scratch 'absent-data')))
+        Assert-Layout 'actual Temporary entry needs no package, journal, sessions, client homes or credentials' ($entryResult.Exit-eq0-and(Test-Path (Join-Path $entryTarget 'ORVION-Workbench-temporary/tools/actionlint.exe'))-and(Test-Path (Join-Path $entryTarget 'ORVION-Workbench-temporary/map') -PathType Container)-and@(Get-ChildItem $entryTarget).Count-eq1-and!(Test-Path (Join-Path $scratch 'absent-profile/.claude'))-and!(Test-Path (Join-Path $scratch 'absent-profile/.codex'))-and!(Test-Path (Join-Path $scratch 'absent-data')))
         if(!$NoMutants){
             $layoutBytes=[IO.File]::ReadAllText($Resolver)
             $anchor="if((Get-FileHash -LiteralPath `$candidate).Hash-cne`$tool.SHA256){throw 'WB_TEMP_TOOL_IDENTITY'}"
@@ -246,7 +246,7 @@ exit 0
         $env:TEMP=$scratch;$env:TMP=$scratch;$env:ORVION_DATA_ROOT=$null
         $store=Get-OrvionFinishHuntDataRoot -Checkout $huntClone
         Assert-Layout 'Finish Hunt in a clone without a data root gets an empty disposable store outside the checkout' ($store-and$store.StartsWith($scratch,[StringComparison]::OrdinalIgnoreCase)-and!$store.StartsWith($huntClone,[StringComparison]::OrdinalIgnoreCase)-and(Test-Path (Join-Path $store 'events') -PathType Container)-and!(Get-ChildItem (Join-Path $store 'events') -Force))
-        $installedHunt=Join-Path $scratch 'hunt-installed/ORVION-Workbench';[void][IO.Directory]::CreateDirectory((Join-Path $scratch 'hunt-installed/ORVION-Owner-Tools/events'));[void][IO.Directory]::CreateDirectory($installedHunt)
+        $installedHunt=Join-Path $scratch 'hunt-installed/ORVION-Workbench';[void][IO.Directory]::CreateDirectory((Join-Path $installedHunt 'data/events'));[void][IO.Directory]::CreateDirectory($installedHunt)
         Assert-Layout 'Finish Hunt beside a real data store keeps the default' ($null-eq(Get-OrvionFinishHuntDataRoot -Checkout $installedHunt))
         $env:ORVION_DATA_ROOT=$scratch
         Assert-Layout 'Finish Hunt with an explicit ORVION_DATA_ROOT keeps the default' ($null-eq(Get-OrvionFinishHuntDataRoot -Checkout $huntClone))

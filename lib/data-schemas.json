@@ -1,0 +1,122 @@
+{
+  "about": "The one schema file (DEC-28): Organize -Check reads it. tsv in Table Schema's terms, json and jsonl in JSON Schema 2020-12. A path is place:relative; an absent file is skipped.",
+  "tsv": [
+    {
+      "paths": ["workbench:docs/history/LOG.tsv", "data:work/retention-log.tsv"],
+      "fields": ["utc", "action", "place", "from", "to", "workstream", "reason", "sha256"],
+      "patterns": {"utc": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+      "enum": {"action": ["new", "move", "delete"], "place": ["workbench", "temporary", "data", "vault"]}
+    },
+    {
+      "paths": ["data:records/WS-033/MIGRATION-MAP.tsv"],
+      "fields": ["ID", "By", "Item", "Action", "Result", "Readers", "Writers", "Requires", "Status"],
+      "primaryKey": "ID",
+      "patterns": {"ID": "^[A-Z]\\d{2,}$"},
+      "enum": {"Status": ["READY", "DONE", "BLOCKED"]}
+    },
+    {
+      "paths": ["data:records/WS-033/cited.tsv"],
+      "fields": ["Path", "Bytes", "Sha256", "Manifest", "CitedBy"],
+      "primaryKey": "Path",
+      "patterns": {"Bytes": "^\\d+$"},
+      "enum": {"Manifest": ["0", "1"]}
+    },
+    {
+      "paths": ["data:records/WS-033/decisions-map.tsv", "workbench:docs/history/DECISIONS-MAP.tsv"],
+      "fields": ["d", "date", "status", "now_in", "reason"],
+      "primaryKey": "d",
+      "patterns": {"d": "^D\\d+$"},
+      "enum": {"status": ["DEC", "Expired", "History"]}
+    },
+    {
+      "paths": ["data:records/WS-033/hunt-gaps.tsv"],
+      "fields": ["id", "source", "finding", "end_state", "evidence", "action", "verify", "coordinator"],
+      "primaryKey": "id",
+      "patterns": {"id": "^G\\d+$"}
+    },
+    {
+      "paths": ["data:records/WS-033/sections.tsv"],
+      "fields": ["ID", "File", "Lines", "Section", "Kind", "Action", "Target", "DEC", "Note"],
+      "primaryKey": "ID",
+      "patterns": {"ID": "^L\\d+$"},
+      "enum": {
+        "Kind": ["contradiction", "dead", "history", "how-to", "reference", "rule"],
+        "Action": ["CITE", "DELETE", "KEEP", "MERGE", "MOVE", "TO-DEC"]
+      }
+    },
+    {
+      "paths": ["data:records/MANIFEST.tsv"],
+      "fields": ["OriginalPath", "RecordPath", "Bytes", "SHA256"],
+      "primaryKey": "RecordPath",
+      "patterns": {"Bytes": "^\\d+$", "SHA256": "^[0-9A-Fa-f]{64}$"}
+    }
+  ],
+  "jsonl": [
+    {
+      "path": "data:events/events.jsonl",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": ["at", "session", "source", "pattern", "category", "severity", "summary", "status"],
+        "properties": {
+          "at": {"type": "string", "minLength": 1},
+          "pattern": {"type": "string", "minLength": 1},
+          "summary": {"type": "string", "minLength": 1},
+          "category": {"enum": ["failure", "discovery", "decision", "proposal", "success", "observation"]},
+          "severity": {"enum": ["info", "warn", "high"]},
+          "status": {"enum": ["open", "resolved", "disproven", "deferred", "superseded"]}
+        }
+      }
+    },
+    {
+      "path": "data:sessions/index.jsonl",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": ["v", "client", "id", "raw", "bytes", "tools"],
+        "properties": {
+          "v": {"type": "integer"},
+          "client": {"enum": ["claude", "codex"]},
+          "id": {"type": "string", "minLength": 1},
+          "raw": {"type": "string"},
+          "bytes": {"type": "integer", "minimum": 0},
+          "tools": {"type": "object"}
+        }
+      }
+    }
+  ],
+  "json": [
+    {
+      "path": "workbench:docs/owner/recovery-inputs/recovery-inputs.json",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": ["schema", "inputs"],
+        "properties": {
+          "schema": {"type": "integer"},
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "path", "sha256"],
+              "properties": {"sha256": {"type": "string", "pattern": "^[0-9A-Fa-f]{64}$"}}
+            }
+          }
+        }
+      }
+    },
+    {
+      "path": "data:work/deletion-readiness.json",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": ["schema", "at", "inputs", "outcome", "edges"],
+        "properties": {
+          "schema": {"type": "integer"},
+          "outcome": {"enum": ["PASS", "FAIL", "INCOMPLETE"]},
+          "edges": {"type": "array"}
+        }
+      }
+    }
+  ]
+}

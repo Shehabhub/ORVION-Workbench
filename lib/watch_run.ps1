@@ -1,4 +1,4 @@
-# ORVION run watcher -- ON-DEMAND REPORTING ADAPTER (AGENTS.md section 7). It owns no truth.
+# ORVION run watcher -- ON-DEMAND REPORTING ADAPTER (lib/README.md section 3). It owns no truth.
 #
 # Follows a log written by `scripts/run_timed.ps1` and prints:
 #   * the run's start and the watcher's own attach time, so a late watch is visible;

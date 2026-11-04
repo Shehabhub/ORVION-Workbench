@@ -106,6 +106,13 @@ try{
     Test-Case 'substring-ambiguous' "MARK`na`nfoo`nxfoo`nfoo2`nb`n" "MARK`na`nFOO`nxfoo`nfoo2`nb`n"
     Test-Case 'append-at-end' "MARK`na`nb`n" "MARK`na`nb`nc`n"
     Test-Case 'no-final-newline' "MARK`na`n" "MARK`na`nc" $true
+    # hunt-gaps G25: a non-ASCII anchor and insertion under a CP437 console.
+    $savedEncoding=[Console]::OutputEncoding;$dash=[string][char]0x2014
+    try{
+        [Console]::OutputEncoding=[Text.Encoding]::GetEncoding(437)
+        Test-Case 'non-ascii-anchor-cp437' "MARK`nfirst $dash anchor`nsecond`n" "MARK`nfirst $dash anchor`ninserted $dash line`nsecond`n"
+        Assert-DraftCase 'the caller''s console encoding is restored' ([Console]::OutputEncoding.CodePage-eq437)
+    }finally{[Console]::OutputEncoding=$savedEncoding}
     Test-CreationCases
 }finally{
     $env:GIT_CONFIG_GLOBAL=$savedGitGlobal;$env:GIT_CONFIG_NOSYSTEM=$savedGitNoSystem

@@ -9,7 +9,7 @@ $savedProfile=$env:USERPROFILE;$env:USERPROFILE=Join-Path $t 'profile'
 $fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
 try{
     if(!$RootProbeOnly-and!$EvidenceProbeOnly-and!$IndexProbeOnly){
-        # Record integrity: C2 decision back-pointers and the C1 audit's eleven real regression cases, on synthetic roots.
+        # Record integrity: C2 archive and D-number names and the C1 audit's eleven real regression cases, on synthetic roots.
         $store=Join-Path $t 'record-probe';foreach($part in 'sessions','events','work','records'){[void][IO.Directory]::CreateDirectory((Join-Path $store $part))}
         $recordLauncher=Join-Path $t 'record-probe.ps1'
         [IO.File]::WriteAllText($recordLauncher,@'
@@ -21,27 +21,28 @@ $extra=@{};if($Decisions){$extra.DecisionsPath=$Decisions};if($Readiness){$extra
 exit $LASTEXITCODE
 '@)
         function Invoke-RecordHunt([string]$Decisions,[string]$Readiness){$o=@(& pwsh -NoProfile -File $recordLauncher -Hunt (Join-Path $PSScriptRoot 'Hunt.ps1') -Store $store -Decisions $Decisions -Readiness $Readiness 2>&1)-join"`n";[pscustomobject]@{code=$LASTEXITCODE;out=$o}}
-        $decisionFile=Join-Path $store 'records\DECISIONS.md'
-        [IO.File]::WriteAllText($decisionFile,@'
-## D5 2026-10-26 Key custody
-Encrypted package keys held by the owner.
-## D10 2026-10-26 Owner revised recovery: no encryption
-OWNER-DIRECTIVE supersedes D5 key custody.
-## D29 2026-10-27 Step 2 (sequence "CRM first" amended by D30)
-## D30 2026-10-27 Step 2 concurrent (amends D29's sequence only)
-## D32 2026-10-27 Codex input (web-search exclusion superseded by D33)
-## D33 2026-10-27 Governed upgrade (reopens D32's exclusion)
-Supersedes D32's "NOT authorized" only for this path. F1 D33 supersedes D31's author allocation.
-'@)
-        $c2=Invoke-RecordHunt $decisionFile
-        Assert-That 'C2 reports the historical D10->D5 missing back-pointer as a BUG' ($c2.code-eq1-and$c2.out-match'(?m)BUG decision-backpointer: 1 declared supersession\(s\) not named on both sides \(newer->older\): D10->D5\r?$')
-        Assert-That 'C2 passes paired D29/D30 and D32/D33 and ignores a link stated about another decision' ($c2.out-notmatch'D30->D29|D33->D32|D33->D31')
-        $paired=[IO.File]::ReadAllText($decisionFile).Replace('## D5 2026-10-26 Key custody','## D5 2026-10-26 Key custody (superseded by D10)')
-        [IO.File]::WriteAllText($decisionFile,$paired)
-        Assert-That 'C2 is silent once both sides name the supersession' ((Invoke-RecordHunt $decisionFile).out-notmatch'decision-')
-        # A back link declared only by the older decision (real phrasing) fails until the newer section names it.
-        [IO.File]::AppendAllText($decisionFile,"`n## D37 2026-10-28 WS-029 first (deletion-required acceptance superseded for the WS-029 V3 successor by D43)`n## D39 2026-10-28 Maximum effort (level revised to xhigh by D41)`n## D41 2026-10-28 Effort revised: xhigh for D39 work`n## D43 2026-10-28 WS-029 Candidate C approved`n")
-        Assert-That 'C2 reports a back link named only by the older decision; "revised to xhigh by D41" with D41 naming D39 is paired' ((Invoke-RecordHunt $decisionFile).out-match'(?m)BUG decision-backpointer: 1 declared supersession\(s\) not named on both sides \(newer->older\): D43->D37\r?$')
+        $decisionFile=Join-Path $store 'docs\DECISIONS.md';$archiveFile=Join-Path $store 'docs\history\DECISIONS-ARCHIVE.md';$mapFile=Join-Path $store 'docs\history\DECISIONS-MAP.tsv'
+        [void][IO.Directory]::CreateDirectory((Split-Path $archiveFile -Parent));[IO.File]::WriteAllText($decisionFile,"# Decisions`n`n## DEC-01 One`n`n## DEC-02 Two`n")
+        $goodArchive="# Archive`n`n## D102 2026-11-01 one`nNow in: DEC-01, DEC-02; the method elsewhere`n`n## D103 2026-11-02 two`nNow in: DEC-02`n"
+        $goodMap="d`tdate`tstatus`tnow_in`treason`nD1`t2026-10-26`tHistory`t-`tdelivered`nD2`t2026-10-26`tDEC`tDEC-01 DEC-02`tkept`n"
+        [IO.File]::WriteAllText($archiveFile,$goodArchive);[IO.File]::WriteAllText($mapFile,$goodMap)
+        Assert-That 'C2 is silent when every archive item and mapped D-number names an entry' ((Invoke-RecordHunt $decisionFile).out-notmatch'decision-')
+        foreach($case in @(
+            @('an archive item naming no such entry',$archiveFile,"$goodArchive`n## D104 2026-11-03 three`nNow in: DEC-$(99)`n","D104->DEC-$(99)"),
+            @('an archive item with no Now in line',$archiveFile,"$goodArchive`n## D104 2026-11-03 three`nNo pointer.`n",'D104->none'),
+            @('a mapped D-number naming no such entry',$mapFile,"$goodMap`D3`t2026-10-26`tDEC`tDEC-02 DEC-$(98)`tkept`n","D3->DEC-$(98)"),
+            @('a mapped DEC row naming nothing',$mapFile,"$goodMap`D3`t2026-10-26`tDEC`t-`tkept`n",'D3->none')
+        )){
+            [IO.File]::WriteAllText($case[1],$case[2]);$c2=Invoke-RecordHunt $decisionFile
+            Assert-That "C2 reports $($case[0]) as a BUG" ($c2.code-eq1-and$c2.out-match"(?m)BUG decision-dangling: 1 archive item\(s\) or mapped D-number\(s\) name no existing entry: $($case[3])\r?$")
+            [IO.File]::WriteAllText($archiveFile,$goodArchive);[IO.File]::WriteAllText($mapFile,$goodMap)
+        }
+        [IO.File]::WriteAllText($mapFile,"x`ty`n1`t2`n")
+        Assert-That 'C2 map without its columns is a BUG, never green' ((Invoke-RecordHunt $decisionFile).out-match'BUG decision-record-unreadable')
+        Remove-Item -LiteralPath $mapFile
+        Assert-That 'C2 absent D-number map is a GAP' ((Invoke-RecordHunt $decisionFile).out-match'GAP decision-map-missing')
+        Remove-Item -LiteralPath $archiveFile
+        Assert-That 'C2 absent archive is a GAP' ((Invoke-RecordHunt $decisionFile).out-match'GAP decision-archive-missing')
         $lock=[IO.File]::Open($decisionFile,'Open','ReadWrite','None')
         try{$c2Locked=Invoke-RecordHunt $decisionFile}finally{$lock.Dispose()}
         Assert-That 'C2 unreadable decision record is a BUG, never green' ($c2Locked.code-eq1-and$c2Locked.out-match'BUG decision-record-unreadable')
@@ -183,6 +184,18 @@ Supersedes D32's "NOT authorized" only for this path. F1 D33 supersedes D31's au
         $cutInputs.historical=@();$cutInputs.live=@($broken);$cutInputs.acceptedBreaks=@(@{target="$sandbox\lib\broken.ps1"});$cutInputs|ConvertTo-Json -Depth 5|Set-Content $inputsFile
         $c1=Invoke-RecordHunt '' $inputsFile;$c1Report=Get-Content (Join-Path $store 'work\deletion-readiness.json') -Raw|ConvertFrom-Json
         Assert-That 'C1 an accepted break without a decision pointer is INCOMPLETE' ($c1.code-eq1-and$c1.out-match'BUG c1-incomplete: '-and@($c1Report.incomplete|Where-Object{$_-match'accepted break without decision pointer'}).Count-eq1)
+        # G15: a stand-in client on PATH; Hunt compares its version with the last probe's. Fixture only, no real client runs.
+        $clientFolder=Join-Path $t 'client';[void][IO.Directory]::CreateDirectory($clientFolder);[IO.File]::WriteAllText((Join-Path $clientFolder 'claude.cmd'),"@echo 9.9.9 (Claude Code)`r`n")
+        $savedPath=$env:PATH;$env:PATH="$clientFolder;$env:PATH";$probeRecord=Join-Path $store 'work\guard-probe.json'
+        try{
+            Assert-That 'G15 a client with no probe on record is a GAP' ((Invoke-RecordHunt).out-cmatch'GAP guard-probe-stale: Claude Code 9\.9\.9 is installed and the write guard was last probed on none')
+            [IO.File]::WriteAllText($probeRecord,'{"version":"9.9.8"}')
+            Assert-That 'G15 a changed client version is a GAP' ((Invoke-RecordHunt).out-cmatch'GAP guard-probe-stale: Claude Code 9\.9\.9 is installed and the write guard was last probed on 9\.9\.8')
+            [IO.File]::WriteAllText($probeRecord,'{"version":"9.9.9"}')
+            Assert-That 'G15 the probed version is silent' ((Invoke-RecordHunt).out-cnotmatch'guard-probe-stale')
+        }finally{$env:PATH=$savedPath;Remove-Item -LiteralPath $probeRecord -Force -ErrorAction Ignore}
+        $env:PATH=(@($env:PATH-split';'|Where-Object{$_-and!(Test-Path -LiteralPath (Join-Path $_ 'claude.cmd'))-and!(Test-Path -LiteralPath (Join-Path $_ 'claude.exe'))-and!(Test-Path -LiteralPath (Join-Path $_ 'claude.ps1'))-and!(Test-Path -LiteralPath (Join-Path $_ 'claude'))}))-join';'
+        try{Assert-That 'G15 no client has nothing to probe' ((Invoke-RecordHunt).out-cnotmatch'guard-probe-stale')}finally{$env:PATH=$savedPath}
         if($RecordProbeOnly){if($fail){throw 'HUNT_RECORD_PROBE_FAILED'};'HUNT_RECORD_PROBE PASS';return}
     }
     if(!$RootProbeOnly-and!$EvidenceProbeOnly){
@@ -218,13 +231,13 @@ exit $LASTEXITCODE
 param([string]$Hunt,[string]$Store,[string]$Mode)
 function Get-Process { @() }
 function Get-CimInstance { @() }
-$task=switch($Mode){'missing'{{throw 'no task'}}'failed'{{[pscustomobject]@{LastTaskResult=1}}}default{{[pscustomobject]@{LastTaskResult=0}}}}
+$task=switch($Mode){'missing'{{throw 'no task'}}'failed'{{[pscustomobject]@{LastTaskResult=1}}}'running'{{[pscustomobject]@{LastTaskResult=0x41301}}}default{{[pscustomobject]@{LastTaskResult=0}}}}
 & $Hunt -Root $Store -DataRoot $Store -Quick -NoRecord -GetMapTask $task
 exit $LASTEXITCODE
 '@)
         $mapSeen=@{}
-        foreach($mode in 'missing','failed','ok'){$mapSeen[$mode]=(@(& pwsh -NoProfile -File $mapLauncher -Hunt (Join-Path $PSScriptRoot 'Hunt.ps1') -Store $indexStore -Mode $mode 2>&1)-join"`n")-match'GAP map-task'}
-        Assert-That 'map task missing or failed is a GAP; a healthy task is not' ($mapSeen.missing-and$mapSeen.failed-and!$mapSeen.ok)
+        foreach($mode in 'missing','failed','running','ok'){$mapSeen[$mode]=(@(& pwsh -NoProfile -File $mapLauncher -Hunt (Join-Path $PSScriptRoot 'Hunt.ps1') -Store $indexStore -Mode $mode 2>&1)-join"`n")-match'GAP map-task'}
+        Assert-That 'map task missing or failed is a GAP; a running or healthy task is not' ($mapSeen.missing-and$mapSeen.failed-and!$mapSeen.running-and!$mapSeen.ok)
         $indexRow.bytes=1;$indexRow.metaBytes=1
         [IO.File]::WriteAllText((Join-Path $indexStore 'work/sync-errors.log'),'')
         [IO.File]::WriteAllLines($indexFile,[string[]]@(($indexRow|ConvertTo-Json -Compress),'{torn'))
@@ -236,6 +249,10 @@ exit $LASTEXITCODE
         $indexLock=[IO.File]::Open($indexFile,'Open','ReadWrite','None')
         try{$lockedOutput=@(& pwsh -NoProfile -File $indexLauncher -Hunt (Join-Path $PSScriptRoot 'Hunt.ps1') -Store $indexStore 2>&1)-join"`n";$lockedCode=$LASTEXITCODE}finally{$indexLock.Dispose()}
         Assert-That 'unreadable index file reports unknown count and continues to the summary' ($lockedCode-eq1-and$lockedOutput-match'BUG index-unreadable: row count unknown'-and$lockedOutput-match'^HUNT ')
+        # The retention tier keeps a deleted transcript's row with an empty raw path (DEC-10); blank space is still malformed.
+        [IO.File]::WriteAllLines($indexFile,[string[]]@((@{id='gone';raw='';bytes=5;metaBytes=5}|ConvertTo-Json -Compress),(@{id='blank';raw='  ';bytes=5;metaBytes=5}|ConvertTo-Json -Compress)))
+        $goneOutput=@(& pwsh -NoProfile -File $indexLauncher -Hunt (Join-Path $PSScriptRoot 'Hunt.ps1') -Store $indexStore 2>&1)-join"`n"
+        Assert-That 'an empty raw path is a kept row, whitespace is malformed' ($goneOutput-match'BUG index-unreadable: 1 malformed row\(s\)'-and$goneOutput-notmatch'raw file check|BUG index-consistency')
         if($IndexProbeOnly){if($fail){throw 'HUNT_INDEX_PROBE_FAILED'};'HUNT_INDEX_PROBE PASS';return}
     }
     if(!$RootProbeOnly){
@@ -276,7 +293,7 @@ exit $LASTEXITCODE
 
     # Independently controlled source and data with opposing evidence; Quick avoids slow mutants/lint.
     $layout=Join-Path $t 'roots';$checkout=Join-Path $layout 'ORVION-Workbench';$copy=Join-Path $checkout 'lib'
-    $sibling=Join-Path $layout 'ORVION-Owner-Tools';$override=Join-Path $layout 'override store';$explicit=Join-Path $t 'explicit store'
+    $sibling=Join-Path $checkout 'data';$override=Join-Path $layout 'override store';$explicit=Join-Path $t 'explicit store'
     [void][IO.Directory]::CreateDirectory($copy)
     Copy-Item (Join-Path $PSScriptRoot '*') $copy -Recurse
     $savedDataRoot=$env:ORVION_DATA_ROOT
@@ -307,32 +324,53 @@ exit $LASTEXITCODE
             $sourceCheck=@(& pwsh -NoProfile -File (Join-Path $copy 'Hunt.ps1') -Quick -NoRecord @extra)-join"`n"
             Assert-That "hunt $case keeps git checks on source after library import" ($sourceCheck-match'BUG tools-git:')
             Remove-Item -LiteralPath (Join-Path $checkout '.git')
+            if($case-eq'explicit'){
+                Move-Item -LiteralPath (Join-Path $copy 'Organize.ps1') (Join-Path $copy 'Organize.kept')
+                Assert-That 'a layout check that cannot run is a BUG, never green' ((@(& pwsh -NoProfile -File (Join-Path $copy 'Hunt.ps1') -Quick -NoRecord @extra)-join"`n")-match'BUG organize-check-failed:')
+                Move-Item -LiteralPath (Join-Path $copy 'Organize.kept') (Join-Path $copy 'Organize.ps1')
+            }
         }
     }finally{$env:ORVION_DATA_ROOT=$savedDataRoot}
     if($RootProbeOnly){if($fail){throw 'HUNT_ROOT_PROBE_FAILED'};'HUNT_ROOT_PROBE PASS';return}
+    # The decided list and the known list: a decided item is not re-raised, an undecided one is, a lesson past its count at decision re-raises, and a new empty catch is still reported.
+    $capability=Join-Path $t 'capability';foreach($folder in 'profile\.codex','sessions\raw','events','work'){[void][IO.Directory]::CreateDirectory("$capability\$folder")}
+    [IO.File]::WriteAllText("$capability\profile\.codex\config.toml","[mcp_servers.deepwiki]`n[mcp_servers.brand-new]`n")
+    foreach($session in 1..10){[IO.File]::WriteAllText("$capability\sessions\raw\s$session.jsonl","{}`n")}
+    [IO.File]::WriteAllLines("$capability\sessions\raw\usage.jsonl",[string[]]@(@(1..50|ForEach-Object{'{"type":"tool_use","name":"Bash","input":{"command":"gh api x"}}'})+@(1..15|ForEach-Object{'{"type":"tool_use","name":"WebFetch","input":{"url":"https://docs.example/x"}}'})))
+    [IO.File]::WriteAllLines("$capability\events\events.jsonl",[string[]]@(foreach($lesson in @(,@('relative-path-wrong-location','a','b','c')+,@('ps-reserved-name','a','b','c')+,@('workbench-p0-public-recovery-continuation','a','b')+,@('a-new-lesson','a','b'))){foreach($session in $lesson[1..($lesson.Count-1)]){[ordered]@{at='2026-10-20T00:00:00Z';pattern=$lesson[0];session=$session;category='failure'}|ConvertTo-Json -Compress}}))
+    [IO.File]::WriteAllText("$capability\planted.ps1","try{1}catch{}`n")
+    [IO.File]::WriteAllText("$capability\Workbench.ps1",(Select-String -LiteralPath (Join-Path $PSScriptRoot 'Workbench.ps1') -SimpleMatch '[Console]::OutputEncoding=').Line+"`n")
+    $savedCapabilityProfile=$env:USERPROFILE;$env:USERPROFILE="$capability\profile"
+    try{$capabilityOut=@(& (Join-Path $PSScriptRoot 'Hunt.ps1') -Root $capability -DataRoot $capability -NoRecord -MutantSet @(@('Events.ps1','THIS TEXT IS NOT IN THE FILE','x','test-events.ps1','x'),@('Events.ps1','NOR THIS','x','test-events.ps1','x')))-join"`n"}finally{$env:USERPROFILE=$savedCapabilityProfile}
+    Assert-That 'a decided server is not re-raised and a newly configured unused one is' ($capabilityOut-match'PRUNE mcp-unused: 1 configured MCP server\(s\)[^\n]*: codex:brand-new')
+    Assert-That 'the decided GitHub need is not re-raised' ($capabilityOut-notmatch'NEED mcp-github')
+    Assert-That 'the decided documentation need is not re-raised' ($capabilityOut-notmatch'NEED docs-by-hand')
+    Assert-That 'a decided lesson is not re-raised and a new one is' ($capabilityOut-match'NEED hook-candidates:[^\n]*a-new-lesson \(2 sessions'-and$capabilityOut-notmatch'relative-path-wrong-location \(3'-and$capabilityOut-notmatch'workbench-p0-public-recovery-continuation \(2')
+    Assert-That 'a lesson past its count at decision re-raises' ($capabilityOut-match'NEED hook-candidates:[^\n]*ps-reserved-name \(3 sessions')
+    Assert-That 'a known line is not reported and a new empty catch is' ($capabilityOut-match'GAP lint-psavoidusingemptycatchblock: 1x PSAvoidUsingEmptyCatchBlock: planted\.ps1:1')
     $set=@(
-        ,@('Events.ps1','if($last.Count){"EVENT DUPLICATE','if($false){"EVENT DUPLICATE','test-events.ps1','duplicate refusal')        # caught
+        ,@('Events.ps1','if($same){"EVENT DUPLICATE','if($false){"EVENT DUPLICATE','test-events.ps1','duplicate refusal')        # caught
         ,@('Events.ps1','# One view per pattern','# One view, per pattern','test-events.ps1','a comment only')                          # survives
         ,@('Events.ps1','THIS TEXT IS NOT IN THE FILE','x','test-events.ps1','a mutant whose code moved')                           # stale
     )
     $out=@(& (Join-Path $PSScriptRoot 'Hunt.ps1') -Root $t -DataRoot $t -NoRecord -MutantSet $set)-join"`n"
-    Assert-That 'a caught mutant is not reported' ($out-notmatch'duplicate refusal broken')
+    Assert-That 'a caught mutant is not reported' ($out-notmatch'duplicate refusal broken'-and$out-notmatch'mutant for duplicate refusal')
     Assert-That 'a surviving mutant is reported as a gap' ($out-match'GAP mutant-survived: test-events\.ps1 still passes with a comment only broken')
     Assert-That 'a stale mutant is reported' ($out-match'GAP mutant-stale: mutant for a mutant whose code moved')
     Assert-That 'the last result is kept for Pulse' (Test-Path (Join-Path $t 'work\hunt-last.txt'))
     Assert-That '-NoRecord writes no events' (!(Test-Path (Join-Path $t 'events\events.jsonl')))
     & (Join-Path $PSScriptRoot 'Events.ps1') -Root $t -Add -Pattern hunt-old-problem -Session hunter-2026-01-01 -Category observation -Summary 'GAP: something once found'|Out-Null
-    foreach($pattern in 'hunt-c1-fail','hunt-decision-backpointer'){& (Join-Path $PSScriptRoot 'Events.ps1') -Root $t -Add -Pattern $pattern -Session hunter-2026-01-01 -Category failure -Summary 'BUG: an earlier C1/C2 finding'|Out-Null}
+    foreach($pattern in 'hunt-c1-fail','hunt-decision-dangling'){& (Join-Path $PSScriptRoot 'Events.ps1') -Root $t -Add -Pattern $pattern -Session hunter-2026-01-01 -Category failure -Summary 'BUG: an earlier C1/C2 finding'|Out-Null}
     $null=& (Join-Path $PSScriptRoot 'Hunt.ps1') -Root $t -DataRoot $t -Quick
     $ev=@([IO.File]::ReadAllLines((Join-Path $t 'events\events.jsonl'))|ForEach-Object{$_|ConvertFrom-Json})
     $last=@($ev|Where-Object pattern -eq 'hunt-old-problem'|Sort-Object at)[-1]
     Assert-That 'a finding no longer found is closed by the hunter' ($last.status-eq'resolved'-and$last.summary-like'no longer found*')
-    Assert-That 'a Hunt without -DeletionReadiness or a readable decision record leaves C1/C2 findings open' ((@(foreach($pattern in 'hunt-c1-fail','hunt-decision-backpointer'){@($ev|Where-Object pattern -eq $pattern|Sort-Object at)[-1].status})-join',')-ceq'open,open')
+    Assert-That 'a Hunt without -DeletionReadiness or a readable decision record leaves C1/C2 findings open' ((@(foreach($pattern in 'hunt-c1-fail','hunt-decision-dangling'){@($ev|Where-Object pattern -eq $pattern|Sort-Object at)[-1].status})-join',')-ceq'open,open')
     Assert-That 'current findings are recorded as events' (@($ev|Where-Object{$_.pattern-eq'hunt-index-missing'-and$_.source-eq'hunter'}).Count-eq1)
     # The guard's other branches: a C1 that ran INCOMPLETE (inputs absent) and an unreadable (headingless) decision record.
     $headingless=Join-Path $t 'headingless.md';[IO.File]::WriteAllText($headingless,'no decision headings')
     $null=& (Join-Path $PSScriptRoot 'Hunt.ps1') -Root $t -DataRoot $t -Quick -DeletionReadiness (Join-Path $t 'absent-inputs.json') -DecisionsPath $headingless
     $ev=@([IO.File]::ReadAllLines((Join-Path $t 'events\events.jsonl'))|ForEach-Object{$_|ConvertFrom-Json})
-    Assert-That 'an INCOMPLETE C1 or an unreadable decision record leaves C1/C2 findings open' ((@(foreach($pattern in 'hunt-c1-fail','hunt-decision-backpointer'){@($ev|Where-Object pattern -eq $pattern|Sort-Object at)[-1].status})-join',')-ceq'open,open'-and@($ev|Where-Object pattern -eq 'hunt-c1-incomplete').Count-and@($ev|Where-Object pattern -eq 'hunt-decision-record-unreadable').Count)
+    Assert-That 'an INCOMPLETE C1 or an unreadable decision record leaves C1/C2 findings open' ((@(foreach($pattern in 'hunt-c1-fail','hunt-decision-dangling'){@($ev|Where-Object pattern -eq $pattern|Sort-Object at)[-1].status})-join',')-ceq'open,open'-and@($ev|Where-Object pattern -eq 'hunt-c1-incomplete').Count-and@($ev|Where-Object pattern -eq 'hunt-decision-record-unreadable').Count)
 }finally{$env:WORKBENCH_TEMP_ROOT=$savedTemporaryRoot;$env:TEMP=$savedTemp;$env:TMP=$savedTmp;$env:USERPROFILE=$savedProfile;$null=Remove-OrvionOwnedTree -Path $t -AllowedRoots @([IO.Path]::GetTempPath());if(Test-Path ($t+'-managed')){$null=Remove-OrvionOwnedTree -Path ($t+'-managed') -AllowedRoots @([IO.Path]::GetTempPath())}}
 if($fail){throw "HUNT_SELFCHECK_FAILED $fail"};'HUNT_SELFCHECK PASS'

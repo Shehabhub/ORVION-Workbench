@@ -3,8 +3,9 @@
 #   Codex:       ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl whose cwd is a CRM / ORVION folder -> sessions\raw\codex\...
 # Never loses or invents bytes: a transcript (.jsonl, append-only) gains only complete lines, and only after the archived
 # bytes are proven to match the whole source prefix; any other file is compared whole. A source
-# that changed any other way keeps the old copy beside the new one (<name>.replaced-<UTC>[.ext]); nothing in the archive
-# is ever deleted (Claude Code deletes its own transcripts after cleanupPeriodDays, default 30). A pass killed mid-append
+# that changed any other way keeps the old copy beside the new one (<name>.replaced-<UTC>[.ext]); this tool deletes nothing
+# in the archive; only Organize -Clean's retention tier does, past 60 days, and the session keeps its row with an empty raw
+# path (Claude Code deletes its own transcripts after cleanupPeriodDays, default 30). A pass killed mid-append
 # leaves a partial line that the next pass completes. A file that fails is logged to work\sync-errors.log and skipped;
 # it never stops the others (Hunt.ps1 reports the log). Exit 3: any preservation/index failure, including earlier follow passes.
 #   (default)  one pass, then the index
@@ -13,9 +14,9 @@
 # Index (sessions\index.jsonl + INDEX.md): one line per session, metadata + relative raw path only; never transcript text.
 # secretHits / secretNames: credential-shaped strings by kind (values never printed or stored); keep the archive out of
 # Git and back it up only to an encrypted drive (Backup-Workspace.ps1 refuses otherwise).
-param([string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools'}),[switch]$Quiet,[switch]$Follow,[int]$IntervalSeconds=60,[int]$IndexMinutes=15,[switch]$Library,
+param([string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) 'data'}),[switch]$Quiet,[switch]$Follow,[int]$IntervalSeconds=60,[int]$IndexMinutes=15,[switch]$Library,
       [string]$ClaudeProjects=(Join-Path $env:USERPROFILE '.claude\projects'),[string]$CodexSessions=(Join-Path $env:USERPROFILE '.codex\sessions'),
-      [switch]$AcknowledgeErrors,[string]$ExpectedSHA256,[string]$Reason)  # -Library: dot-source for tests, defines the functions only
+      [switch]$AcknowledgeErrors,[string]$ExpectedSHA256,[string]$Reason,[switch]$Check)  # -Library: dot-source for tests, defines the functions only; -Check: INDEX.md against a fresh page from index.jsonl, nothing written
 $ErrorActionPreference='Stop'
 if(!$Library-and!$PSBoundParameters.ContainsKey('Root')-and!$env:ORVION_DATA_ROOT-and!(Test-Path -LiteralPath (Join-Path $Root 'events') -PathType Container)){throw 'ORVION_DATA_ROOT_UNAVAILABLE'}
 $Root=[IO.Path]::GetFullPath($Root).TrimEnd('\')  # a trailing \ would cut the first character of every relative path
@@ -91,6 +92,7 @@ function Copy-Grown([string]$Src,[string]$Dst){
     $s=Get-Item -LiteralPath $Src;$lines=$Src.EndsWith('.jsonl')
     $d=if(Test-Path -LiteralPath $Dst){Get-Item -LiteralPath $Dst}else{$null}
     if($d-and$d.Length-eq$s.Length-and$s.LastWriteTimeUtc-le$d.LastWriteTimeUtc){return $false}  # unchanged since the last copy
+    if(!$d-and$Src-notmatch'\\memory\\'-and$s.LastWriteTimeUtc-lt[DateTime]::UtcNow.AddDays(-60)){return $false}  # past the retention line: never archived back after -Clean deleted it
     New-Item -ItemType Directory -Path (Split-Path $Dst -Parent) -Force|Out-Null
     $in=Open-Shared $Src
     try{
@@ -157,7 +159,7 @@ function Invoke-SyncErrorAcknowledgement([string]$Digest,[string]$Acknowledgemen
         $ackPattern="sync-errors-ack-$ackId";$ackSession=''
         $ackSummary="Acknowledged sync-errors SHA256 ${Digest}: $($AcknowledgementReason.Trim())"
         $ackEvidence="work\$archiveName"
-        $ackOutput=@(& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'Events.ps1') -Root $Root -Add -Pattern $ackPattern -Session $ackSession -Source sync-ack -Category observation -Cause confirmed -Status resolved -Summary $ackSummary -Evidence $ackEvidence -Tool 'Sync-Sessions.ps1 -AcknowledgeErrors' -Action $AcknowledgementReason.Trim() -Tags 'archive sync errors acknowledgement' 2>&1)
+        $null=@(& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'Events.ps1') -Root $Root -Add -Pattern $ackPattern -Session $ackSession -Source sync-ack -Category observation -Cause confirmed -Status resolved -Summary $ackSummary -Evidence $ackEvidence -Tool 'Sync-Sessions.ps1 -AcknowledgeErrors' -Action $AcknowledgementReason.Trim() -Tags 'archive sync errors acknowledgement' 2>&1)
         if($LASTEXITCODE-ne0){throw 'SYNC_ACK_EVENT_FAILED'}
         $ackJournal=Join-Path $Root 'events\events.jsonl'
         $ackRecords=@(if(Test-Path -LiteralPath $ackJournal){foreach($ackLine in [IO.File]::ReadAllLines($ackJournal)){
@@ -282,28 +284,42 @@ function Update-Index{
             [pscustomobject]$r
         }catch{Write-SyncError $s.dst $_;if($prev){[pscustomobject]$prev}}  # keep the last good row rather than lose the session
     }
-    $rows=@($rows|Sort-Object start)
+    # A session the retention tier deleted keeps its row with no raw path (DEC-10: the index stays).
+    $present=@{};foreach($r in @($rows)){$present["$($r.client)/$($r.id)"]=1}
+    $rows=@(@($rows)+@(foreach($k in $old.Keys){if(!$present[$k]){$o=$old[$k];$o.raw='';[pscustomobject]$o}})|Sort-Object start)
     $tmp="$indexPath.tmp";[IO.File]::WriteAllLines($tmp,[string[]]@($rows|ForEach-Object{$_|ConvertTo-Json -Compress -Depth 3}));Move-Item $tmp $indexPath -Force
     Write-IndexPage $rows
     $rows
 }
-function Write-IndexPage($IndexRows){  # sessions\INDEX.md: the same index as one readable table, newest first
+function Get-IndexPage($IndexRows){  # sessions\INDEX.md: the same index as one readable table, newest first
     $md=[Collections.Generic.List[string]]::new()
-    $md.Add('# ORVION session index (generated by lib\Sync-Sessions.ps1; do not edit)');$md.Add('')
+    $md.Add('# ORVION session index (generated by lib\Sync-Sessions.ps1 from sessions\index.jsonl; do not edit)');$md.Add('')
     $md.Add("Updated $([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm')) UTC. $($IndexRows.Count) sessions. Raw transcripts: ``sessions\raw\`` (search with ``lib\Spider.ps1``).")
     $md.Add('Machine-readable: `sessions\index.jsonl`. Events recorded in a session: `lib\Events.ps1 -Find <words>`.');$md.Add('')
     $md.Add('| Start (UTC) | Min | Repo | Client | Title / first task | Prompts | Tools | Errors | Compact | Agents | Events | SPECs | MB | Raw |')
     $md.Add('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
-    foreach($r in @($IndexRows|Sort-Object start -Descending)){
+    foreach($r in @($IndexRows|Sort-Object @{Expression='start';Descending=$true},id)){
         $title=(@($r.title,$r.firstPrompt)|Where-Object{$_}|Select-Object -First 1)-replace'\|','/'
-        $top=(@($r.tools.GetEnumerator())|Sort-Object Value -Descending|Select-Object -First 3|ForEach-Object{"$($_.Key) $($_.Value)"})-join', '
+        $top=(@($r.tools.GetEnumerator())|Sort-Object @{Expression='Value';Descending=$true},Key|Select-Object -First 3|ForEach-Object{"$($_.Key) $($_.Value)"})-join', '
+        $rawCell=if($r.raw){'`'+$r.raw+'`'}else{'deleted'}
         $when=if($r.start){try{([datetime]$r.start).ToUniversalTime().ToString('yyyy-MM-dd HH:mm')}catch{"$($r.start)"}}else{''}
-        $md.Add("| $when | $($r.durationMin) | $($r.repo) | $($r.client) | $title | $($r.prompts) | $($r.toolCalls)$(if($top){" ($top)"}) | $($r.errors) | $($r.compactions) | $($r.subagents) | $($r.events) | $(@($r.specs|Select-Object -First 4)-join' ') | $([math]::Round($r.bytes/1MB,1)) | ``$($r.raw)`` |")
+        $md.Add("| $when | $($r.durationMin) | $($r.repo) | $($r.client) | $title | $($r.prompts) | $($r.toolCalls)$(if($top){" ($top)"}) | $($r.errors) | $($r.compactions) | $($r.subagents) | $($r.events) | $(@($r.specs|Select-Object -First 4)-join' ') | $([math]::Round($r.bytes/1MB,1)) | $rawCell |")
     }
-    $p=Join-Path $Root 'sessions\INDEX.md';[IO.File]::WriteAllLines("$p.tmp",$md);Move-Item "$p.tmp" $p -Force
+    $md
 }
+function Write-IndexPage($IndexRows){$p=Join-Path $Root 'sessions\INDEX.md';[IO.File]::WriteAllLines("$p.tmp",[string[]]@(Get-IndexPage $IndexRows));Move-Item "$p.tmp" $p -Force}
+function Read-IndexRow{foreach($l in [IO.File]::ReadAllLines($indexPath)){if($l){[pscustomobject]($l|ConvertFrom-Json -AsHashtable -DateKind String)}}}
 
 if($Library){return}
+if($Check){
+    # G07: the "Updated" line is the one stamped line, and the comparison skips it. No index, no page to compare.
+    if(!(Test-Path -LiteralPath $indexPath)){exit 0}
+    $page=Join-Path $Root 'sessions\INDEX.md'
+    $fresh=@(Get-IndexPage @(Read-IndexRow)|Where-Object{$_-cnotmatch'^Updated '})
+    $stored=if(Test-Path -LiteralPath $page){@([IO.File]::ReadAllLines($page)|Where-Object{$_-cnotmatch'^Updated '})}else{@()}
+    if(($fresh-join"`n")-cne($stored-join"`n")){"GENERATED STALE: $page";exit 1}
+    exit 0
+}
 if($AcknowledgeErrors-or$PSBoundParameters.ContainsKey('ExpectedSHA256')-or$PSBoundParameters.ContainsKey('Reason')){
     try{
         if(!$AcknowledgeErrors-or$Follow-or!$PSBoundParameters.ContainsKey('Root')){throw 'SYNC_ACK_EXPLICIT_ROOT_AND_MODE_REQUIRED'}

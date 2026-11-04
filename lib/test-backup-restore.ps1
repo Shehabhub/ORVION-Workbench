@@ -82,7 +82,7 @@ $caseResults=Join-Path $dailyEvidence 'focused-cases.json'
 function Save-FocusedEvidence { [ordered]@{fixture=$fixture;cases=@($script:cases);processes=@($script:processes)}|ConvertTo-Json -Depth 12|Set-Content -LiteralPath $caseResults }
 function Assert-Focused([string]$Name,[bool]$Condition,[string]$Evidence=''){
     $script:cases.Add([ordered]@{name=$Name;passed=$Condition;evidence=$Evidence});Save-FocusedEvidence
-    if(!$Condition){throw ('FOCUSED_FAILED '+$Name)};'PASS '+$Name
+    if(!$Condition){'FAIL '+$Name;throw ('FOCUSED_FAILED '+$Name)};'PASS '+$Name
 }
 function Invoke-FixtureGit([string]$Directory,[string[]]$GitArguments){
     $output=@(& git -C $Directory @GitArguments 2>&1);if($LASTEXITCODE){throw "FIXTURE_GIT_FAILED $($GitArguments[0]) $output"};$output
@@ -172,12 +172,12 @@ try{
         $global:WS027DailyMock.registrations++;$global:WS027DailyMock.forceValues+=([bool]$Force)
         $global:WS027DailyMock.registered=[pscustomobject]@{TaskName=$TaskName;TaskPath=$TaskPath;Description=$Description;Actions=@($Action);Triggers=@($Trigger);Settings=$Settings;Principal=$Principal};$global:WS027DailyMock.registered
     }
-    # The real candidate refuses installation from this disposable fixture. Registration mocks
-    # below use one explicit scratch-only durability seam; original bytes are restored before
-    # the captured action executes. This is configuration proof, never runtime admission.
+    # A byte copy of the real candidate refuses installation from a folder named ORVION-Workbench-temporary, created
+    # here so the refusal holds on every machine, hosted runners included. Registration mocks below use one explicit
+    # scratch-only durability seam; original bytes are restored before the captured action executes. This is configuration proof, never runtime admission.
     $originalBackup=[IO.File]::ReadAllText($backup)
-    $actualInstallRefused=$false
-    try{& $backup -Destination $destination -Package -Install -RecoveryInputs $map -DataRoot $data -TemporaryRoot $managed -RuntimePath $virtualRuntime -ExecutionLimitMinutes 10}catch{$actualInstallRefused=$_.Exception.Message-match'BACKUP_INSTALL_DURABLE_INPUT_REQUIRED'}
+    $actualInstallRefused=$false;$disposableBackup=Join-Path $fixture 'ORVION-Workbench-temporary/Backup-Workspace.ps1';[void][IO.Directory]::CreateDirectory((Split-Path $disposableBackup -Parent));[IO.File]::Copy($backup,$disposableBackup)
+    try{& $disposableBackup -Destination $destination -Package -Install -RecoveryInputs $map -DataRoot $data -TemporaryRoot $managed -RuntimePath $virtualRuntime -ExecutionLimitMinutes 10}catch{$actualInstallRefused=$_.Exception.Message-match'BACKUP_INSTALL_DURABLE_INPUT_REQUIRED'}
     Assert-Focused 'actual candidate refuses disposable installed script/map/data before registration' ($actualInstallRefused-and$global:WS027DailyMock.registrations-eq0)
     $durableAnchor='foreach($durable in $PSCommandPath,$RecoveryInputs,$DataRoot)'
     if(!$originalBackup.Contains($durableAnchor)){throw 'DURABILITY_SEAM_STALE'}
@@ -263,7 +263,7 @@ try{
     Assert-Focused 'real 7z independently verifies published archive' ($zipExit-eq0)
     $restoreTarget=Join-Path $fixture 'restored'
     $restore=Invoke-FocusedProcess 'focused-restore' @('-NoProfile','-NonInteractive','-File',(Join-Path $probe 'Restore-Workspace.ps1'),'-Package',$verified.archive,'-Target',$restoreTarget,'-ClaudeHome',(Join-Path $fixture 'restored-claude'),'-CodexHome',(Join-Path $fixture 'restored-codex'))
-    $restoredProof=Join-Path $restoreTarget 'ORVION-Owner-Tools/records/recovery-inputs/required-proof'
+    $restoredProof=Join-Path $restoreTarget 'ORVION-Workbench/data/records/recovery-inputs/required-proof'
     Assert-Focused 'focused scratch restore preserves proof and Workbench HEAD' ($restore.code-eq0-and(Get-FileHash -LiteralPath $restoredProof).Hash-ceq$proofHash-and(Invoke-FixtureGit (Join-Path $restoreTarget 'ORVION-Workbench') @('rev-parse','HEAD'))-ceq(Invoke-FixtureGit $wb @('rev-parse','HEAD'))) $restore.text
     $statusPath=$destination+'.status/latest.json';$statusBefore=[IO.File]::ReadAllBytes($statusPath)
     $held=[IO.File]::Open(($destination+'.status/operation.lock'),'Open','ReadWrite','None')
@@ -316,7 +316,7 @@ foreach($key in [Environment]::GetEnvironmentVariables('Process').Keys|Where-Obj
     Remove-Item -LiteralPath ('Env:\'+$key)
 }
 $env:GIT_CONFIG_GLOBAL=Join-Path $t 'fixture.gitconfig';$env:GIT_CONFIG_NOSYSTEM='1'
-$gh=Join-Path $t 'GitHub';$lib=Join-Path $gh 'ORVION-Owner-Tools\lib';New-Item -ItemType Directory $lib -Force|Out-Null
+$gh=Join-Path $t 'GitHub';$lib=Join-Path $gh 'Workbench-checkout\lib';$data=Join-Path $gh 'Workbench-checkout\data';New-Item -ItemType Directory $lib -Force|Out-Null
 Copy-Item (Join-Path $PSScriptRoot 'Backup-Workspace.ps1'),(Join-Path $PSScriptRoot 'Restore-Workspace.ps1'),(Join-Path $PSScriptRoot 'workspace-layout.ps1') $lib
 Copy-Item (Join-Path $PSScriptRoot 'Restore-ORVION.cmd'),(Join-Path $PSScriptRoot 'Restore-ORVION.ps1') $lib
 $previousProfile=$env:USERPROFILE;$env:USERPROFILE=Join-Path $t 'profile'
@@ -349,14 +349,14 @@ patch_level = "keep-patch"
 [IO.File]::WriteAllText((Join-Path $env:USERPROFILE '.codex/config.toml'),$configFixture)
 $savedTemporaryRoot=$env:WORKBENCH_TEMP_ROOT;$env:WORKBENCH_TEMP_ROOT=Join-Path $t 'managed'
 $savedDataRoot=$env:ORVION_DATA_ROOT;$env:ORVION_DATA_ROOT=$null
-$fail=0;function Assert-That([string]$Name,[bool]$Ok){if($Ok){"PASS $Name"}else{"FAIL $Name";$script:fail++}}
+$fail=0;function Assert-That([string]$Name,[bool]$Ok,[object[]]$Detail){if($Ok){"PASS $Name"}else{"FAIL $Name";foreach($line in $Detail){"  $line"};$script:fail++}}
 function Invoke-Quiet{param([string]$Dir)$o=& git -C $Dir -c user.name=t -c user.email=t@t @args 2>&1;if($LASTEXITCODE){throw "git $args : $o"};$o}
 function Read-BackupTree([string]$Path){(@(Get-ChildItem -LiteralPath $Path -Recurse -File -Force|ForEach-Object{[Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($_.FullName))})-join"`n")}
 try{
-    [void][IO.Directory]::CreateDirectory((Join-Path $gh 'ORVION-Owner-Tools/events'))
+    [void][IO.Directory]::CreateDirectory((Join-Path $data 'events'))
     # Backup rejects data-root repository metadata before any output is created (file and directory).
     foreach($kind in 'file','directory'){
-        $dataGit=Join-Path $gh 'ORVION-Owner-Tools/.git'
+        $dataGit=Join-Path $data '.git'
         if($kind-eq'file'){[IO.File]::WriteAllText($dataGit,'gitdir: fixture')}else{[void][IO.Directory]::CreateDirectory($dataGit)}
         try{
             $refused=@(& pwsh -NoProfile -File "$lib/Backup-Workspace.ps1" -Destination (Join-Path $t "data-git-$kind") -AllowUnencrypted 2>&1)
@@ -383,12 +383,12 @@ try{
     }
     $oldDefault=Test-OldRestore 'old-default'
     $link=Get-Item -LiteralPath ($oldDefault.Client+'/projects/key-old/memory') -Force
-    Assert-That 'old memory migrates into records with a verified Junction' ($oldDefault.Exit-eq0-and$link.LinkType-ceq'Junction'-and@($link.Target)[0]-ieq($oldDefault.Target+'/ORVION-Owner-Tools/records/claude-memory/key-old').Replace('/','\')-and[IO.File]::ReadAllText(($oldDefault.Client+'/projects/key-old/memory/note.md'))-ceq'old memory')
+    Assert-That 'old memory migrates into the data root''s records with a verified Junction' ($oldDefault.Exit-eq0-and$link.LinkType-ceq'Junction'-and@($link.Target)[0]-ieq($oldDefault.Target+'/ORVION-Workbench/data/records/claude-memory/key-old').Replace('/','\')-and[IO.File]::ReadAllText(($oldDefault.Client+'/projects/key-old/memory/note.md'))-ceq'old memory')
     Assert-That 'old legacy defaults to one ACTION and creates no legacy destination' ($oldDefault.Exit-eq0-and@($oldDefault.Text-split"`n"|Where-Object{$_-match'^ACTION: old package legacy'}).Count-eq1-and!(Test-Path $oldDefault.Legacy))
     $oldExplicit=Test-OldRestore 'old-explicit' -ExplicitLegacy
     Assert-That 'explicit LegacyTarget restores old package legacy bytes' ($oldExplicit.Exit-eq0-and[IO.File]::ReadAllText(($oldExplicit.Legacy+'/ORVION-old/evidence.txt'))-ceq'legacy bytes')
     $correctTarget=Join-Path $t 'correct-link'
-    $correctMemory=Join-Path $correctTarget 'ORVION-Owner-Tools/records/claude-memory/key-old'
+    $correctMemory=Join-Path $correctTarget 'ORVION-Workbench/data/records/claude-memory/key-old'
     [void][IO.Directory]::CreateDirectory($correctMemory)
     $correctLink=$correctTarget+'-client/projects/key-old/memory'
     [void][IO.Directory]::CreateDirectory((Split-Path $correctLink -Parent))
@@ -419,7 +419,7 @@ try{
             if(!$restoreBytes.Contains($anchor)){throw 'MUTANT_STALE packaged git'}
             $mutant=Join-Path $lib 'mutant-restore.ps1';[IO.File]::WriteAllText($mutant,$restoreBytes.Replace($anchor,"Write-Output 'guard removed'"))
             $result=Test-OldRestore 'mutant-packaged-git' $mutant
-            Assert-That 'MUTANT killed: packaged data-root .git accepted' ($result.Exit-eq0-and(Test-Path ($result.Target+'/ORVION-Owner-Tools/.git')))
+            Assert-That 'MUTANT killed: packaged data-root .git accepted' ($result.Exit-eq0-and(Test-Path ($result.Target+'/ORVION-Workbench/data/.git')))
         }
         if($kind-eq'file'){[IO.File]::Delete($dataGit)}else{[IO.Directory]::Delete($dataGit)}
     }
@@ -438,19 +438,18 @@ try{
     $probeLib=Join-Path $gh 'probe-checkout\lib';[void][IO.Directory]::CreateDirectory($probeLib)
     Copy-Item (Join-Path $PSScriptRoot 'Backup-Workspace.ps1'),(Join-Path $PSScriptRoot 'workspace-layout.ps1') $probeLib
     $override=Join-Path $t 'override store';[void][IO.Directory]::CreateDirectory((Join-Path $override 'events'))
-    [void][IO.Directory]::CreateDirectory((Join-Path $gh 'ORVION-Owner-Tools\events'))
+    [void][IO.Directory]::CreateDirectory((Join-Path $gh 'probe-checkout\data\events'))
     [IO.File]::WriteAllText((Join-Path $override 'events\marker.txt'),'override fixture')
-    [IO.File]::WriteAllText((Join-Path $gh 'ORVION-Owner-Tools\events\marker.txt'),'sibling fixture')
+    [IO.File]::WriteAllText((Join-Path $gh 'probe-checkout\data\events\marker.txt'),'default store fixture')
     # Only the script layout is needed here; remove it before later Workbench-presence checks.
     $env:ORVION_DATA_ROOT=$override+'\'
-    try{$probe=@(& pwsh -NoProfile -File "$probeLib\Backup-Workspace.ps1" -Destination (Join-Path $t 'override-backup') -AllowUnencrypted -SkipLegacy 2>&1);$probeCode=$LASTEXITCODE}
+    try{$probe=@(& pwsh -NoProfile -File "$probeLib\Backup-Workspace.ps1" -Destination (Join-Path $t 'override-backup') -AllowUnencrypted 2>&1);$probeCode=$LASTEXITCODE}
     finally{$env:ORVION_DATA_ROOT=$null}
     $folder=@(Get-ChildItem (Join-Path $t 'override-backup') -Directory)[0].FullName
     $marker=Join-Path $folder 'owner-tools\events\marker.txt'
-    Assert-That 'Backup ORVION_DATA_ROOT selects override bytes and their manifest hash instead of sibling store' ($probeCode-eq0-and(Test-Path $marker)-and[IO.File]::ReadAllText($marker)-ceq'override fixture'-and[IO.File]::ReadAllText((Join-Path $folder 'SHA256SUMS.txt')).Contains((Get-FileHash $marker).Hash+'  owner-tools\events\marker.txt'))
+    Assert-That 'Backup ORVION_DATA_ROOT selects override bytes and their manifest hash instead of the default store' ($probeCode-eq0-and(Test-Path $marker)-and[IO.File]::ReadAllText($marker)-ceq'override fixture'-and[IO.File]::ReadAllText((Join-Path $folder 'SHA256SUMS.txt')).Contains((Get-FileHash $marker).Hash+'  owner-tools\events\marker.txt'))
     . (Join-Path $PSScriptRoot 'remove-owned.ps1')
     $null=Remove-OrvionOwnedTree (Split-Path $probeLib -Parent) @($t)
-    [IO.File]::Delete((Join-Path $gh 'ORVION-Owner-Tools\events\marker.txt'))
     if($RootProbeOnly){if($fail){throw 'BACKUP_ROOT_PROBE_FAILED'};'BACKUP_ROOT_PROBE PASS';return}
     $remote=Join-Path $t 'remote.git';& git init -q --bare -b main $remote
     $crm=Join-Path $gh 'CRM';& git clone -q $remote $crm 2>&1|Out-Null
@@ -483,7 +482,7 @@ try{
     [IO.File]::WriteAllText("$codexHome\config.toml",'owner configuration')
     foreach($round in 1,2){
         $configRestore=@(& pwsh -NoProfile -File "$lib\Restore-Workspace.ps1" -From $bk -Target (Join-Path $t "config-target-$round") -ClaudeHome (Join-Path $t "config-claude-$round") -LegacyTarget (Join-Path $t "config-docs-$round") -CodexHome $codexHome 2>&1)
-        Assert-That "existing Codex config untouched, restored copy written once (round $round)" ($LASTEXITCODE-eq0-and[IO.File]::ReadAllText("$codexHome\config.toml")-ceq'owner configuration'-and$(if($round-eq1){(Get-FileHash "$codexHome\config.toml.restored").Hash-ceq(Get-FileHash $maskedFile).Hash}else{[IO.File]::ReadAllText("$codexHome\config.toml.restored")-ceq'preserve earlier recovery'}))
+        Assert-That "existing Codex config untouched, restored copy written once (round $round)" ($LASTEXITCODE-eq0-and[IO.File]::ReadAllText("$codexHome\config.toml")-ceq'owner configuration'-and$(if($round-eq1){(Get-FileHash "$codexHome\config.toml.restored").Hash-ceq(Get-FileHash $maskedFile).Hash}else{[IO.File]::ReadAllText("$codexHome\config.toml.restored")-ceq'preserve earlier recovery'})) $configRestore
         [IO.File]::WriteAllText("$codexHome\config.toml.restored",'preserve earlier recovery')
     }
     $rc="$res\CRM"
@@ -528,7 +527,7 @@ try{
         $helperRestore=@(& pwsh -NoProfile -File "$lib\Restore-Workspace.ps1" -From $helperFolder -Target $helperTarget -ClaudeHome (Join-Path $t 'helper-ch') -LegacyTarget (Join-Path $t 'helper-docs') 2>&1);$helperRestoreCode=$LASTEXITCODE
         if($helperRestoreCode-eq0){$restoredHelpers=@(& git -C "$helperTarget\CRM" config --local --get-all $helperKey)}
     }
-    Assert-That 'empty reset and exact gh shell-function helper survive backup and restore in order' ($helperCode-eq0-and$helperRestoreCode-eq0-and$restoredHelpers.Count-eq2-and$restoredHelpers[0]-ceq''-and$restoredHelpers[1]-ceq$shellHelper)
+    Assert-That 'empty reset and exact gh shell-function helper survive backup and restore in order' ($helperCode-eq0-and$helperRestoreCode-eq0-and$restoredHelpers.Count-eq2-and$restoredHelpers[0]-ceq''-and$restoredHelpers[1]-ceq$shellHelper) (@($helperBackup)+@($helperRestore))
     Invoke-Quiet $crm config --unset-all $helperKey|Out-Null;Invoke-Quiet $crm config $helperKey '!gh auth token'|Out-Null
     # Force every clone/init key to be present, independent of Git/platform defaults.
     $cloneMetadata=[ordered]@{'core.repositoryformatversion'='0';'core.filemode'='false';'core.bare'='false';'core.logallrefupdates'='true';'core.symlinks'='false';'core.ignorecase'='true';'remote.origin.fetch'='+refs/heads/*:refs/remotes/origin/*'}
@@ -553,7 +552,7 @@ try{
                 }
             }
             $tree=Read-BackupTree $destination;$messages=$stripped-join"`n"
-            Assert-That ('userinfo '+$case[0]+' stripped from origin, backup.json and state.json; every backup file searched') ($code-eq0-and$originKept-and$nestedOriginKept-and$configLines-ccontains"remote.origin.url=$cleanOrigin"-and$messages.Contains('BACKUP_CONFIG_USERINFO_STRIPPED: remote.origin.url')-and!$messages.Contains($case[1])-and!$tree.Contains($case[1])-and!$tree.Contains($fake))
+            Assert-That ('userinfo '+$case[0]+' stripped from origin, backup.json and state.json; every backup file searched') ($code-eq0-and$originKept-and$nestedOriginKept-and$configLines-ccontains"remote.origin.url=$cleanOrigin"-and$messages.Contains('BACKUP_CONFIG_USERINFO_STRIPPED: remote.origin.url')-and!$messages.Contains($case[1])-and!$tree.Contains($case[1])-and!$tree.Contains($fake)) $userRestore
             Assert-That ('userinfo '+$case[0]+' stripped from URL-shaped key and restored with key-only warning') ($code-eq0-and$urlKeyKept-and$configLines-ccontains"$cleanUrlKey=fixture-account"-and$messages.Contains("BACKUP_CONFIG_USERINFO_STRIPPED: $cleanUrlKey")-and!$messages.Contains($case[1])-and!$tree.Contains($case[1]))
             if($case[0]-eq'username'){foreach($metadataKey in $cloneMetadata.Keys){
                 Assert-That ("clone metadata silently omitted: $metadataKey") ($code-eq0-and!$messages.Contains("BACKUP_CONFIG_OMITTED: $metadataKey")-and@($configLines|Where-Object{($_-split'=',2)[0]-eq$metadataKey}).Count-eq0)
@@ -580,7 +579,7 @@ try{
     [IO.File]::WriteAllText($manifestFile,$manifest)
     $again=try{& pwsh -NoProfile -File "$lib\Restore-Workspace.ps1" -From $bk -Target $res -ClaudeHome (Join-Path $t 'ch') 2>&1|Out-String}catch{"$_"}
     Assert-That 'an existing target is refused' ($again-match'RESTORE_TARGET_EXISTS')
-    $projects=Join-Path $gh 'ORVION-Owner-Tools/records/claude-memory'
+    $projects=Join-Path $data 'claude-memory'
     [void][IO.Directory]::CreateDirectory((Join-Path $projects 'Documents-GitHub-empty'))
     [void][IO.Directory]::CreateDirectory((Join-Path $projects 'Documents-GitHub-third'))
     $memory=Join-Path $projects 'Documents-GitHub-valid';[void][IO.Directory]::CreateDirectory($memory)
@@ -589,11 +588,11 @@ try{
     Assert-That 'present valid and empty or missing project memory backup succeeds' ($LASTEXITCODE-eq0-and($withMemory-join' ')-match'BACKUP:')
     $memoryBackup=@(Get-ChildItem (Join-Path $t 'usb-memory') -Directory)[0].FullName
     $memoryRestore=@(& pwsh -NoProfile -File "$lib\Restore-Workspace.ps1" -From $memoryBackup -Target (Join-Path $t 'restored-memory') -ClaudeHome (Join-Path $t 'ch-memory') -LegacyTarget (Join-Path $t 'docs-memory') 2>&1)
-    Assert-That 'records restore preserves memory bytes via junction' ($LASTEXITCODE-eq0-and[IO.File]::ReadAllText((Join-Path $t 'ch-memory/projects/Documents-GitHub-valid/memory/fixture.md'))-ceq'fixture memory bytes')
+    Assert-That 'records restore preserves memory bytes via junction' ($LASTEXITCODE-eq0-and[IO.File]::ReadAllText((Join-Path $t 'ch-memory/projects/Documents-GitHub-valid/memory/fixture.md'))-ceq'fixture memory bytes') $memoryRestore
     $newTarget=Join-Path $t 'restored-memory'
     foreach($key in 'Documents-GitHub-empty','Documents-GitHub-valid','Documents-GitHub-third'){
         $link=Get-Item -LiteralPath (Join-Path $t "ch-memory/projects/$key/memory") -Force
-        Assert-That "new records memory $key is a junction to owner records" ($link.LinkType-ceq'Junction'-and@($link.Target)[0]-ieq(Join-Path $newTarget "ORVION-Owner-Tools/records/claude-memory/$key"))
+        Assert-That "new memory $key is a junction into the restored data root" ($link.LinkType-ceq'Junction'-and@($link.Target)[0]-ieq(Join-Path $newTarget "ORVION-Workbench/data/claude-memory/$key"))
     }
     Assert-That 'separate Claude projects memory is never packaged' (!(Test-Path "$memoryBackup/claude/projects"))
     foreach($case in @(@('required-receipt',"$crm\.orvion-local-certification.json"),@('present-memory',$note))){
@@ -610,11 +609,11 @@ try{
     Assert-That 'a tampered backup is refused' ($bad-match'BACKUP_CORRUPT')
     [IO.File]::Delete("$bk\SHA256SUMS.txt")
     $missingManifest=@(& pwsh -NoProfile -File "$lib\Restore-Workspace.ps1" -From $bk -Target (Join-Path $t 'restored-no-manifest') -ClaudeHome (Join-Path $t 'ch-no-manifest') 2>&1)
-    Assert-That 'missing manifest is fatal before creating a restore target' ($LASTEXITCODE-ne0-and!(Test-Path (Join-Path $t 'restored-no-manifest')))
+    Assert-That 'missing manifest is fatal before creating a restore target, and says so' ($LASTEXITCODE-ne0-and!(Test-Path (Join-Path $t 'restored-no-manifest'))-and($missingManifest-join' ')-match'SHA256SUMS\.txt') $missingManifest
     # Workbench recovery coverage v1: independent source/trusted, exact historical receipts and declared proof bytes.
-    # Selective package v1: a present Workbench requires the one journal and sessions archive under GitHub\ORVION-Owner-Tools.
-    $journal=Join-Path $gh 'ORVION-Owner-Tools\events\events.jsonl';[void][IO.Directory]::CreateDirectory((Split-Path $journal -Parent));[IO.File]::WriteAllText($journal,"{`"fixture`":`"journal`"}`n")
-    $session=Join-Path $gh 'ORVION-Owner-Tools\sessions\raw\s.jsonl';[void][IO.Directory]::CreateDirectory((Split-Path $session -Parent));[IO.File]::WriteAllText($session,'fixture session')
+    # Selective package v1: a present Workbench requires the one journal and sessions archive in the data root.
+    $journal=Join-Path $data 'events\events.jsonl';[void][IO.Directory]::CreateDirectory((Split-Path $journal -Parent));[IO.File]::WriteAllText($journal,"{`"fixture`":`"journal`"}`n")
+    $session=Join-Path $data 'sessions\raw\s.jsonl';[void][IO.Directory]::CreateDirectory((Split-Path $session -Parent));[IO.File]::WriteAllText($session,'fixture session')
     $wb=Join-Path $gh 'ORVION-Workbench';$trusted=Join-Path $gh 'ORVION-Workbench-trusted-main'
     foreach($repo in $wb,$trusted){
         & git clone -q $remote $repo 2>&1|Out-Null;if($LASTEXITCODE){throw 'WB_FIXTURE_CLONE_FAILED'}
@@ -702,7 +701,7 @@ try{
     Assert-That 'source and independent detached trusted HEAD round trip exactly' ((& git -C "$wbTarget/ORVION-Workbench" rev-parse HEAD)-ceq(& git -C $wb rev-parse HEAD)-and(& git -C "$wbTarget/ORVION-Workbench-trusted-main" rev-parse HEAD)-ceq(& git -C $trusted rev-parse HEAD)-and(& git -C "$wbTarget/ORVION-Workbench-trusted-main" rev-parse --abbrev-ref HEAD)-ceq'HEAD')
     Assert-That 'Workbench certification bytes retained without rewriting physical root' ((Get-FileHash "$wbTarget/ORVION-Workbench/.workbench-local-certification.json").Hash-ceq(Get-FileHash $receipt).Hash-and(Get-FileHash "$wbTarget/ORVION-Workbench/.workbench-certifications/$digest.json").Hash-ceq(Get-FileHash $archive).Hash)
     Assert-That 'trusted recovery remains push disabled and protocol denied' ((& git -C "$wbTarget/ORVION-Workbench-trusted-main" config --get remote.origin.pushurl)-ceq'DISABLED'-and(& git -C "$wbTarget/ORVION-Workbench-trusted-main" config --get protocol.allow)-ceq'never'-and(& git -C "$wbTarget/ORVION-Workbench-trusted-main" config --get push.default)-ceq'nothing')
-    Assert-That 'declared external proof bytes and original reference map retained' ((Get-FileHash "$wbTarget/ORVION-Owner-Tools/records/recovery-inputs/required-proof").Hash-ceq(Get-FileHash $proof).Hash-and(Test-Path "$wbTarget/ORVION-Owner-Tools/records/recovery-inputs/source-map.json"))
+    Assert-That 'declared external proof bytes and original reference map retained' ((Get-FileHash "$wbTarget/ORVION-Workbench/data/records/recovery-inputs/required-proof").Hash-ceq(Get-FileHash $proof).Hash-and(Test-Path "$wbTarget/ORVION-Workbench/data/records/recovery-inputs/source-map.json"))
     Assert-That 'recovery inputs never recreate the old GitHub sibling' (!(Test-Path "$wbTarget/ORVION-Recovery-Inputs"))
     $recordsInputs=Join-Path $wbb 'owner-tools/records/recovery-inputs'
     [void][IO.Directory]::CreateDirectory($recordsInputs)
@@ -711,7 +710,7 @@ try{
     Set-FixtureManifest $wbb
     $repeatTarget=Join-Path $t 'repeat-records'
     $repeated=@(& pwsh -NoProfile -File "$lib/Restore-Workspace.ps1" -From $wbb -Target $repeatTarget -ClaudeHome ($repeatTarget+'-ch') -CodexHome ($repeatTarget+'-cx') 2>&1)
-    Assert-That 'already-recorded recovery inputs merge identical bytes and preserve prior source map' ($LASTEXITCODE-eq0-and[IO.File]::ReadAllText("$repeatTarget/ORVION-Owner-Tools/records/recovery-inputs/source-map.json")-ceq'old source map'-and(Test-Path (Join-Path $repeatTarget ('ORVION-Owner-Tools/records/recovery-inputs/source-map-'+(Get-FileHash $planFile).Hash+'.json'))))
+    Assert-That 'already-recorded recovery inputs merge identical bytes and preserve prior source map' ($LASTEXITCODE-eq0-and[IO.File]::ReadAllText("$repeatTarget/ORVION-Workbench/data/records/recovery-inputs/source-map.json")-ceq'old source map'-and(Test-Path (Join-Path $repeatTarget ('ORVION-Workbench/data/records/recovery-inputs/source-map-'+(Get-FileHash $planFile).Hash+'.json')))) $repeated
     [IO.File]::WriteAllText((Join-Path $recordsInputs 'required-proof'),'different bytes')
     Set-FixtureManifest $wbb
     $conflictTarget=Join-Path $t 'conflict-records'
@@ -730,10 +729,8 @@ try{
     [IO.File]::WriteAllText((Join-Path $wbb 'SHA256SUMS.txt'),$withoutProof);[IO.File]::Delete($rp)
     $omitted=@(& pwsh -NoProfile -File "$lib/Restore-Workspace.ps1" -From $wbb -Target (Join-Path $t 'wb-omitted') -ClaudeHome (Join-Path $t 'wb-omitted-ch') 2>&1)
     Assert-That 'required input omitted together with manifest entry still refuses before writes' ($LASTEXITCODE-ne0-and($omitted-join' ')-match'RESTORE_WORKBENCH_INPUT_REQUIRED'-and!(Test-Path (Join-Path $t 'wb-omitted')))
-    # Selective package v1: run from a production-shaped checkout (lib not under ORVION-Owner-Tools), as the real tool does.
-    $probeLib=Join-Path $gh 'Workbench-checkout\lib';[void][IO.Directory]::CreateDirectory($probeLib)
-    Copy-Item (Join-Path $lib 'Backup-Workspace.ps1'),(Join-Path $lib 'Restore-Workspace.ps1'),(Join-Path $lib 'workspace-layout.ps1') $probeLib
-    Copy-Item (Join-Path $lib 'Restore-ORVION.cmd'),(Join-Path $lib 'Restore-ORVION.ps1') $probeLib
+    # Selective package v1: the checkout copy is production-shaped (lib\ beside its data\), as the real tool is.
+    $probeLib=$lib
     $journalBytes=[IO.File]::ReadAllBytes($journal);[IO.File]::Delete($journal)
     $noJournal=@(& pwsh -NoProfile -File "$probeLib\Backup-Workspace.ps1" -Destination (Join-Path $t 'no-journal') -RecoveryInputs $inputs -AllowUnencrypted 2>&1)
     Assert-That 'missing journal blocks a Workbench backup without success' ($LASTEXITCODE-ne0-and($noJournal-join' ')-match'BACKUP_JOURNAL_REQUIRED'-and($noJournal-join' ')-notmatch'BACKUP:')
@@ -745,7 +742,7 @@ try{
     foreach($ref in @(Invoke-Quiet $trusted for-each-ref --format='%(refname)')){& git -C $trusted update-ref --no-deref -d $ref;if($LASTEXITCODE){throw 'TRUSTED_REF_FIXTURE_FAILED'}}
     $cloud=Join-Path $t 'cloud';$pkgTemp=Join-Path $t 'pkg-temp';[void][IO.Directory]::CreateDirectory($pkgTemp)
     # A token-shaped value built at run time, so this file never holds one: the scan must name it without its value.
-    $planted='ghp_'+-join((48..57)+(65..90)+(97..122)|Get-Random -Count 36|ForEach-Object{[char]$_});[IO.File]::WriteAllText((Join-Path $gh 'ORVION-Owner-Tools/records/leak.txt'),"token=$planted")
+    $planted='ghp_'+-join((48..57)+(65..90)+(97..122)|Get-Random -Count 36|ForEach-Object{[char]$_});[void][IO.Directory]::CreateDirectory((Join-Path $data 'records'));[IO.File]::WriteAllText((Join-Path $data 'records/leak.txt'),"token=$planted")
     $savedPackageTemporaryRoot=$env:WORKBENCH_TEMP_ROOT;$env:WORKBENCH_TEMP_ROOT=$pkgTemp
     $savedTemp=$env:TEMP;$savedTmp=$env:TMP;$env:TEMP=$pkgTemp;$env:TMP=$pkgTemp
     try{
@@ -753,13 +750,37 @@ try{
         Assert-That 'a package without a product repository refuses before any archive' ($LASTEXITCODE-ne0-and($missing-join' ')-match'PACKAGE_REPO_REQUIRED: ORVION-trusted-main'-and!(Test-Path $cloud))
         & git clone -q $remote (Join-Path $gh 'ORVION-trusted-main') 2>&1|Out-Null;if($LASTEXITCODE){throw 'PRODUCT_FIXTURE_FAILED ORVION-trusted-main'}
         $pkg=@(& pwsh -NoProfile -File "$probeLib\Backup-Workspace.ps1" -Destination $cloud -RecoveryInputs $inputs -Package 2>&1)
-        if($LASTEXITCODE){throw ('PACKAGE_FIXTURE_FAILED: '+($pkg-join' '))}
+        $pkgExit=$LASTEXITCODE;Assert-That 'a failed retention run never fails the backup' ($pkgExit-eq0);if($pkgExit){throw ('PACKAGE_FIXTURE_FAILED: '+($pkg-join' '))}
         $archive=@(Get-ChildItem $cloud -Filter *.7z -Force)[0].FullName;$scan="$archive.secret-scan.txt"
         Assert-That 'package destination holds archive, scan, hash and both launchers; staging is removed' (@(Get-ChildItem $cloud -Force).Count-eq5-and(Test-Path $scan)-and$archive-and@(Get-ChildItem (Join-Path $pkgTemp 'tmp') -Force).Count-eq0-and($pkg-join' ')-match'PACKAGE: .*unencrypted'-and[IO.File]::ReadAllText("$archive.sha256").Trim()-ceq((Get-FileHash $archive).Hash+' *'+(Split-Path $archive -Leaf))-and(Get-FileHash "$cloud\Restore-ORVION.cmd").Hash-ceq(Get-FileHash "$lib\Restore-ORVION.cmd").Hash-and(Get-FileHash "$cloud\Restore-ORVION.ps1").Hash-ceq(Get-FileHash "$lib\Restore-ORVION.ps1").Hash)
+        $packageStatus=[IO.File]::ReadAllText("$cloud.status\latest.json")|ConvertFrom-Json
+        Assert-That 'a failed retention run is printed and in latest.json' ($packageStatus.result-ceq'SUCCESS'-and$packageStatus.retention.result-ceq'FAILED'-and($pkg-join"`n")-cmatch'(?m)^RETENTION: ')
+        # DEC-27: with the tier in place, one triggered package leaves the last 7 plus the named one, each with its sidecars. This fixture holds no transcript.
+        $tierFiles='Organize.ps1','remove-owned.ps1','Sync-Sessions.ps1','data-schemas.json','Test-MarkdownConsistency.ps1'
+        foreach($name in $tierFiles){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) $probeLib}
+        function Add-SeedVault([string]$Folder){
+            foreach($extra in 'continuity','step3-x'){[void][IO.Directory]::CreateDirectory((Join-Path $Folder $extra));[IO.File]::WriteAllText((Join-Path $Folder "$extra\keep.txt"),'keep')}
+            [IO.File]::WriteAllText((Join-Path $Folder 'unrelated.txt'),'keep')
+            foreach($day in 1..9){$seed='orvion-backup-202001{0:00}T000000Z.7z' -f $day;foreach($suffix in '','.sha256','.secret-scan.txt'){[IO.File]::WriteAllText((Join-Path $Folder "$seed$suffix"),'seed')}}
+        }
+        $retVault=Join-Path $t 'cloud-retention';Add-SeedVault $retVault;$namedSeed='orvion-backup-20200101T000000Z.7z'
+        $namingFile=Join-Path (Split-Path $probeLib -Parent) 'HANDOFF.md';[IO.File]::WriteAllText($namingFile,"Restore from $namedSeed.`n")
+        $retained=@(& pwsh -NoProfile -File "$probeLib\Backup-Workspace.ps1" -Destination $retVault -RecoveryInputs $inputs -Package 2>&1);$retainedExit=$LASTEXITCODE
+        $retPackages=@(Get-ChildItem -LiteralPath $retVault -Filter *.7z -File|ForEach-Object Name);$retStatus=[IO.File]::ReadAllText("$retVault.status\latest.json")|ConvertFrom-Json
+        $retKeptSeeds=@(4..9|ForEach-Object{'orvion-backup-202001{0:00}T000000Z.7z' -f $_})+$namedSeed
+        Assert-That 'one triggered package leaves the last 7 plus the named one' ($retainedExit-eq0-and$retPackages.Count-eq8-and!@($retKeptSeeds|Where-Object{$_-cnotin$retPackages}).Count)
+        Assert-That 'the packages past them go with their sidecars' (!@(Get-ChildItem -LiteralPath $retVault -File|Where-Object Name -cmatch '^orvion-backup-2020010[23]T').Count-and@(Get-ChildItem -LiteralPath $retVault -File|Where-Object Name -clike "$namedSeed*").Count-eq3)
+        Assert-That 'the retention run is printed and in latest.json' ($retStatus.result-ceq'SUCCESS'-and$retStatus.retention.result-ceq'OK'-and$retStatus.retention.summary-ceq'CLEAN deleted=6 refused=0'-and($retained-join"`n")-cmatch'(?m)^RETENTION: DELETED retention vault:orvion-backup-20200102T000000Z\.7z ')
+        Assert-That 'the retention run leaves what is no package' ((Test-Path -LiteralPath (Join-Path $retVault 'unrelated.txt'))-and(Test-Path -LiteralPath (Join-Path $retVault 'continuity\keep.txt'))-and(Test-Path -LiteralPath (Join-Path $retVault 'step3-x\keep.txt'))-and(Test-Path -LiteralPath (Join-Path $retVault 'Restore-ORVION.cmd')))
+        $plainVault=Join-Path $t 'cloud-plain';Add-SeedVault $plainVault
+        $plainRun=@(& pwsh -NoProfile -File "$probeLib\Backup-Workspace.ps1" -Destination $plainVault -RecoveryInputs $inputs -AllowUnencrypted 2>&1);$plainExit=$LASTEXITCODE
+        Assert-That 'a plain backup runs no retention' ($plainExit-eq0-and@(Get-ChildItem -LiteralPath $plainVault -Filter *.7z -File).Count-eq9-and($plainRun-join"`n")-cnotmatch'RETENTION: ')
+        foreach($name in $tierFiles){[IO.File]::Delete((Join-Path $probeLib $name))};[IO.File]::Delete($namingFile);if(Test-Path -LiteralPath (Join-Path $data 'work\retention-log.tsv')){[IO.File]::Delete((Join-Path $data 'work\retention-log.tsv'))}
         # Fail archive creation and verification separately. Real 7z handles successful commands; no installer seam.
         $backupFile=Join-Path $probeLib 'Backup-Workspace.ps1';$backupBytes=[IO.File]::ReadAllText($backupFile)
         $tokens=$null;$parseErrors=$null;$backupAst=[Management.Automation.Language.Parser]::ParseInput($backupBytes,[ref]$tokens,[ref]$parseErrors)
         $zipFunction=$backupAst.Find({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]-and$n.Name-eq'Get-SevenZip'},$false).Extent.Text
+        $failedRetention=$false
         foreach($operation in 'a','t'){
             $failedCloud=Join-Path $t "cloud-failed-$operation";[void][IO.Directory]::CreateDirectory($failedCloud)
             foreach($name in 'Restore-ORVION.cmd','Restore-ORVION.ps1','unrelated.txt'){[IO.File]::WriteAllText((Join-Path $failedCloud $name),'keep existing bytes')}
@@ -768,8 +789,10 @@ try{
             [IO.File]::WriteAllText($backupFile,$backupBytes.Replace($zipFunction,("function Get-SevenZip{'"+$fakeZip.Replace("'","''")+"'}")))
             try{$failedPackage=@(& pwsh -NoProfile -File $backupFile -Destination $failedCloud -RecoveryInputs $inputs -Package 2>&1);$failedCode=$LASTEXITCODE}
             finally{[IO.File]::WriteAllText($backupFile,$backupBytes)}
+            if(($failedPackage-join"`n")-cmatch'RETENTION: '){$failedRetention=$true}
             Assert-That "failed package $operation writes no hash or launcher; existing files untouched" ($failedCode-ne0-and($failedPackage-join' ')-match'PACKAGE_(VERIFY_)?FAILED'-and@((Get-ChildItem -LiteralPath $failedCloud -Filter *.sha256)).Count-eq0-and[IO.File]::ReadAllText((Join-Path $failedCloud 'Restore-ORVION.cmd'))-ceq'keep existing bytes'-and[IO.File]::ReadAllText((Join-Path $failedCloud 'Restore-ORVION.ps1'))-ceq'keep existing bytes'-and[IO.File]::ReadAllText((Join-Path $failedCloud 'unrelated.txt'))-ceq'keep existing bytes'-and@(Get-ChildItem (Join-Path $pkgTemp 'tmp') -Force).Count-eq0)
         }
+        Assert-That 'a failed package runs no retention' (!$failedRetention)
         if(Get-Command gitleaks -CommandType Application -ErrorAction SilentlyContinue){
             if([IO.File]::ReadAllText($scan)-match'^SECRET SCAN: FAILED'){
                 Assert-That 'a failed installed scanner is reported without exposing the planted value' (($pkg-join' ')-match'SECRET SCAN: FAILED'-and[IO.File]::ReadAllText($scan)-notmatch$planted-and($pkg-join' ')-notmatch$planted)
@@ -793,7 +816,7 @@ try{
         if($LASTEXITCODE){throw ('PACKAGE_RESTORE_FIXTURE_FAILED: '+($restoredPkg-join' '))}
         Assert-That 'package restore leaves no plaintext staging and rebuilds the exact source HEAD' (@(Get-ChildItem (Join-Path $pkgTemp 'tmp') -Force).Count-eq0-and(& git -C "$pkgTarget/ORVION-Workbench" rev-parse HEAD)-ceq(& git -C $wb rev-parse HEAD))
         Assert-That 'a ref-less detached trusted clone round trips at its exact HEAD' ((& git -C "$pkgTarget/ORVION-Workbench-trusted-main" rev-parse HEAD)-ceq(& git -C $trusted rev-parse HEAD)-and(& git -C "$pkgTarget/ORVION-Workbench-trusted-main" rev-parse --abbrev-ref HEAD)-ceq'HEAD'-and@(& git -C "$pkgTarget/ORVION-Workbench-trusted-main" for-each-ref).Count-eq0)
-        Assert-That 'journal and sessions come from GitHub\ORVION-Owner-Tools, not the running checkout' ([IO.File]::ReadAllText("$pkgTarget/ORVION-Owner-Tools/events/events.jsonl")-ceq[Text.Encoding]::UTF8.GetString($journalBytes)-and[IO.File]::ReadAllText("$pkgTarget/ORVION-Owner-Tools/sessions/raw/s.jsonl")-ceq'fixture session')
+        Assert-That 'journal and sessions come from the data root and restore into ORVION-Workbench\data' ([IO.File]::ReadAllText("$pkgTarget/ORVION-Workbench/data/events/events.jsonl")-ceq[Text.Encoding]::UTF8.GetString($journalBytes)-and[IO.File]::ReadAllText("$pkgTarget/ORVION-Workbench/data/sessions/raw/s.jsonl")-ceq'fixture session')
         Assert-That 'new package does not recreate legacy destinations' (!(Test-Path $pkgDocs)-and!(Test-Path "$pkgTarget/ORVION-Recovery-Inputs"))
     }finally{$env:WORKBENCH_TEMP_ROOT=$savedPackageTemporaryRoot;$env:TEMP=$savedTemp;$env:TMP=$savedTmp}
 }finally{

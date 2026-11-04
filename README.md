@@ -1,27 +1,47 @@
 # ORVION Workbench
 
-Independent management source for the owner's ORVION workspace: reviewed tools, tests, governance, contracts and portable engineering knowledge. Source repository: https://github.com/Shehabhub/ORVION-Workbench (PUBLIC, measured 2026-10-26). Never commit secrets, owner records, sensitive sessions or approvals. Gitignore is not backup; unique ignored evidence needs protected external recovery. Essential generated locks can belong in Git; disposable handwritten scratch can be excluded. Native tracked projections retain native authority.
+The owner's ORVION workspace in the public repository <https://github.com/Shehabhub/ORVION-Workbench>: tools, tests,
+decisions, contracts and portable engineering knowledge. This file routes each kind of information to its one home.
 
-## Start here
+## 1. What this is
 
-Read [RESUME.md](RESUME.md), then [HANDOFF.md](HANDOFF.md) for the Batch 6 closure boundary. For Workbench changes run `pwsh -NoProfile -File lib/Workbench.ps1 -Boot` and follow [WORKFLOW.md](WORKFLOW.md). Use its actual contract or blocked result. Configure local `.githooks`; cloning alone installs neither hooks nor journals/receipts. Each product's own README, AGENTS and Boot decide its authority; this workspace coordinates only explicitly requested combined work.
+ORVION-Workbench manages the owner's workspace around the CRM and ORVION repositories, which keep their own native
+authority (DEC-08). What may be published, and the secret scan every file passes first: DEC-09. Backup and recovery:
+DEC-27.
 
-## Three folders
+## 2. Which source wins
 
-| Sibling | Role |
-|---|---|
-| ORVION-Workbench | Git source; local engine receipts and owner-requested generated map exceptions |
-| ORVION-Owner-Tools | One private data store: records, sessions, events, evidence and machine bindings |
-| ORVION-Workbench-temporary | Disposable clones, fixtures, scratch and pinned tools |
+The owner's live instruction (DEC-02), then docs/DECISIONS.md, then the native lifecycle (WORKFLOW.md with
+lib/Workbench.ps1), then docs/RUNBOOK.md, then the workstream plan and its records, then history. A dated record or an
+earlier report never grants scope (DEC-02).
 
-Product repositories and trusted clones remain independent siblings. Managed sandbox/test/temp/runtime do not belong inside source. A source clone restores neither the whole workstation nor live certification.
+## 3. The places
 
-## Navigation
+Two working folders and one backup copy: DEC-08. What each holds: WORKSPACE-LAYOUT.md sections 2 and 3. Where a new
+item goes: WORKSPACE-LAYOUT.md section 4.
 
-- [Programme plan](docs/EXECUTION-PLAN.md): remaining sequence, dated evidence, publication and acceptance boundaries.
-- [Workspace layout](docs/WORKSPACE-LAYOUT.md): folder roles, named exceptions, retention and migration.
-- [Recovery](docs/RECOVERY.md): package, cloud verification and restore procedures and limits.
-- [Tool catalogue](lib/README.md): Pulse, journal/search/archive, delegation, observers, map and native adapters.
-- [Contract template](changes/TEMPLATE.md): new Workbench proposals; allocated history is indexed in WORKFLOW.
+## 4. Read on need
 
-The canonical plan/layout cutover is complete. Old data and frozen evidence stay preserved; remaining management, hosted enforcement and clean-Windows recovery claims require their own evidence. A dated programme snapshot never grants scope or permission to publish, promote or configure a service.
+| You need | Read |
+| --- | --- |
+| a decision or rule in force | [docs/DECISIONS.md](docs/DECISIONS.md), one entry: `grep -n '^## DEC-18' docs/DECISIONS.md` |
+| how to do a step | [docs/RUNBOOK.md](docs/RUNBOOK.md) |
+| the layout, the method and the checks | [docs/WORKSPACE-LAYOUT.md](docs/WORKSPACE-LAYOUT.md) |
+| the engineering entry | `pwsh -NoProfile -File lib/Workbench.ps1 -Boot`, then [WORKFLOW.md](WORKFLOW.md) |
+| the active contract | [RESUME.md](RESUME.md) |
+| a new contract | [changes/TEMPLATE.md](changes/TEMPLATE.md); the contracts: [changes/](changes/README.md) |
+| a tool | [lib/README.md](lib/README.md) |
+| the criteria that close the programme | [HANDOFF.md](HANDOFF.md) |
+| recovery after a lost machine | [docs/RECOVERY.md](docs/RECOVERY.md) |
+| the documents and their history | [docs/](docs/README.md) and the [history index](docs/history/README.md) |
+| configuration examples | [config/README.md](config/README.md) |
+
+## 5. The work loop
+
+The method for every task: WORKSPACE-LAYOUT.md section 14.1. Sizing it to the change: DEC-12. Finding a section: one
+grep and one ranged read (DEC-32).
+
+## 6. Save and compact
+
+After every operation, save as DEC-26 says, then give the owner the /compact line and the resume message; the owner
+types /compact by hand. The exact output: WORKSPACE-LAYOUT.md section 14.2.

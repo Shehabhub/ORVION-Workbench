@@ -1,12 +1,12 @@
 # Claude Code reporting adapter: Workbench context is opt-in; native product entry stays independent.
-#   SessionStart          -> prints the tool index (lib\README.md, "Always" section) and Pulse
+#   SessionStart          -> prints NOW.md, the tool index (lib\README.md, "Always" section) and Pulse (after compact: short)
 #   PostToolUse Agent     -> a background agent was launched: the exact Watch-Subagents command for this session
 #   PostToolUse PowerShell|Bash running scripts/run_timed.ps1 -> the exact watch_run and Watch-Host commands
 # Reads the hook event from stdin; only ever adds context, never blocks, and exits 0 on any error.
 $ErrorActionPreference='Stop'
 try{
     $lib=Split-Path $PSScriptRoot -Parent
-    $dataRoot=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools'})
+    $dataRoot=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) 'data'})
     if(!$env:ORVION_DATA_ROOT-and!(Test-Path -LiteralPath (Join-Path $dataRoot 'events') -PathType Container)){throw 'ORVION_DATA_ROOT_UNAVAILABLE'}
     $dataRoot=[IO.Path]::GetFullPath($dataRoot).TrimEnd('\')
     $raw=[Console]::In.ReadToEnd();$e=if($raw.Trim()){$raw|ConvertFrom-Json}else{$null}
@@ -53,7 +53,7 @@ try{
         if($hookEvent-eq'SessionEnd'){exit 0}
         if(!$workbenchEntry){exit 0} # archival preserves knowledge; it never enrolls a native session in Workbench
         $md=[IO.File]::ReadAllText((Join-Path $lib 'README.md'))
-        $always=[regex]::Match($md,'(?s)## Always.*?(?=\n## )').Value
+        $always=[regex]::Match($md,'(?ms)^## (?:\d+\. )?Always\b.*?(?=\n## |\z)').Value  # found by title, with or without its ID (DEC-32)
         # File redirection avoids a full pipe blocking Pulse before its deadline. Only this child tree is owned here.
         $pulseTemp=Join-Path ([IO.Path]::GetTempPath()) ('orvion-pulse-'+[guid]::NewGuid().ToString('N'))
         $pulseOut=$pulseTemp+'.out';$pulseErr=$pulseTemp+'.err';$pulseChild=$null
@@ -76,15 +76,29 @@ try{
             if($pulseChild){$pulseChild.Dispose()}
             foreach($pulseFile in $pulseOut,$pulseErr){try{if(Test-Path -LiteralPath $pulseFile){Remove-Item -LiteralPath $pulseFile -Force}}catch{$null=$_}}
         }
+        # The tool index and the full Pulse only in a new context (startup, /clear, or a client that sends no source); after
+        # compact, resume or fork a pointer and the short Pulse. The hook's own UNREADABLE messages are never shortened.
+        $fullStart=!$e.source-or$e.source-in'startup','clear'
+        $shortPulse=if($events.StartsWith('ORVION PULSE')){@($events-split"`n"|Where-Object{$_-match'^(ORVION PULSE|state|waiting|running)\s'})-join"`n"}else{$events}
+        if(!$fullStart){$events=$shortPulse}
+        # NOW.md, the live state (DEC-26), whole at every start or a plain statement why not; never cut. 6144: its budget
+        # in bytes (WORKSPACE-LAYOUT.md section 19).
+        $nowPath=Join-Path $dataRoot 'work\NOW.md'
+        $now=if(!(Test-Path -LiteralPath $nowPath -PathType Leaf)){"NOW.md missing: $nowPath (Save-State writes it)."}
+            else{$nowText=([IO.File]::ReadAllText($nowPath)-replace'\r?\n',"`n").TrimEnd([char]10)
+                if([Text.Encoding]::UTF8.GetByteCount($nowText)-gt6144){"NOW.md UNREADABLE: over its 6144-byte budget; read $nowPath."}else{$nowText}}
         $contextPrefix="ORVION AGENT TOOLS exist at $lib (index: README.md). Use them; never hand-write an alarm loop.`n"
         $contextSuffix="`nBefore a task: pwsh -NoProfile -File `"$lib\Events.ps1`" -Find '<task in a few words>'. Record a failure, discovery or decision worth keeping with Events.ps1 -Add. Past sessions (task, size, tools, errors, SPECs, raw path): $dataRoot\sessions\INDEX.md."
-        $guidance=$always.Replace('<lib>',$lib)
+        $guidance=if($fullStart){$always.Replace('<lib>',$lib)}else{"Tool guidance abbreviated; see $lib\README.md."}
         $contextLimit=8192-[Environment]::NewLine.Length
-        if($contextPrefix.Length+$guidance.Length+1+$events.Length+$contextSuffix.Length-gt$contextLimit){
+        if($contextPrefix.Length+$now.Length+1+$guidance.Length+1+$events.Length+$contextSuffix.Length-gt$contextLimit){
             $guidance="Tool guidance abbreviated; see $lib\README.md."
         }
-        $context=$contextPrefix+$guidance+"`n"+$events+$contextSuffix
-        if($context.Length-gt$contextLimit){$context="ORVION AGENT TOOLS: see lib\README.md.`n$events`nPast sessions: sessions\INDEX.md under the selected data root."}
+        $context=$contextPrefix+$now+"`n"+$guidance+"`n"+$events+$contextSuffix
+        if($context.Length-gt$contextLimit){$context="ORVION AGENT TOOLS: see lib\README.md.`n$now`n$shortPulse`nPast sessions: sessions\INDEX.md under the selected data root."}
+        # ponytail: a 6 KB NOW.md with four 1 KB short-Pulse lines can still exceed the limit; the cut falls in the Pulse,
+        # after NOW.md. Drop lines instead if it ever does.
+        if($context.Length-gt$contextLimit){$context=$context.Substring(0,$contextLimit)}
         Send-Context $context
         exit 0
     }
@@ -119,8 +133,8 @@ try{
     # Resolve independently of $lib/$dataRoot: even their initialization may have failed.
     try{
     $checkout=Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-    $sibling=Join-Path (Split-Path $checkout -Parent) 'ORVION-Owner-Tools'
-    foreach($candidate in @($env:ORVION_DATA_ROOT)+@(if(Test-Path -LiteralPath (Join-Path $sibling 'events')){$sibling})){
+    $data=Join-Path $checkout 'data'
+    foreach($candidate in @($env:ORVION_DATA_ROOT)+@(if(Test-Path -LiteralPath (Join-Path $data 'events')){$data})){
         try{
             if(!$candidate-or![IO.Path]::IsPathFullyQualified($candidate)){continue}
             $errDir=Join-Path ([IO.Path]::GetFullPath($candidate)) 'work'

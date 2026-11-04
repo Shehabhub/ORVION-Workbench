@@ -13,7 +13,7 @@
 # -Once prints selected states and exits 2 on a stall or incomplete evidence. Reads transcripts; alarms append Events.
 param([string]$Session,[ValidateRange(0.001,10080)][double]$StallMinutes=3,[ValidateRange(0.001,10080)][double]$IdleMinutes=8,
       [ValidateRange(1,3600)][int]$PollSeconds=15,[switch]$Once,[string[]]$Only,[switch]$SinceStart,
-      [string]$EventRoot=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) -Parent) 'ORVION-Owner-Tools'}))
+      [string]$EventRoot=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) 'data'}))
 $ErrorActionPreference='Stop'
 if(!$PSBoundParameters.ContainsKey('EventRoot')-and!$env:ORVION_DATA_ROOT-and!(Test-Path -LiteralPath (Join-Path $EventRoot 'events') -PathType Container)){throw 'ORVION_DATA_ROOT_UNAVAILABLE'}
 # `pwsh -File` passes "a,b" as one string, not an array.

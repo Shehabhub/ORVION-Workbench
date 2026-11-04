@@ -2,7 +2,7 @@
 # WORKBENCH_TEMP_ROOT is an explicit context root. ORVION_STANDALONE_TEMP=1 opts a standalone
 # installation into system temp; hosted runners may use RUNNER_TEMP / GITHUB_ACTIONS=true.
 function Get-OrvionRepositoryCandidates {
-    param([string]$GitHub,[string[]]$Skip=@('*-trusted-main','ORVION-Owner-Tools','ORVION-Workbench-temporary','_*'))
+    param([string]$GitHub,[string[]]$Skip=@('*-trusted-main','ORVION-Workbench-temporary','_*'))
     foreach($d in Get-ChildItem -LiteralPath $GitHub -Directory){
         if(@($Skip|Where-Object{$d.Name-like$_}).Count-or!(Test-Path -LiteralPath (Join-Path $d.FullName '.git'))){continue}
         $top="$( & git -C $d.FullName rev-parse --show-toplevel 2>$null )"
@@ -44,13 +44,13 @@ function Initialize-OrvionTemporaryRoot {
     $temporary
 }
 
-# Finish's required Hunt needs a data root. A sandbox or temporary clone has none (no ORVION_DATA_ROOT, no sibling
-# ORVION-Owner-Tools with events\): give it an empty disposable store under the managed temp instead of failing, and
+# Finish's required Hunt needs a data root. A sandbox or temporary clone has none (no ORVION_DATA_ROOT, no data\events
+# in the checkout): give it an empty disposable store under the managed temp instead of failing, and
 # never fall back to the checkout. Returns $null when the normal default applies.
 function Get-OrvionFinishHuntDataRoot([Parameter(Mandatory)][string]$Checkout){
     if($env:ORVION_DATA_ROOT){return $null}
-    $sibling=Join-Path (Split-Path ([IO.Path]::GetFullPath($Checkout).TrimEnd('\','/')) -Parent) 'ORVION-Owner-Tools'
-    if(Test-Path -LiteralPath (Join-Path $sibling 'events') -PathType Container){return $null}
+    $data=Join-Path ([IO.Path]::GetFullPath($Checkout).TrimEnd('\','/')) 'data'
+    if(Test-Path -LiteralPath (Join-Path $data 'events') -PathType Container){return $null}
     $store=Join-Path ([IO.Path]::GetTempPath()) ('finish-hunt-data-'+[guid]::NewGuid().ToString('N'))
     foreach($part in 'events','sessions','work'){[void][IO.Directory]::CreateDirectory((Join-Path $store $part))}
     $store
@@ -64,10 +64,11 @@ function Get-OrvionTemporaryTool {
 function Receive-OrvionTemporaryTool([string]$Uri,[string]$OutFile){
     Invoke-WebRequest -Uri $Uri -OutFile $OutFile
 }
+function Get-OrvionTemporaryAreas{'tmp','cx','sb','tools','restore-staging','codex-relay-logs','scratch','retired','map'}
 function Restore-OrvionTemporary([string]$Target){
     if(![IO.Path]::IsPathFullyQualified($Target)){throw 'WB_TEMP_TARGET_NOT_ABSOLUTE'}
     $root=Join-Path ([IO.Path]::GetFullPath($Target)) 'ORVION-Workbench-temporary'
-    foreach($name in @('')+@('tmp','cx','sb','tools','restore-staging','codex-relay-logs','scratch','retired')){
+    foreach($name in @('')+@(Get-OrvionTemporaryAreas)){
         $path=if($name){Join-Path $root $name}else{$root}
         if((Get-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue).Attributes-band[IO.FileAttributes]::ReparsePoint){throw 'WB_TEMP_REPARSE_REFUSED'}
         [void][IO.Directory]::CreateDirectory($path)

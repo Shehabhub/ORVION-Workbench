@@ -45,14 +45,21 @@ try{
     try{
         . (Join-Path $PSScriptRoot 'workspace-layout.ps1');$tempRoot=Initialize-OrvionTemporaryRoot -Checkout (Split-Path $PSScriptRoot -Parent)
         $clone=Join-Path $tempRoot 'cx\ORVION-selfcheck';$null=& git init -q $clone
-        $codexBrief=Join-Path $t 'selfcheck.md';Set-Content $codexBrief 'fixture brief'
+        $briefHeadings='Objective','Why delegated','Scope','Authority','Embedded evidence','Read only if needed','Write boundary','Deliverables','Acceptance','Stop conditions','Return format'
+        # A section named with $null is left out; any other value replaces its body.
+        function New-Brief([string]$Name,[hashtable]$Body=@{}){
+            $path=Join-Path $t "$Name.md"
+            Set-Content -LiteralPath $path (@(foreach($heading in $briefHeadings){if($Body.ContainsKey($heading)-and$null-eq$Body[$heading]){continue};"## $heading";if($Body.ContainsKey($heading)){$Body[$heading]}else{"fixture brief, DEC-20"}}))
+            $path
+        }
+        $codexBrief=New-Brief 'selfcheck'
         $data=Join-Path $t 'data';[void][IO.Directory]::CreateDirectory($data)
         $cacheFile=Join-Path $t 'models_cache.json';$bin=Join-Path $t 'bin';[void][IO.Directory]::CreateDirectory($bin)
         $fake=Join-Path $bin 'fake-codex.mjs';$stateFile=Join-Path $bin 'state.json';$calls=Join-Path $bin 'calls.jsonl'
         $originalHome=Join-Path $t 'original-codex-home';[void][IO.Directory]::CreateDirectory($originalHome)
         $sentinels=@{'config.toml'=[byte[]](0,67,79,78,70,73,71,255);'auth.json'=[byte[]](0,65,85,84,72,254)}
         foreach($name in $sentinels.Keys){[IO.File]::WriteAllBytes((Join-Path $originalHome $name),$sentinels[$name])}
-        $env:CODEX_HOME=$originalHome;$script:featureProbes=@()
+        $env:CODEX_HOME=$originalHome;$script:featureProbes=@();$script:workstreams=0
         [IO.File]::WriteAllText($fake,@'
 import fs from 'node:fs';import path from 'node:path';import {fileURLToPath} from 'node:url';
 const dir=path.dirname(fileURLToPath(import.meta.url));
@@ -78,10 +85,18 @@ if(featureCall){
   }
   process.exit(0);
 }
+if(a.includes('sandbox')&&a.includes('--')){
+  const [inClone,inRun,outside]=a.slice(a.indexOf('--')+3);
+  if(s.mxcUnavailable){console.error('windows.sandbox = mxc is not allowed');process.exit(1)}
+  if(!s.mxcNoClone)fs.writeFileSync(inClone,'x');
+  fs.writeFileSync(inRun,'x');
+  if(s.mxcWiden)fs.writeFileSync(outside,'x');
+  process.exit(s.mxcExit?1:0);
+}
 if(a[0]!=='exec')process.exit(91);
 if(!a.includes('--ignore-user-config')){console.error('error: exec requires --ignore-user-config');process.exit(92)}
 const output=a[a.indexOf('-o')+1];const brief=fs.readFileSync(0,'utf8');
-fs.writeFileSync(output,'synthetic final');fs.writeFileSync(path.join(path.dirname(output),'seen-brief.txt'),brief);
+fs.writeFileSync(output,s.final??'INHERITED: x\nPROVEN: x\nUNPROVEN: x\nCHANGED: x\nREMAINING: x\nDO NOT TOUCH: x\nNEXT: x\n');fs.writeFileSync(path.join(path.dirname(output),'seen-brief.txt'),brief);
 if(s.escape)fs.writeFileSync(s.escape,'synthetic change');
 if(s.removeControls)fs.unlinkSync(path.join(path.dirname(output),'native-controls.json'));
  if(s.corruptControls)fs.writeFileSync(path.join(path.dirname(output),'native-controls.json'),s.corruptControls);
@@ -114,7 +129,7 @@ process.exit(s.exit||0);
         Set-Content (Join-Path $repo 'notes.txt') 'already untracked before the run'
         function Invoke-Codex([hashtable]$State=@{},[hashtable]$More=@{}){
             [IO.File]::WriteAllText($stateFile,($State|ConvertTo-Json -Depth 10));[IO.File]::WriteAllText($calls,'')
-            $settings=@{Root=$data;CodexBrief=$codexBrief;Clone=$clone;ModelCache=$cacheFile;Effort='xhigh';Watch=@($gh,$repo)}
+            $settings=@{Root=$data;CodexBrief=$codexBrief;Clone=$clone;Workstream="W$(10000+$script:workstreams++)";ModelCache=$cacheFile;Effort='xhigh';Watch=@($gh,$repo)}
             foreach($key in $More.Keys){if($null-eq$More[$key]){$settings.Remove($key)}else{$settings[$key]=$More[$key]}}
             [IO.File]::WriteAllText($parameters,($settings|ConvertTo-Json -Depth 4))
             $script:codexOut=@(& pwsh -NoProfile -File $runner -Parameters $parameters -Entry $de 2>&1)-join"`n"
@@ -155,7 +170,7 @@ process.exit(s.exit||0);
         $argv=$exec[0].argv -join ' '
         Assert-That 'relay nonzero survives with unique default evidence and scratch, latest compatible numeric family and xhigh' ($code-eq7-and$codexOut-match'CODEX_DONE relay exit 7'-and$exec.Count-eq1-and$exec[0].temp.StartsWith((Join-Path $tempRoot 'scratch'))-and$evidence.StartsWith((Join-Path $tempRoot 'codex-relay-logs'))-and$argv-match'-m gpt-8.10-sol'-and$argv-match'model_reasoning_effort=xhigh')
         Assert-That 'fixed settings reach actual CLI argv, without historical memory deletion' ($argv-match'web_search=disabled'-and$argv-match'approval_policy=never'-and$argv-match'features.memories=false'-and$argv-match'memories.use_memories=false'-and$argv-match'memories.generate_memories=false'-and$argv-match'features.multi_agent=false'-and$argv-match'project_doc_max_bytes=0'-and$argv-match'--ignore-user-config')
-        foreach($routineEffort in 'low','high','medium'){
+        foreach($routineEffort in 'low','medium','high'){
             Write-Cache @(@{slug='gpt-8.10-sol';visibility='list';supported_reasoning_levels=@(@{effort=$routineEffort})})
             $code=Invoke-Codex @{} @{Effort=$routineEffort}
             $routineExec=@($observed|Where-Object{$_.argv[0]-eq'exec'})
@@ -163,18 +178,99 @@ process.exit(s.exit||0);
         }
         $code=Invoke-Codex @{} @{Effort=$null}
         $defaultExec=@($observed|Where-Object{$_.argv[0]-eq'exec'})
-        Assert-That 'omitting effort preserves routine medium default without isolation switch' ($code-eq0-and$defaultExec.Count-eq1-and($defaultExec[0].argv-join' ')-match'model_reasoning_effort=medium')
+        $dec18=[regex]::Match([IO.File]::ReadAllText((Join-Path $PSScriptRoot '../docs/DECISIONS.md')),'Code value: the engineering effort of lib/Delegate\.ps1\s+is (low|medium|high|xhigh) and carries this ID').Groups[1].Value
+        Assert-That 'omitting effort gives the value DEC-18 names, on a line that carries that ID' ($dec18-and$code-eq0-and$defaultExec.Count-eq1-and($defaultExec[0].argv-join' ')-cmatch"model_reasoning_effort=$dec18"-and[IO.File]::ReadAllText($de)-cmatch"\`$Effort='$dec18',\s*# DEC-18")
         Write-Cache
         Assert-That 'brief prefixes arrival guidance and evidence distinguishes requested settings from actual runtime and prevention' ((Get-Content (Join-Path $evidence 'seen-brief.txt') -Raw)-match'(?s)^DELEGATE ARRIVAL OVERRIDE.*skip global arrival.*fixture brief'-and$request.ActualModel-like'UNVERIFIED*'-and$request.SpawnPrevention-eq'UNPROVEN')
+        Assert-That 'the brief names the HANDOFF return and the two writable places' ((Get-Content (Join-Path $evidence 'seen-brief.txt') -Raw)-match'(?s)seven HANDOFF fields.*DO NOT TOUCH.*Clone: .*Run folder \(your deliverables; set TEMP and TMP here')
+        # DEC-20: MXC by name, per-run roots, no fallback. The acceptance on the real CLI lives in the slice evidence, this fixes the request.
+        $code=Invoke-Codex
+        $mxcExec=@($observed|Where-Object{$_.argv[0]-eq'exec'});$mxcProbe=@($observed|Where-Object{$_.argv-contains'sandbox'});$mxcRequest=Get-Content (Get-CodexEvidenceFile 'launcher.json') -Raw|ConvertFrom-Json
+        $runFolder=$mxcExec[0].temp;$rootsSetting="sandbox_workspace_write.writable_roots=['$clone','$runFolder']"
+        foreach($mxcCall in @(@{Name='exec';Argv=$mxcExec[0].argv},@{Name='probe';Argv=$mxcProbe[0].argv})){
+            Assert-That "the $($mxcCall.Name) asks for MXC, no command network and only the clone and the run folder" ($mxcCall.Argv-ccontains'windows.sandbox=mxc'-and$mxcCall.Argv-ccontains'sandbox_workspace_write.network_access=false'-and$mxcCall.Argv-ccontains'sandbox_workspace_write.exclude_tmpdir_env_var=true'-and$mxcCall.Argv-ccontains'sandbox_workspace_write.exclude_slash_tmp=true'-and$mxcCall.Argv-ccontains$rootsSetting-and@($mxcCall.Argv-match'writable_roots').Count-eq1)
+        }
+        Assert-That 'exec is workspace-write, never full access, and the record names both roots' (($mxcExec[0].argv-join' ')-cmatch'-s workspace-write'-and($mxcExec[0].argv-join' ')-notmatch'danger-full-access|network_access=true|web_search=live'-and((@($mxcRequest.WritableRoots)-join'|')-ceq"$clone|$runFolder")-and$mxcRequest.Sandbox-ceq'workspace-write')
+        Assert-That 'the probe runs before the model on an empty home and leaves nothing in the clone or run folder' (@($observed.argv|Where-Object{$_-ceq'sandbox'}).Count-eq1-and$mxcProbe[0].argv-ccontains'sandbox_mode=workspace-write'-and[array]::IndexOf(@($observed|ForEach-Object{$_.argv[0]}),'exec')-gt[array]::IndexOf(@($observed|ForEach-Object{$_.argv-contains'sandbox'}),$true)-and$mxcProbe[0].codexHome-cne$originalHome-and!(Get-ChildItem -LiteralPath $clone -Force -Name|Where-Object{$_-like'mxc-probe*'})-and!(Get-ChildItem -LiteralPath $runFolder -Force -Name|Where-Object{$_-like'mxc-probe*'})-and(Get-Content (Get-CodexEvidenceFile 'mxc-probe.json') -Raw|ConvertFrom-Json).passed)
+        foreach($mxcState in 'mxcUnavailable','mxcNoClone','mxcWiden','mxcExit'){
+            $code=Invoke-Codex @{$mxcState=$true}
+            Assert-That "$mxcState refuses the run, never widened, before any model call" ($code-eq5-and$codexOut-match'CODEX_CONTROLS_UNVERIFIED: ORVION_MXC_REFUSED'-and!@($observed|Where-Object{$_.argv[0]-eq'exec'}).Count-and!(Get-Content (Get-CodexEvidenceFile 'mxc-probe.json') -Raw|ConvertFrom-Json).passed)
+        }
+        # DEC-19: no internet for Codex.
+        foreach($researchSettings in @(@{Research=$true},@{Research=$true;Effort=$null})){
+            $code=Invoke-Codex @{} $researchSettings
+            Assert-That '-Research is refused before any CLI call' ($code-ne0-and$codexOut-match'CODEX_RESEARCH_REFUSED'-and$codexOut-match'DEC-19'-and!$observed.Count)
+        }
+        # DEC-21: the brief template.
+        foreach($briefCase in @(
+            @{Name='over-8kb';Body=@{Objective=('x'*8193)};Says='over 8 KB'},
+            @{Name='no-why';Body=@{'Why delegated'=$null};Says="'Why delegated' missing"},
+            @{Name='empty-scope';Body=@{Scope=' '};Says="'Scope' missing or empty"},
+            @{Name='twice';Body=@{Objective=@('x','## Scope','y')};Says="'Scope' twice"},
+            @{Name='evidence-61';Body=@{'Embedded evidence'=@(1..61|ForEach-Object{"line $_"})};Says='61 lines, the limit is 60'}
+        )){
+            $code=Invoke-Codex @{} @{CodexBrief=(New-Brief $briefCase.Name $briefCase.Body)}
+            Assert-That "brief $($briefCase.Name) is refused before any CLI call" ($code-ne0-and$codexOut-match'CODEX_BRIEF_REFUSED'-and$codexOut.Contains($briefCase.Says)-and!$observed.Count)
+        }
+        $measuredBrief=New-Brief 'evidence-60' @{'Embedded evidence'=@(1..60|ForEach-Object{"line $_"});'Read only if needed'=@('## a heading of its own','not a template section')}
+        $code=Invoke-Codex @{} @{CodexBrief=$measuredBrief}
+        $measured=if($code-eq0){Get-Content (Get-CodexEvidenceFile 'launcher.json') -Raw|ConvertFrom-Json}
+        Assert-That 'a conforming brief at the limit runs and the launcher measures it' ($code-eq0-and$measured.BriefEvidenceLines-eq60-and$measured.BriefBytes-eq(Get-Item -LiteralPath $measuredBrief).Length)
+        $runNamePattern=[regex]::Match([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Organize.ps1')),'\$runName=''([^'']+)''').Groups[1].Value
+        Assert-That 'the run folders carry the workstream, in the form Organize names' ($runNamePattern-and"$(Split-Path $evidence -Leaf)/"-cmatch$runNamePattern-and(Split-Path $evidence -Leaf)-cmatch"^$($measured.Workstream)-")
+        $code=Invoke-Codex @{} @{Workstream='bad'}
+        Assert-That 'a workstream outside the W<NN> form is refused' ($code-ne0-and!$observed.Count)
+        # DEC-21: one Codex session per workstream.
+        $code=Invoke-Codex @{} @{Workstream='W20001'}
+        $sessionPath=Join-Path $tempRoot 'sb/W20001/codex/session.json';$session=Get-Content -LiteralPath $sessionPath -Raw -ErrorAction SilentlyContinue|ConvertFrom-Json
+        Assert-That 'the session, model and effort are recorded beside the workstream' ($code-eq0-and$session.SessionId-ceq'synthetic-thread'-and$session.Model-ceq'gpt-8.10-sol'-and$session.Effort-ceq'xhigh')
+        foreach($sessionCase in @(@{Workstream='W20001'},@{Workstream='W20001';ResumeSession='other-thread'},@{Workstream='W20002';ResumeSession='synthetic-thread'})){
+            $code=Invoke-Codex @{} $sessionCase
+            Assert-That 'a second fresh session, or a resume of a session this workstream did not record, is refused before the CLI' ($code-ne0-and$codexOut-match'CODEX_SESSION_REFUSED'-and!$observed.Count)
+        }
+        $code=Invoke-Codex @{} @{Workstream='W20001';ResumeSession='synthetic-thread'}
+        $resumed=@($observed|Where-Object{$_.argv[0]-eq'exec'});$resumedArgv=$resumed[0].argv-join' ';$resumeAt=[array]::IndexOf($resumed[0].argv,'resume')
+        Assert-That 'the resume dry run keeps MXC and every control after resume' ($code-eq0-and$resumedArgv-cmatch'^exec --ignore-user-config -s workspace-write resume synthetic-thread '-and[array]::IndexOf($resumed[0].argv,'-c')-gt$resumeAt-and$resumed[0].argv-ccontains'windows.sandbox=mxc'-and@($resumed[0].argv-match'writable_roots').Count-eq1-and@($observed|Where-Object{$_.argv-contains'sandbox'}).Count-eq1)
+        $code=Invoke-Codex @{events=@(@{type='thread.started';thread_id='another-thread'})} @{Workstream='W20001';ResumeSession='synthetic-thread'}
+        Assert-That 'a resume that lands in another session fails and the record stands' ($code-eq5-and$codexOut-match'resume returned another session'-and(Get-Content -LiteralPath $sessionPath -Raw|ConvertFrom-Json).SessionId-ceq'synthetic-thread')
+        # The return format: the seven HANDOFF fields in at most 40 lines (WORKSPACE-LAYOUT section 15).
+        $handoffLines='INHERITED: x','PROVEN: x','UNPROVEN: x','CHANGED: x','REMAINING: x','DO NOT TOUCH: x','NEXT: x'
+        foreach($returnCase in @(
+            @{Workstream='W20003';Final='one plain line';Says='missing INHERITED, PROVEN'},
+            @{Workstream='W20004';Final=(($handoffLines|Where-Object{$_-notmatch'^PROVEN'})-join"`n");Says='missing PROVEN'},
+            @{Workstream='W20005';Final=(($handoffLines+@(1..34|ForEach-Object{"more $_"}))-join"`n");Says='41 lines'}
+        )){
+            $code=Invoke-Codex @{final=$returnCase.Final} @{Workstream=$returnCase.Workstream}
+            Assert-That "a return outside the seven fields in 40 lines exits 6, with its session kept so a resume can correct it ($($returnCase.Says))" ($code-eq6-and$codexOut-match'CODEX_RETURN_FORMAT'-and$codexOut.Contains($returnCase.Says)-and(Test-Path -LiteralPath (Join-Path $tempRoot "sb/$($returnCase.Workstream)/codex/session.json")))
+        }
+        $code=Invoke-Codex @{final=(($handoffLines+@(1..33|ForEach-Object{"more $_"}))-join"`n")}
+        Assert-That 'forty lines holding the seven fields pass' ($code-eq0)
+        $code=Invoke-Codex @{final=(($handoffLines|ForEach-Object{"**$_**"})-join"`n")}
+        Assert-That 'the labels may carry markup' ($code-eq0)
+        # The relay alone refuses what Delegate never asks for: a direct call cannot widen.
+        $relayPath=Join-Path $PSScriptRoot 'codex-relay.mjs';$relayOut=Join-Path $t 'relay-refusal'
+        $relayBase=@('--orvion-profile','engineering','--orvion-cache-version','0.0.9','--brief',$codexBrief,'--ignore-user-config','--clean-env','--web-search','disabled','--model','gpt-8.10-sol','--effort','high','--timeout','1m','--out-dir',$relayOut)
+        foreach($relayCase in @(
+            @{Name='full access';More=@('--cd',$clone,'--orvion-run-folder',$t,'--sandbox','danger-full-access')},
+            @{Name='no run folder';More=@('--cd',$clone,'--sandbox','workspace-write')},
+            @{Name='a quote in a root';More=@('--cd',$clone,'--orvion-run-folder',(Join-Path $t "it's"),'--sandbox','workspace-write')}
+        )){
+            [IO.File]::WriteAllText($calls,'')
+            $relayText=@(& node $relayPath @relayBase @($relayCase.More) 2>&1)-join"`n";$relayExit=$LASTEXITCODE
+            Assert-That "the relay refuses $($relayCase.Name) with no CLI call" ($relayExit-ne0-and$relayText-match'ORVION_PROFILE_REFUSED'-and!@([IO.File]::ReadLines($calls)).Count)
+        }
         $code=Invoke-Codex @{escape=(Join-Path $gh 'stray.txt')}
-        $journal=@([IO.File]::ReadAllLines((Join-Path $data 'events/events.jsonl'))|ForEach-Object{$_|ConvertFrom-Json}|Where-Object pattern -eq 'codex-outside-write')
+        $journal=@(Get-Content -LiteralPath (Join-Path $data 'events/events.jsonl') -ErrorAction SilentlyContinue|ForEach-Object{$_|ConvertFrom-Json}|Where-Object pattern -eq 'codex-outside-write')
         Assert-That 'a new entry beside the checkouts trips exit 4 and records a failure event' ($code-eq4-and$codexOut-match'CODEX_TRIPWIRE: 1 change'-and$journal.Count-eq1-and$journal[0].category-eq'failure')
         Remove-Item -LiteralPath (Join-Path $gh 'stray.txt')
         $code=Invoke-Codex @{escape=(Join-Path $repo 'notes.txt')}
         Assert-That 'rewriting an already untracked file in a sibling checkout trips exit 4' ($code-eq4-and$codexOut-match'CODEX_TRIPWIRE')
-        $unicodeDirty=Join-Path $repo 'ملف space.txt';Set-Content -LiteralPath $unicodeDirty 'before'
-        $code=Invoke-Codex @{escape=$unicodeDirty}
-        Assert-That 'rewriting an already dirty Unicode path trips exit 4' ($code-eq4-and$codexOut-match'CODEX_TRIPWIRE')
+        $unicodeDirty=Join-Path $repo 'ملف space.txt';$savedEncoding=[Console]::OutputEncoding
+        foreach($codePage in 437,65001){
+            Set-Content -LiteralPath $unicodeDirty 'before'
+            try{[Console]::OutputEncoding=[Text.Encoding]::GetEncoding($codePage);$code=Invoke-Codex @{escape=$unicodeDirty}}finally{[Console]::OutputEncoding=$savedEncoding}
+            Assert-That "rewriting an already dirty Unicode path trips exit 4 on console code page $codePage" ($code-eq4-and$codexOut-match'CODEX_TRIPWIRE')
+        }
         $renameSource=Join-Path $repo 'old name.txt';Set-Content -LiteralPath $renameSource 'tracked before rename'
         $null=& git -C $repo add -- 'old name.txt';$null=& git -C $repo -c user.name=fixture -c user.email=fixture@invalid commit -q -m fixture-rename
         $null=& git -C $repo mv -- 'old name.txt' 'new name.txt'
@@ -229,23 +325,6 @@ process.exit(s.exit||0);
             $code=Invoke-Codex @{} @{OutDir=(Join-Path $link 'new')}
             Assert-That 'a reparse ancestor refuses without redirected evidence' ($code-ne0-and$codexOut-match'CODEX_REPARSE_REFUSED'-and!$observed.Count-and!(Test-Path (Join-Path $target 'new')))
         }finally{if(Get-Item -LiteralPath $link -Force -ErrorAction SilentlyContinue){[IO.Directory]::Delete($link)}}
-        $code=Invoke-Codex @{} @{Research=$true}
-        $researchRequest=Get-Content (Get-CodexEvidenceFile 'launcher.json') -Raw|ConvertFrom-Json
-        $researchExec=@($observed|Where-Object{$_.argv[0]-eq'exec'});$researchArgv=$researchExec[0].argv-join' '
-        Assert-That 'restricted research uses available Terra/xhigh and corrected fixed controls' ($code-eq0-and$researchExec.Count-eq1-and$researchArgv-match'-m gpt-99.0-terra'-and$researchArgv-match'-s read-only'-and$researchArgv-match'web_search=live'-and$researchArgv-match'approval_policy=never'-and$researchArgv-match'features.shell_tool=false'-and$researchArgv-match'features.view_image=false'-and$researchArgv-notmatch'tools.view_image'-and$researchArgv-match'features.memories=false'-and$researchArgv-match'features.multi_agent=false'-and$researchArgv-match'project_doc_max_bytes=0')
-        Assert-That 'a synthetic corrected request neither overwrites first failed proof nor certifies exposure' ($researchRequest.FirstResearchProof-like'LIVE_SEARCH_PASS_CONTROL_CONFIGURATION_FAILED*'-and$researchRequest.Qualification-like'NOT ESTABLISHED*'-and$researchRequest.ToolCatalog-eq'UNPROVEN')
-        foreach($researchAction in @(@{type='command_execution';command='synthetic only'},@{type='file_change';changes=@()},@{type='function_call';name='functions.exec_command'},@{type='function_call';name='functions.exec'},@{type='tool_call';name='functions.view_image'})){
-            $code=Invoke-Codex @{events=@(@{type='item.completed';item=$researchAction})} @{Research=$true}
-            Assert-That 'observed research command/file action fails even when requested flags are correct' ($code-eq5-and$codexOut-match'observed forbidden research')
-        }
-        foreach($requiredFeature in 'shell_tool','view_image'){
-            $code=Invoke-Codex @{missingFeature=$requiredFeature} @{Research=$true}
-            Assert-That "missing research $requiredFeature refuses before model dispatch" ($code-eq5-and!@($observed|Where-Object{$_.argv[0]-eq'exec'}).Count-and(Test-Path (Get-CodexEvidenceFile 'native-controls.json')))
-        }
-        $code=Invoke-Codex @{} @{Research=$true;Effort='high'}
-        Assert-That 'research effort cannot silently degrade' ($code-ne0-and!$observed.Count-and$codexOut-match'CODEX_RESEARCH_EFFORT_REFUSED')
-        $code=Invoke-Codex @{} @{Research=$true;Family='sol'}
-        Assert-That 'research cannot substitute engineering family' ($code-ne0-and!$observed.Count-and$codexOut-match'CODEX_MODEL_FAMILY_REFUSED')
         $code=Invoke-Codex @{} @{Family='terra'}
         Assert-That 'wrong family refuses without fallback' ($code-ne0-and!$observed.Count-and$codexOut-match'CODEX_MODEL_FAMILY_REFUSED')
         Write-Cache @(@{slug='gpt-9-sol';visibility='list';supported_reasoning_levels=@(@{effort='xhigh'})});$code=Invoke-Codex
@@ -310,8 +389,8 @@ process.exit(s.exit||0);
         $code=Invoke-Codex @{events=@(@{type='tool_inventory';tools=@(@{name='spawn_agent'})})}
         Assert-That 'catalog exposure is not relabelled as observed creation' ($code-eq0)
         $structuredInventory=@{type='tool_inventory';tools=@(@{type='spawn_agent';name='spawn_agent'},@{type='command_execution';name='exec_command'},@{type='error';message='ignored setting'})}
-        $code=Invoke-Codex @{events=@($structuredInventory)} @{Research=$true}
-        Assert-That 'structured inventory is neither observed creation nor research action nor runtime error' ($code-eq0)
+        $code=Invoke-Codex @{events=@($structuredInventory)}
+        Assert-That 'structured inventory is neither observed creation nor runtime error' ($code-eq0)
         $code=Invoke-Codex @{events=@(@{type='item.completed';item=@{type='agent_message';text=($ignoredControl|ConvertTo-Json -Depth 8);example=$ignoredControl}})}
         Assert-That 'reported control-error example is data rather than an actual warning' ($code-eq0)
         $code=Invoke-Codex @{events=@(@{type='item.completed';item=@{type='collab_tool_call';tool='spawn_agent'}})}

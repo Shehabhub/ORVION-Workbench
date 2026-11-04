@@ -1,4 +1,4 @@
-# ORVION timed runner -- ON-DEMAND REPORTING ADAPTER (AGENTS.md section 7). It owns no truth.
+# ORVION timed runner -- ON-DEMAND REPORTING ADAPTER (lib/README.md section 3). It owns no truth.
 #
 # Runs one command and writes every output line to -Log prefixed with the minutes elapsed, so a
 # long run (`check_agent_continuity.ps1 -Finish`, a guard suite) can be watched while it runs

@@ -11,7 +11,7 @@ $ws=Join-Path $env:USERPROFILE 'Documents\GitHub\OwnerTools';$lib=Join-Path $ws 
 New-Item -ItemType Directory "$lib\hooks","$t\repo\scripts",$native -Force|Out-Null
 $hook=Join-Path $lib 'hooks\Watch-Reminder.ps1';Copy-Item (Join-Path $PSScriptRoot 'hooks\Watch-Reminder.ps1') $hook
 Copy-Item (Join-Path $PSScriptRoot 'workspace-layout.ps1') $lib
-[void][IO.Directory]::CreateDirectory((Join-Path (Split-Path $ws -Parent) 'ORVION-Owner-Tools/events'))
+[void][IO.Directory]::CreateDirectory((Join-Path $ws 'data/events'))
 $sync=Join-Path $PSScriptRoot 'Sync-Sessions.ps1'
 $stub=@'
 param([switch]$Library,[string]$Root=(Split-Path $PSScriptRoot -Parent),[switch]$Quiet,[switch]$Follow)
@@ -29,14 +29,14 @@ function Invoke-Hook([string]$Command,[string]$Cwd,[bool]$Background=$true){
     $out=Invoke-Event @{hook_event_name='PostToolUse';tool_name='PowerShell';cwd=$Cwd;tool_input=@{command=$Command;run_in_background=$Background};tool_response=@{}}
     if(!$out){return ''};("$out"|ConvertFrom-Json).hookSpecificOutput.additionalContext
 }
-function Wait-Archive([int]$Count){
-    $path=Join-Path $ws 'archive.calls';$deadline=[DateTime]::UtcNow.AddSeconds(15)
+function Wait-Archive([int]$Count,[int]$Seconds=15){
+    $path=Join-Path $ws 'archive.calls';$deadline=[DateTime]::UtcNow.AddSeconds($Seconds);$lastRead=''  # a torn line and a file in use, measured 2026-11-03: ArgumentException, IOException
     do{
-        $rows=@(if(Test-Path $path){try{Get-Content $path|ForEach-Object{$_|ConvertFrom-Json}}catch{}})
+        $rows=@(if(Test-Path $path){try{Get-Content $path|ForEach-Object{$_|ConvertFrom-Json}}catch [ArgumentException],[IO.IOException]{$lastRead=$_.Exception.Message}})
         if($rows.Count-ge$Count){foreach($row in $rows){try{$child=Get-Process -Id $row.pid -ErrorAction Stop;if(!$child.WaitForExit(5000)){throw 'HOOK_STUB_EXIT_TIMEOUT'}}catch [Microsoft.PowerShell.Commands.ProcessCommandException]{}};return $rows}
         Start-Sleep -Milliseconds 100
     }while([DateTime]::UtcNow-lt$deadline)
-    throw 'HOOK_ARCHIVE_STUB_TIMEOUT'
+    throw "HOOK_ARCHIVE_STUB_TIMEOUT; last read: $lastRead"
 }
 try{
     if(!$RootProbeOnly-and!$FailureProbeOnly){
@@ -61,11 +61,14 @@ if($mode-eq'hang'){
 }
 if($mode-eq'flood'){'X'*70000;'Pulse UNREADABLE flood';exit 2}
 if($mode-eq'nonzero'){'Pulse UNREADABLE fixture';exit 2}
+if($mode-eq'lines'){'ORVION PULSE 2026-11-01 18:00 UTC';'map      fresh';'repo     CRM main@abc1234 clean';'running  archiver following (pid 1); timed runs: none';'waiting  on the owner: 1';'         - OWNER-ITEM: a choice';'last     session 1234 LAST-LINE';'queue    QUEUE-LINE';'tools    TOOLS-LINE';exit 0}
+if($mode-eq'long'){'ORVION PULSE 2026-11-01 18:00 UTC';'repo     '+('R'*990);'state    '+('S'*990);'waiting  '+('W'*990);'running  '+('U'*990);exit 0}
 'FIXTURE-PULSE'
 '@
         [IO.File]::WriteAllText((Join-Path $deadlineLib 'Pulse.ps1'),$deadlinePulse)
         [IO.File]::WriteAllText((Join-Path $deadlineStore 'leaf.ps1'),'param([string]$Root) Start-Sleep -Seconds 30')
-        function Invoke-DeadlineEvent([string]$selectedHook=$deadlineHook,[string]$eventName='SessionStart',[string]$eventCwd=$deadlineCheckout){
+        function Invoke-DeadlineEvent([string]$selectedHook=$deadlineHook,[string]$eventName='SessionStart',[string]$eventCwd=$deadlineCheckout,[string]$eventSource){
+            $hookInput=@{hook_event_name=$eventName;cwd=$eventCwd};if($eventSource){$hookInput.source=$eventSource}
             $info=[Diagnostics.ProcessStartInfo]::new((Get-Command pwsh -CommandType Application|Select-Object -First 1).Source)
             $info.UseShellExecute=$false;$info.CreateNoWindow=$true
             $info.RedirectStandardInput=$true;$info.RedirectStandardOutput=$true;$info.RedirectStandardError=$true
@@ -73,7 +76,7 @@ if($mode-eq'nonzero'){'Pulse UNREADABLE fixture';exit 2}
             $child=[Diagnostics.Process]::Start($info);$elapsed=[Diagnostics.Stopwatch]::StartNew()
             try{
                 $outTask=$child.StandardOutput.ReadToEndAsync();$errTask=$child.StandardError.ReadToEndAsync()
-                $child.StandardInput.Write((@{hook_event_name=$eventName;cwd=$eventCwd}|ConvertTo-Json -Compress));$child.StandardInput.Close()
+                $child.StandardInput.Write(($hookInput|ConvertTo-Json -Compress));$child.StandardInput.Close()
                 $expired=!$child.WaitForExit(12000)
                 if($expired){$child.Kill($true);$null=$child.WaitForExit(2000)}
                 [pscustomobject]@{Text=$outTask.GetAwaiter().GetResult();Error=$errTask.GetAwaiter().GetResult();Exit=$child.ExitCode;Ms=[math]::Round($elapsed.Elapsed.TotalMilliseconds,1);Expired=$expired}
@@ -93,6 +96,40 @@ if($mode-eq'nonzero'){'Pulse UNREADABLE fixture';exit 2}
                 Assert-That 'healthy SessionStart context is identical to the supplied baseline' ($baseline.Exit-eq0-and$healthy.Text-ceq$baseline.Text)
             }
             "LATENCY SessionStartMs=$($healthyTimes-join',') BaselineMs=$($baselineTimes-join',')"
+            [IO.File]::WriteAllText((Join-Path $deadlineLib 'README.md'),"# Tools`n`n## 3. Index`n`nPREVIOUS-SECTION`n`n## 4. Always, numbered`nNUMBERED-TOOLS`n")
+            $numbered=Invoke-DeadlineEvent
+            Assert-That 'a numbered Always heading in the last section is injected' ($numbered.Exit-eq0-and$numbered.Text.Contains('NUMBERED-TOOLS')-and!$numbered.Text.Contains('PREVIOUS-SECTION'))
+            $realReadme=Join-Path $PSScriptRoot 'README.md';$alwaysHeadings=@([IO.File]::ReadAllLines($realReadme)|Where-Object{$_.StartsWith('## ')-and$_.Contains('Always')})
+            Copy-Item -LiteralPath $realReadme -Destination (Join-Path $deadlineLib 'README.md') -Force
+            $real=Invoke-DeadlineEvent
+            Assert-That 'the real lib/README.md has one Always section and SessionStart injects it' ($alwaysHeadings.Count-eq1-and$real.Exit-eq0-and$real.Text.Contains($alwaysHeadings[0]))
+            # S3: NOW.md at every start, the full Pulse only at startup; a NOW.md about the size of a real save (3 KB).
+            $nowFile=Join-Path $deadlineStore 'work\NOW.md';[void][IO.Directory]::CreateDirectory((Split-Path $nowFile))
+            $nowText="# NOW WS-099`n`n## 1. Now`n`nFIXTURE-NOW-HEAD`n`n"+(('fixture state line '*10+"`n")*15)+'FIXTURE-NOW-TAIL'
+            [IO.File]::WriteAllText($nowFile,$nowText.Replace("`n","`r`n"));[IO.File]::WriteAllText((Join-Path $deadlineStore 'mode'),'lines')
+            $startup=Invoke-DeadlineEvent $deadlineHook 'SessionStart' $deadlineCheckout 'startup'
+            $compact=Invoke-DeadlineEvent $deadlineHook 'SessionStart' $deadlineCheckout 'compact'
+            $legacy=Invoke-DeadlineEvent
+            $cleared=Invoke-DeadlineEvent $deadlineHook 'SessionStart' $deadlineCheckout 'clear'
+            Assert-That 'startup injects NOW.md whole and the full Pulse' ($startup.Exit-eq0-and$startup.Text.Contains($nowText)-and$startup.Text.Contains('repo     CRM')-and$startup.Text.Contains('LAST-LINE')-and$startup.Text.Contains('TOOLS-LINE')-and$startup.Text.Contains($alwaysHeadings[0]))
+            Assert-That 'after /clear, a new context, the tool index and the full Pulse' ($cleared.Exit-eq0-and$cleared.Text.Contains($nowText)-and$cleared.Text.Contains('repo     CRM')-and$cleared.Text.Contains($alwaysHeadings[0]))
+            Assert-That 'compact injects NOW.md whole and only the short Pulse' ($compact.Exit-eq0-and$compact.Text.Contains($nowText)-and!$compact.Text.Contains($alwaysHeadings[0])-and$compact.Text.Contains('Tool guidance abbreviated; see')-and$compact.Text.Contains('ORVION PULSE')-and$compact.Text.Contains('running  archiver')-and$compact.Text.Contains('waiting  on the owner: 1')-and!$compact.Text.Contains('repo     CRM')-and!$compact.Text.Contains('OWNER-ITEM')-and!$compact.Text.Contains('LAST-LINE')-and!$compact.Text.Contains('QUEUE-LINE')-and!$compact.Text.Contains('TOOLS-LINE'))
+            Assert-That 'an event without source (an older client) gets the full Pulse' ($legacy.Exit-eq0-and$legacy.Text.Contains($nowText)-and$legacy.Text.Contains('repo     CRM'))
+            "BYTES SessionStart startup=$([Text.Encoding]::UTF8.GetByteCount($startup.Text)) compact=$([Text.Encoding]::UTF8.GetByteCount($compact.Text)) NowMd=$([Text.Encoding]::UTF8.GetByteCount($nowText))"
+            [IO.File]::WriteAllText((Join-Path $deadlineStore 'mode'),'nonzero')
+            $unreadable=Invoke-DeadlineEvent $deadlineHook 'SessionStart' $deadlineCheckout 'compact'
+            Assert-That 'after compact an unreadable Pulse still says so' ($unreadable.Exit-eq0-and$unreadable.Text.Contains('Pulse UNREADABLE fixture'))
+            Remove-Item -LiteralPath $nowFile
+            $missing=Invoke-DeadlineEvent $deadlineHook 'SessionStart' $deadlineCheckout 'compact'
+            Assert-That 'a missing NOW.md is stated with its path' ($missing.Exit-eq0-and$missing.Text.Contains("NOW.md missing: $nowFile"))
+            $nowHead="# NOW WS-099`n`nFIXTURE-NOW-HEAD`n";$nowFull=$nowHead+('n'*(6144-$nowHead.Length))
+            [IO.File]::WriteAllText($nowFile,$nowFull+'n')
+            $over=Invoke-DeadlineEvent $deadlineHook 'SessionStart' $deadlineCheckout 'compact'
+            Assert-That 'a NOW.md over 6144 bytes is refused by name, never cut' ($over.Exit-eq0-and$over.Text.Contains('NOW.md UNREADABLE: over its 6144-byte budget')-and!$over.Text.Contains('FIXTURE-NOW-HEAD'))
+            [IO.File]::WriteAllText($nowFile,$nowFull);[IO.File]::WriteAllText((Join-Path $deadlineStore 'mode'),'long')
+            $long=Invoke-DeadlineEvent $deadlineHook 'SessionStart' $deadlineCheckout 'startup'
+            Assert-That 'a 6144-byte NOW.md stays whole within 8192 characters, beside the short Pulse' ($long.Exit-eq0-and$long.Text.Length-le8192-and$long.Text.Contains($nowFull)-and$long.Text.Contains('ORVION PULSE')-and!$long.Text.Contains('repo     R'))
+            Remove-Item -LiteralPath $nowFile
             [IO.File]::WriteAllText((Join-Path $deadlineStore 'mode'),'hang')
             $hung=Invoke-DeadlineEvent
             $pulseId=[int][IO.File]::ReadAllText((Join-Path $deadlineStore 'pulse.pid'));$leafId=[int][IO.File]::ReadAllText((Join-Path $deadlineStore 'leaf.pid'))
@@ -123,7 +160,7 @@ if($mode-eq'nonzero'){'Pulse UNREADABLE fixture';exit 2}
     try{
         foreach($case in 'override','sibling','fallback','invalid-sibling','invalid-fallback'){
             $layout=Join-Path $t "early-$case";$checkout=Join-Path $layout 'ORVION-Workbench';$probeLib=Join-Path $checkout 'lib'
-            $sibling=Join-Path $layout 'ORVION-Owner-Tools';$override=Join-Path $layout 'override store'
+            $sibling=Join-Path $checkout 'data';$override=Join-Path $layout 'override store'
             [void][IO.Directory]::CreateDirectory((Join-Path $probeLib 'hooks'))
             $probeHook=Join-Path $probeLib 'hooks\Watch-Reminder.ps1'
             Copy-Item (Join-Path $PSScriptRoot 'hooks\Watch-Reminder.ps1') $probeHook
@@ -153,7 +190,7 @@ if($Invalid){Remove-Item Function:\Split-Path}
         if($FailureProbeOnly){if($fail){throw 'HOOK_FAILURE_PROBE_FAILED'};'HOOK_FAILURE_PROBE PASS';return}
         foreach($case in 'sibling','override'){
             $layout=Join-Path $t $case;$checkout=Join-Path $layout 'ORVION-Workbench';$probeLib=Join-Path $checkout 'lib'
-            $sibling=Join-Path $layout 'ORVION-Owner-Tools';$override=Join-Path $layout 'override store'
+            $sibling=Join-Path $checkout 'data';$override=Join-Path $layout 'override store'
             [void][IO.Directory]::CreateDirectory((Join-Path $probeLib 'hooks'))
             Copy-Item (Join-Path $PSScriptRoot 'hooks\Watch-Reminder.ps1') (Join-Path $probeLib 'hooks')
             Copy-Item (Join-Path $PSScriptRoot 'workspace-layout.ps1') $probeLib
@@ -199,6 +236,14 @@ if($Library){Add-Content (Join-Path $checkout 'library.calls') $Root;. (Join-Pat
     Assert-That 'a rooted run_timed path names the watch_run beside it' ($c.Contains("$t\repo\scripts\watch_run.ps1")-and$c.Contains('-Run control-suite'))
     $c=Invoke-Hook 'pwsh -NoProfile -File "$E\pt\scripts\run_timed.ps1" -Log "$E3\pt-suite.log" -Command "pwsh -NoProfile -File scripts/test_agent_continuity.ps1"' $ws
     Assert-That 'variables yield no invented watcher path and the log is flagged' ($c.Contains('<the folder of the run_timed.ps1 you started>')-and$c.Contains('expand the variables')-and!$c.Contains("$ws\scripts\watch_run.ps1"))
+    # An unreadable archive.calls: the wait times out and says what it last could not read (hunt-gaps G09, G28).
+    $archiveCalls=Join-Path $ws 'archive.calls';[IO.File]::WriteAllText($archiveCalls,'{torn')
+    $tornError=try{$null=Wait-Archive 1 1;''}catch{"$_"}
+    $archiveLock=[IO.File]::Open($archiveCalls,'Open','ReadWrite','None')
+    try{$lockedError=try{$null=Wait-Archive 1 1;''}catch{"$_"}}finally{$archiveLock.Dispose()}
+    [IO.File]::Delete($archiveCalls)
+    Assert-That 'a torn archive.calls shows its read error in the timeout' ($tornError-cmatch'^HOOK_ARCHIVE_STUB_TIMEOUT; last read: .*JSON')
+    Assert-That 'an archive.calls in use shows its read error in the timeout' ($lockedError-cmatch'^HOOK_ARCHIVE_STUB_TIMEOUT; last read: .*used by another process')
     $nativeStart=@(Invoke-Event @{hook_event_name='SessionStart';cwd=$native;session_id='native-session'});$rows=@(Wait-Archive 1)
     Assert-That 'direct-native SessionStart archives without Owner-Tools context or Pulse' (!$nativeStart.Count-and$rows.Count-eq1-and$rows[0].follow-and!(Test-Path (Join-Path $ws 'pulse.calls')))
     $nativeCommand="pwsh -NoProfile -File `"$t\repo\scripts\run_timed.ps1`" -Log `"C:\logs\a.log`" -Command native"
@@ -225,7 +270,7 @@ if($Library){Add-Content (Join-Path $checkout 'library.calls') $Root;. (Join-Pat
     Assert-That 'unrelated sessions stay quiet and start no archiver' (!$other.Count-and@(Get-Content (Join-Path $ws 'archive.calls')).Count-eq3)
     $secret='ghp_'+('Ab2C3dEf4G5hI6jK7L8mN9oP0qR1sT2uV3wX'.Substring(0,36))
     $bad=@("{bad $secret"|& pwsh -NoProfile -File $hook 2>&1)-join' ';$code=$LASTEXITCODE
-    $errorText=Get-Content (Join-Path (Split-Path $ws -Parent) 'ORVION-Owner-Tools\work\hook-errors.log') -Raw
+    $errorText=Get-Content (Join-Path $ws 'data\work\hook-errors.log') -Raw
     Assert-That 'malformed input reports a stable error without raw values or a false gate verdict' ($bad-match'WATCH_REMINDER_UNREADABLE'-and!$bad.Contains($secret)-and$errorText-match'WATCH_REMINDER_UNREADABLE'-and!$errorText.Contains($secret)-and$code-eq0)
 }finally{
     $env:WORKBENCH_TEMP_ROOT=$savedTemporaryRoot;$env:USERPROFILE=$savedProfile;$env:ORVION_DATA_ROOT=$inheritedDataRoot

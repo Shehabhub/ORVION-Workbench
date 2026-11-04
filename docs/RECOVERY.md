@@ -42,7 +42,7 @@ the folders above. Copy what you need separately before reinstalling.
    `pwsh -NoProfile -File "C:\Users\My Lab\Documents\GitHub\ORVION-Workbench\lib\Backup-Workspace.ps1" -Destination "C:\Users\My Lab\OneDrive\ORVION-Recovery" -RecoveryInputs "<reviewed map>" -Package`
    Keep the archive, its `.sha256` and both `Restore-ORVION` launcher files together. Record the `PACKAGE:` line
    (path, size, SHA256) and read the `SECRET SCAN:` report (see above). If a run is
-   interrupted, inspect its owned staging under the managed temporary root. Retain verified packages; there is no automatic pruning. Disposal needs separate owning authority and retention checks.
+   interrupted, inspect its owned staging under the managed temporary root. After each verified package, `Organize -Clean`'s retention tier keeps the last 7 packages with their sidecars and any package an active file names or the owner pinned; `data/work/retention-log.tsv` lists every deletion. Any other disposal needs the owner.
 2. Prove the cloud copy, not the sync icon: wait until OneDrive is idle, free the local copy
    (`attrib +U -P "<archive>"`, Files On-Demand), read it again so OneDrive downloads it, and compare `Get-FileHash`
    with the `PACKAGE:` line. Alternatively download it from onedrive.live.com on another device.
@@ -66,7 +66,7 @@ success and failure. READY requires every requested mandatory operation and the 
 its failure exit and withholds READY. Output names the absolute owned staging path, its completed/failed status and purpose.
 Each default attempt uses a new timestamp-plus-GUID child of `<Target>\ORVION-Workbench-temporary\restore-staging`.
 An explicit existing staging folder is refused without alteration. Attempts accumulate; inspect their reported locations.
-Staging must remain outside permanent Git repositories, Owner-Tools, Claude/Codex homes and known OneDrive roots,
+Staging must remain outside permanent Git repositories, any data root (a folder holding `events\`), Claude/Codex homes and known OneDrive roots,
 including managed reparse aliases. Managed path checks are not atomic namespace protection. Native mapped/subst and
 unknown sync providers are not comprehensively identified; do not use those aliases to place retained recovery data.
 
@@ -90,7 +90,7 @@ Re-enter the **two masked local postgres passwords** in `~\.codex\config.toml`; 
 Restore Marketing-MCP from OneDrive Personal Vault and run its own tunnel installer. Follow the printed missing-plugin
 marketplace/install commands (GitKraken uses its own CLI/hook installer). For manual map-task recovery use
 `pwsh -File <Target>\ORVION-Workbench\lib\Map-Repos.ps1 -Install -GitHub <Target>`.
-Use `<Target>\ORVION-Owner-Tools` as the data root; repair/unset an old `ORVION_DATA_ROOT` before hooks or readers. Persistent recovery inputs are restored under `records\recovery-inputs`, including the original source map. Claude project memory is stored under `records\claude-memory\<project>` and restored to each client through a verified junction. Memory destinations are preflighted before repository writes: conflicting directories, wrong or dangling foreign links refuse; an existing junction must target exactly that project's restored memory. This explicit memory adapter does not permit junctions to hide a persistent destination inside disposable staging.
+Restore puts the data root at `<Target>\ORVION-Workbench\data`, the tools' default; repair/unset an old `ORVION_DATA_ROOT` before hooks or readers. Persistent recovery inputs are restored under `records\recovery-inputs`, including the original source map. Claude project memory is stored under `claude-memory\<project>` (`records\claude-memory\<project>` in packages made before WS-033) and restored to each client through a verified junction. Memory destinations are preflighted before repository writes: conflicting directories, wrong or dangling foreign links refuse; an existing junction must target exactly that project's restored memory. This explicit memory adapter does not permit junctions to hide a persistent destination inside disposable staging.
 
 Rebuild disposable storage with `pwsh -NoProfile -File <Target>\ORVION-Workbench\lib\Restore-Workspace.ps1 -Temporary -Target <Target>`. This narrow route needs no package or private journal and provisions the verified pinned `<Target>\ORVION-Workbench-temporary\tools\actionlint.exe`; it refuses corrupt existing bytes. Actionlint is required for owning workflow checks, not an optional global install. Set WORKBENCH_ACTIONLINT to that executable for focused tests.
 
@@ -166,7 +166,7 @@ A successful directory backup does not advance it. Refusal, partial publication 
 verified pointer and archive. Scanner findings/failure/skipping do not block successful publication or pointer advancement;
 previous archives remain retained. Status replacement is one same-directory
 move; local failure preservation is tested, cloud/remote atomicity and crash durability are unproven. Failed pending
-records/partial archives can remain for inspection. Nothing prunes archives. Scan findings,
+records/partial archives can remain for inspection. Only the retention tier prunes archives, by name, never hydrating one; its failure is reported and leaves the backup standing. Scan findings,
 failure or skipping are report-only; Git history inside bundles is outside scan coverage. Concurrent source changes
 are possible: this is not a coherent snapshot. Shared restore launchers and second-resolution archive-name refusal
 remain engine limitations. Candidate C launcher's staging retention above is unchanged and separate.
@@ -181,7 +181,7 @@ Inputs must be a nonempty array with unique lowercase names matching `[a-z][a-z0
 approved uppercase SHA256. Record each entry's producer, purpose, durable original location, map location and approved
 map/file hashes in the owning reviewed inventory. Existing receipt and journal requirements still apply. The engine
 checks original and copied bytes; it refuses missing/changed inputs. The map path in status is only a reference.
-Restore puts approved files at `<Target>/ORVION-Owner-Tools/records/recovery-inputs/<name>` and the source inventory
+Restore puts approved files at `<Target>/ORVION-Workbench/data/records/recovery-inputs/<name>` and the source inventory
 in that directory's source-map.json (or a hash-suffixed source map when retaining an earlier map). Review recovered
 paths and explicitly author/approve a durable map for the new configuration; old physical paths are historical.
 

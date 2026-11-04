@@ -28,13 +28,19 @@ function Get-DraftContentBlob([string]$Sb,[string]$File,[string]$Text){
         $blob[0]
     }finally{[IO.File]::Delete($temporary)}
 }
+# Git's text is UTF-8 whatever the caller's console says: pwsh decodes native output by [Console]::OutputEncoding, and under CP437 an em dash becomes mojibake that matches nothing in the file.
+function Invoke-DraftGitText([string[]]$Arguments){
+    $saved=[Console]::OutputEncoding
+    [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
+    try{git @Arguments}finally{[Console]::OutputEncoding=$saved}
+}
 function Get-FileEdits([string]$Sb,[string]$f){
-    $original=@(git -C $Sb show "HEAD:$f");if($LASTEXITCODE){throw "BASELINE_READ_FAILED:$f"}
+    $original=@(Invoke-DraftGitText @('-C',$Sb,'show',"HEAD:$f"));if($LASTEXITCODE){throw "BASELINE_READ_FAILED:$f"}
     $cur=[Collections.Generic.List[string]]::new([string[]]@($original-split"`r?`n"));$parts=@();$delta=0
     # Counted as apply-draft-steps.ps1 matches: a substring of the whole text, not whole lines (a block unique as lines
     # matched 5 times as a substring, contract-A rehearsal 2026-10-20).
     function Count-Block([string[]]$B){([regex]::Matches(($cur-join"`n"),[regex]::Escape($B-join"`n"))).Count}
-    $diff=@(git -C $Sb -c core.autocrlf=true diff -U0 --no-color -- $f);if($LASTEXITCODE){throw "DIFF_FAILED $f"}
+    $diff=@(Invoke-DraftGitText @('-C',$Sb,'-c','core.autocrlf=true','diff','-U0','--no-color','--',$f));if($LASTEXITCODE){throw "DIFF_FAILED $f"}
     $i=0
     while($i-lt$diff.Count){
         $m=[regex]::Match($diff[$i],'^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@');$i++

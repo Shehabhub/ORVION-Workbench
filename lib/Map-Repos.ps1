@@ -2,18 +2,21 @@
 #   pwsh -NoProfile -File Map-Repos.ps1                 rebuild <Workbench root>\ai-map.json and ai-map.html (~a minute)
 #   pwsh -NoProfile -File Map-Repos.ps1 -Links <path>   one file's outgoing links and backlinks (repo:path or a unique tail)
 #   pwsh -NoProfile -File Map-Repos.ps1 -Orphans        files nothing links to (entry documents excepted)
+#   pwsh -NoProfile -File Map-Repos.ps1 -Check          compare ai-map.json and ai-map.html with a fresh build, nothing written (GENERATED STALE: <path>, exit 1)
 #   pwsh -NoProfile -File Map-Repos.ps1 -Install        refresh hourly and at logon (per-user scheduled task); -Uninstall removes it
 # Repositories are discovered on every run, so a new clone joins the map by itself; *-trusted-main copies and the
-# ORVION-Owner-Tools data store and ORVION-Workbench-temporary tree are skipped; an unborn or broken repository is listed under `problems`, never fatal.
+# ORVION-Workbench-temporary tree are skipped; an unborn or broken repository is listed under `problems`, never fatal.
 # Only files COMMITTED at HEAD are read (never the working tree or index, never untracked or ignored files), and paths
 # under sessions/ or events/ and *.jsonl are excluded; credentials in origin URLs are removed. Links (Obsidian-style,
 # with backlinks): markdown links, repository paths named in text, cross-repository paths, globs, distinctive bare file
 # names, SPEC-/WS- contract ids and ADR-NNNN sections. The outputs are git-ignored derived views, never authority.
+# Every run also writes the second map (DEC-06) to <temporary>\map: the names in temporary and the data root, no file opened.
 param([string]$GitHub=(Split-Path (Split-Path $PSScriptRoot -Parent) -Parent),[string]$Out=(Split-Path $PSScriptRoot -Parent),
-      [string]$Links,[switch]$Orphans,[switch]$Install,[switch]$Uninstall,[string[]]$Skip=@('*-trusted-main','ORVION-Owner-Tools','ORVION-Workbench-temporary','_*'))
+      [string]$Links,[switch]$Orphans,[switch]$Check,[switch]$Install,[switch]$Uninstall,[string[]]$Skip=@('*-trusted-main','ORVION-Workbench-temporary','_*'),
+      [string]$Root=$(if($env:ORVION_DATA_ROOT){if(![IO.Path]::IsPathFullyQualified($env:ORVION_DATA_ROOT)){throw 'ORVION_DATA_ROOT_NOT_ABSOLUTE'};$env:ORVION_DATA_ROOT}else{Join-Path (Split-Path ($PSScriptRoot-replace'[\\/]hooks$','') -Parent) 'data'}))
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'workspace-layout.ps1')
-$GitHub=[IO.Path]::GetFullPath($GitHub);$Out=[IO.Path]::GetFullPath($Out);$json=Join-Path $Out 'ai-map.json';$task='ORVION Repository Map'
+$GitHub=[IO.Path]::GetFullPath($GitHub);$Out=[IO.Path]::GetFullPath($Out);$Root=[IO.Path]::GetFullPath($Root);$json=Join-Path $Out 'ai-map.json';$task='ORVION Repository Map'
 if($Install){
     $skipArg=(@($Skip|ForEach-Object{"'"+$_.Replace("'","''")+"'"})-join',')
     $action=New-ScheduledTaskAction -Execute (Get-Command pwsh).Source -Argument "-NoProfile -WindowStyle Hidden -Command `"& '$PSCommandPath' -GitHub '$GitHub' -Out '$Out' -Skip $skipArg`""
@@ -78,7 +81,7 @@ $adr=@{};$edges=[Collections.Generic.List[object]]::new();$seen=[Collections.Gen
 function Join-RepoPath([string]$Path){$parts=[Collections.Generic.List[string]]::new();foreach($s in $Path-split'/'){if($s-eq'..'){if(!$parts.Count){return $null};$parts.RemoveAt($parts.Count-1)}elseif($s-and$s-ne'.'){$parts.Add($s)}};$parts-join'/'}
 function Resolve-Target([string]$Repo,[string]$From,[string]$Target){
     $t=($Target-split'#')[0].Trim().Replace('\','/').Trim('`','"',"'",'<','>');if(!$t-or$t-match'^[a-z]+://'-and$t-notmatch'^file://'){return}
-    $t=$t-replace'^file:///?','';try{$t=[Uri]::UnescapeDataString($t)}catch{}
+    $t=$t-replace'^file:///?','';$t=[Uri]::UnescapeDataString($t)
     foreach($n in $names){$i=$t.IndexOf("/GitHub/$n/",[StringComparison]::OrdinalIgnoreCase);if($i-ge0){return "$n|$($t.Substring($i+9+$n.Length))"}}
     $dir=[IO.Path]::GetDirectoryName($From.Replace('/','\')).Replace('\','/')
     # A leading / is the repository root; otherwise the file's own folder first, then the root.
@@ -93,12 +96,12 @@ function Add-Edge([string]$From,[string]$To,[string]$Kind,[string]$Anchor){
     if(!$files.Contains($To)-or$From-ceq$To-or!$seen.Add("$From>$To#$Anchor")){return}
     [void]$files[$From].out.Add($To);[void]$files[$To].in.Add($From);$edges.Add([ordered]@{from=$From;to=$To;kind=$Kind;anchor=$Anchor})
 }
-foreach($id in @($bodies.Keys)){
+foreach($id in @($bodies.Keys|Sort-Object -CaseSensitive)){  # a sorted walk, so two builds of one HEAD match byte for byte (-Check)
     $f=$files[$id];if($f.path-match'\.md$'){$h=@([regex]::Matches($bodies[$id],'(?m)^#{1,4} (.+?)\s*$')|ForEach-Object{$_.Groups[1].Value});$f.sections=$h;if($h.Count){$f.title=$h[0]}
         foreach($m in [regex]::Matches($bodies[$id],'(?m)^#{2,4} (ADR-\d{4})\b')){$adr["$($f.repo)|$($m.Groups[1].Value)"]=$id}}
 }
 $pathRx='(?:\]\(([^)\s]+)\))|(?:`([^`\s]+\.[A-Za-z0-9]{1,5})(?:#[^`]*)?`)|((?:[A-Za-z]:)?[\w.\-]*(?:[\\/][\w.\-]+)+\.(?:md|ps1|psd1|json|ya?ml|sql|py|ts|js|toml|cmd|sh))'
-foreach($id in @($bodies.Keys)){
+foreach($id in @($bodies.Keys|Sort-Object -CaseSensitive)){  # a sorted walk, so two builds of one HEAD match byte for byte (-Check)
     $f=$files[$id];$body=$bodies[$id]
     foreach($m in [regex]::Matches($body,$pathRx)){
         $ref=@($m.Groups[1].Value,$m.Groups[2].Value,$m.Groups[3].Value)|Where-Object{$_}|Select-Object -First 1
@@ -118,11 +121,58 @@ foreach($id in @($bodies.Keys)){
 $entry='^(README|AGENTS|CLAUDE|GEMINI|RESUME|HANDOFF|WORKFLOW|LICENSE|SECURITY|CONTRIBUTING)\.md$|^\.|/\.|(^|/)(README|AGENTS)\.md$'
 $list=@(foreach($f in $files.Values){[ordered]@{id=$f.id;repo=$f.repo;path=$f.path;title=$f.title;sections=@($f.sections);out=@($f.out|Sort-Object);in=@($f.in|Sort-Object)}})
 $orph=@($list|Where-Object{$_.in.Count-eq0-and$_.path-notmatch$entry}|ForEach-Object{$_.id}|Sort-Object)
-$map=[ordered]@{schema=1;generated=[DateTime]::UtcNow.ToString('o');tool='lib/Map-Repos.ps1';authority='derived view only; each repository owns its facts'
+$map=[ordered]@{schema=1;generated=[DateTime]::UtcNow.ToString('o');tool='lib/Map-Repos.ps1';authority='generated from each repository''s HEAD, do not edit; derived view only; each repository owns its facts'
     repos=$repos;problems=$problems;stats=[ordered]@{repos=$repos.Count;files=$list.Count;edges=$edges.Count;orphans=$orph.Count;unscanned=@($unscanned);broadPatterns=$broad};orphans=$orph;files=$list;edges=$edges}
-$data=$map|ConvertTo-Json -Depth 6 -Compress
-$html=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'ai-map.template.html')).Replace('/*MAP_DATA*/null',$data.Replace('</','<\/'))
-# Each run writes its own temporary files and moves them into place, so overlapping runs never share a partial file.
-$run=[guid]::NewGuid().ToString('N')
-foreach($pair in @(@($json,$data),@((Join-Path $Out 'ai-map.html'),$html))){$tmp="$($pair[0]).$run.tmp";[IO.File]::WriteAllText($tmp,$pair[1],[Text.UTF8Encoding]::new($false));[IO.File]::Move($tmp,$pair[0],$true)}
+function Get-MapHtml([string]$Data){[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'ai-map.template.html')).Replace('/*MAP_DATA*/null',$Data.Replace('</','<\/'))}
+function Write-Map([string]$Folder,$Content){
+    $data=$Content|ConvertTo-Json -Depth 6 -Compress
+    $html=Get-MapHtml $data
+    # Each run writes its own temporary files and moves them into place, so overlapping runs never share a partial file.
+    $run=[guid]::NewGuid().ToString('N')
+    foreach($pair in @(@((Join-Path $Folder 'ai-map.json'),$data),@((Join-Path $Folder 'ai-map.html'),$html))){$tmp="$($pair[0]).$run.tmp";[IO.File]::WriteAllText($tmp,$pair[1],[Text.UTF8Encoding]::new($false));[IO.File]::Move($tmp,$pair[0],$true)}
+}
+$temporary=Join-Path $GitHub 'ORVION-Workbench-temporary'
+if($Check){
+    # G07: "generated" is the one stamped field, and the comparison skips it. The second map lists live folders, so any write there would differ: it is stale only when older than a day (the task runs hourly).
+    $stampField='"generated":"[^"]*"';$stale=0;$data=$map|ConvertTo-Json -Depth 6 -Compress
+    foreach($pair in @(@($json,$data),@((Join-Path $Out 'ai-map.html'),(Get-MapHtml $data)))){
+        $stored=if(Test-Path -LiteralPath $pair[0]){[IO.File]::ReadAllText($pair[0])}else{''}
+        if(([regex]$stampField).Replace($stored,'',1)-cne([regex]$stampField).Replace($pair[1],'',1)){"GENERATED STALE: $($pair[0])";$stale++}
+    }
+    $secondMap=Join-Path $temporary 'map\ai-map.json'
+    if(Test-Path -LiteralPath $secondMap){
+        $stamp=([regex]$stampField).Match([IO.File]::ReadAllText($secondMap)).Value-replace'^"generated":"|"$',''
+        if(!$stamp-or[DateTime]::Parse($stamp,$null,'RoundtripKind').ToUniversalTime()-lt[DateTime]::UtcNow.AddDays(-1)){"GENERATED STALE: $secondMap";$stale++}
+    }
+    exit $(if($stale){1}else{0})
+}
+Write-Map $Out $map
 "MAP: $($repos.Count) repositories ($(@($repos.name)-join', ')), $($list.Count) files, $($edges.Count) links, $($orph.Count) orphans$(if($problems.Count){", $($problems.Count) problem(s)"})$(if($unscanned.Count){", $($unscanned.Count) unscanned"}) -> $json"
+# The second map: names only, so nothing in temporary or the data root is opened. Its home is temporary\map, so without
+# temporary it is not written and no folder is created.
+if(!(Test-Path -LiteralPath $temporary -PathType Container)){"SECOND MAP: UNAVAILABLE: no $temporary";return}
+$names=[Collections.Generic.List[object]]::new();$gaps=[Collections.Generic.List[object]]::new()
+$sources=@([ordered]@{name='temporary';root=$temporary},[ordered]@{name='data';root=$Root})
+foreach($source in $sources){
+    if(!(Test-Path -LiteralPath $source.root -PathType Container)){$gaps.Add([ordered]@{repo=$source.name;problem="UNAVAILABLE: $($source.root)"});continue}
+    $walk=[Collections.Generic.Stack[string]]::new();$walk.Push($source.root)
+    while($walk.Count){
+        $folder=$walk.Pop()
+        try{$entries=@([IO.DirectoryInfo]::new($folder).EnumerateFileSystemInfos())}catch{$gaps.Add([ordered]@{repo=$source.name;problem="UNREADABLE: $folder"});continue}
+        foreach($entry in $entries){
+            if($entry.Name-ceq'.git'){continue}
+            $title=''
+            if($entry-is[IO.DirectoryInfo]){
+                if($entry.LinkTarget){$title='link, not followed'}
+                elseif(Test-Path -LiteralPath (Join-Path $entry.FullName '.git')){$title='Git checkout, not walked'}
+                else{$walk.Push($entry.FullName);continue}
+            }
+            $path=[IO.Path]::GetRelativePath($source.root,$entry.FullName).Replace('\','/')+$(if($title){'/'})
+            $names.Add([ordered]@{id="$($source.name):$path";repo=$source.name;path=$path;title=$title;sections=@();out=@();in=@()})
+        }
+    }
+}
+$second=Join-Path $temporary 'map';[void][IO.Directory]::CreateDirectory($second)
+Write-Map $second ([ordered]@{schema=1;generated=[DateTime]::UtcNow.ToString('o');tool='lib/Map-Repos.ps1';authority='generated from the names in temporary and the data root, do not edit; derived view of names only; no file was opened'
+    repos=$sources;problems=$gaps;stats=[ordered]@{repos=$sources.Count;files=$names.Count;edges=0;orphans=0};orphans=@();files=$names;edges=@()})
+"SECOND MAP: $($names.Count) names$(if($gaps.Count){", $($gaps.Count) problem(s): $(@($gaps|ForEach-Object problem)-join'; ')"}) -> $second"
