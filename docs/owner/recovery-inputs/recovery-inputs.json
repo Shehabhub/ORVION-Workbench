@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "inputs": [
+    {
+      "name": "owner-delegation-20261026",
+      "path": "C:\\Users\\My Lab\\Documents\\GitHub\\ORVION-Workbench\\docs\\owner\\recovery-inputs\\OWNER-DELEGATION.md",
+      "sha256": "94631C14708B783C584D0867AD4AD11221D5394F5FDEDAA48F64FA0BF9788217"
+    },
+    {
+      "name": "owner-directive-reinstall",
+      "path": "C:\\Users\\My Lab\\Documents\\GitHub\\ORVION-Workbench\\docs\\owner\\recovery-inputs\\OWNER-DIRECTIVE-REINSTALL.md",
+      "sha256": "C70FFE2D6EBF5D343D7D6579066D51484C36D3C5BEA6FCAB1AA78C72738D86B9"
+    },
+    {
+      "name": "owner-request-delegate",
+      "path": "C:\\Users\\My Lab\\Documents\\GitHub\\ORVION-Workbench\\docs\\owner\\recovery-inputs\\OWNER-REQUEST-DELEGATE-SKILLS.md",
+      "sha256": "26C52A20842FBC04AC913CA259A8DC5CDF71CB970A8F6AA681D605EE631CC178"
+    },
+    {
+      "name": "owner-main-approval-ws013",
+      "path": "C:\\Users\\My Lab\\Documents\\GitHub\\ORVION-Workbench\\docs\\owner\\recovery-inputs\\owner-main-approval-ws013.txt",
+      "sha256": "CD689663337F8C0FFBAEC21932A0F27F690488AF20117A0D4589F005DDFC3148"
+    },
+    {
+      "name": "owner-approval-ab",
+      "path": "C:\\Users\\My Lab\\Documents\\GitHub\\ORVION-Workbench\\docs\\owner\\recovery-inputs\\OWNER-APPROVAL-AB.txt",
+      "sha256": "330F8E099FE6D2B4F638052CCE7AAE59D34281EAB86053623B1B4616925DBD59"
+    },
+    {
+      "name": "ws013-sandbox-receipt",
+      "path": "C:\\Users\\My Lab\\Documents\\GitHub\\ORVION-Workbench\\data\\records\\judge-evidence\\WS-013\\sandbox\\own-finish-receipt.json",
+      "sha256": "0B7F5C2E504746B9DE07C40A8A350913A497B96F50186981A735359162471252"
+    },
+    {
+      "name": "ws013-hosted-acceptance",
+      "path": "C:\\Users\\My Lab\\Documents\\GitHub\\ORVION-Workbench\\docs\\owner\\recovery-inputs\\ws013-hosted-acceptance.json",
+      "sha256": "6E48B84198DB0F3F8A19787F021419BF87EC6A3DF3F5D3F75E09B62C61AF0D73"
+    },
+    {
+      "name": "batch6-hold-directive",
+      "path": "C:\\Users\\My Lab\\Documents\\GitHub\\ORVION-Workbench\\docs\\owner\\recovery-inputs\\batch6-hold-directive.json",
+      "sha256": "A8D17209C96728123DD148A28F386BB15498D87E34E4BF900C0577BBA43A1125"
+    },
+    {
+      "name": "owner-decision-no-reinstall",
+      "path": "C:\\Users\\My Lab\\Documents\\GitHub\\ORVION-Workbench\\docs\\owner\\recovery-inputs\\OWNER-DECISION-20261027-no-reinstall.md",
+      "sha256": "7273A8A9C5AE3AF168EA975D0AE07511F472F3EF65C92F717A54236E9F2094E9"
+    },
+    {
+      "name": "owner-decision-evidence-trusted",
+      "path": "C:\\Users\\My Lab\\Documents\\GitHub\\ORVION-Workbench\\docs\\owner\\recovery-inputs\\OWNER-DECISION-20261027-evidence-and-trusted.md",
+      "sha256": "311C468F080FAFA10313101C5F89157FAEBC90180244372AC825EC83F940BBB6"
+    }
+  ]
+}

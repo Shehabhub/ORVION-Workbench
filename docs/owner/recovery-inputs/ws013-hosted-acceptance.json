@@ -1,0 +1,20 @@
+{
+  "observedUtc": "2026-10-25T21:45:42.0205548Z",
+  "runId": 40233793042,
+  "attempt": 1,
+  "event": "push",
+  "branch": "workbench-preflight",
+  "headSha": "ca081c33e1c6767c468de3e453f51d56de50b54b",
+  "workflow": "Workbench acceptance",
+  "conclusion": "success",
+  "completedUtc": "2026-10-25T21:18:45Z",
+  "checkRunId": 121290917897,
+  "checkName": "workbench-acceptance",
+  "checkConclusion": "success",
+  "appId": 15368,
+  "appSlug": "github-actions",
+  "verifyConclusion": "success",
+  "verifyStartedUtc": "2026-10-25T21:05:19Z",
+  "verifyCompletedUtc": "2026-10-25T21:18:42Z",
+  "observation": "reads 21:14Z in_progress, 21:30Z transport timeout (UNKNOWN, no retry), 21:45Z terminal; within approved 70-min/15-min cadence"
+}

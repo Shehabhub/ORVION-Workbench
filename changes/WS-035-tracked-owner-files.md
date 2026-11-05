@@ -2934,7 +2934,7 @@ Before P7.2b, also: FOLD.tsv row O03-06 is retired so the receipt copies to data
 
 ## Runtime Checkpoint
 
-Resume Step: 1
+Resume Step: DONE
 Blocker: None
 Recovery Attempt: 0
 
@@ -2948,6 +2948,7 @@ Owner Evidence SHA256: 075286D1C4DBA8696BCB61DD737A2368C41E88C3B3A5855B39475D4BB
 Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
 Sandbox Receipt: C:\Users\My Lab\Documents\GitHub\ORVION-Owner-Tools\records\WS-035\runtime\sandbox\own-finish-receipt.json
 Sandbox Receipt SHA256: 3E173C4E90E6800062555288FB7F2F0270E5037C38D75A9CBC284D23DD361919
+Original exact declared outputs applied by accepted native Execute; fresh own Finish and Review/Complete remain required. Other protected roots unchanged.
 
 ## Verification Notes
 

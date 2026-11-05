@@ -12,7 +12,16 @@ Rules: a document is added, merged or deleted only through a contract (DEC-10); 
 | RUNBOOK.md | reference | Workbench runbook | - | - |
 | WORKSPACE-LAYOUT.md | reference | ORVION workspace architecture (mandatory reference) | - | - |
 | history/ | archive | the index of history: allocated contracts and frozen records | the Markdown guard (its History index); agents tracing why something changed | - |
+| owner/ | owner-texts | The owner's words and the recovery inputs | agents, the owner, Backup-Workspace | 2026-11-04 |
 <!-- /organize:contents -->
 
 <!-- organize:changes (last 10 rows of docs/history/LOG.tsv for this folder; generated) -->
+| UTC | Action | From | To | Reason |
+| --- | --- | --- | --- | --- |
+| 2026-11-04T17:40:34Z | new | - | docs/owner | T10 organizer |
 <!-- /organize:changes -->
+
+## Files
+
+- [owner/README.md](owner/README.md)
+- [../records/README.md](../records/README.md)

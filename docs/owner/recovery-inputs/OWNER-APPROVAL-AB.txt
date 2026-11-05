@@ -1,0 +1,34 @@
+OWNER DECISION: APPROVE A AND B — EXACT BOUNDED SCOPES
+A — APPROVED: Bounded GitHub protection-enforcement proof.
+I authorize the previously reviewed, bounded same-ruleset disposable-ref verification for Shehabhub/ORVION-Workbench.
+I will make no competing repository writes during the coordinated execution window.
+Use the existing active main-protection ruleset and the exact reviewed temporary probe configuration. Keep main protected throughout, preserve the existing required status check and bypass restrictions, and limit potentially destructive test operations strictly to the disposable probe reference.
+Independently verify the actual reason for each provider refusal, not merely the HTTP failure. Preserve the evidence and restore the reviewed main-only ruleset targeting after successful verification.
+If unexpected behavior, conflicting writes, unreadable mandatory evidence or rule drift occurs, stop the affected operation safely. No uncontrolled retries, protection bypasses or modifications to main are authorized by A.
+A does not authorize the 42-transition main promotion. Once all required protection and trusted-release gates pass, present the exact promotion admission and remaining owner authorization.
+B — APPROVED: Exact original Gate 1 for both frozen Drafts, conditionally executable after the fixed 42-transition release boundary.
+Original execution root for BOTH contracts:
+C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
+First — WS-014 R2 (Plan Successor)
+Exact selected Draft SHA-256:
+1A54C812D27071D4368381A57E933E9F90D478CCFCE4739434189C56531869F3
+I approve the exact previously reviewed, frozen WS-014 R2 Draft and its declared original engineering scope only.
+Second — WS-013 R2 (Corrected Recovery)
+Exact selected Draft SHA-256:
+552C6EE22C0752DDC16FC3C5708DA6663EE401C124ED75654E987FF3A4824B63
+I approve the exact previously reviewed, frozen WS-013 R2 Draft and its declared original engineering scope only.
+Execute WS-014 R2 first, followed by WS-013 R2, provided fresh native admission confirms that the approved subjects, physical root, ancestry, source inputs, sandbox evidence and governing requirements remain valid.
+Each contract requires its own legitimate original lifecycle, fresh Finish, independent Review, Complete and carrying-range verification. Do not transplant sandbox receipts or change frozen Drafts.
+WS-014 is the successor alternative to unimplemented WS-012. Do not execute both.
+Execution boundaries
+- Preserve the fixed 42-transition release subject until its protected-main release is completed.
+- Do not append WS-014 or WS-013 commits to that existing release candidate.
+- No force pushes, history rewrites, unapproved GitHub publication or automatic trusted-evaluator advancement.
+- No additional engineering scope beyond the two exact approved Drafts.
+- No bypass of native governance, required checks or independent review.
+- Preserve CTRL-19 OPEN and Batch 6 / Phase 8 ON HOLD.
+Please execute the authorized work in the proper dependency order, reuse valid existing evidence, and avoid unnecessary heavyweight reruns.
+My objective is meaningful progress across this coherent release-and-recovery milestone, not another cycle of repeated readiness reports.
+Report actual completion and only genuinely unresolved owner decisions.
+APPROVAL A: GRANTED.
+APPROVAL B: GRANTED for the exact two root-bound Drafts above, effective for original execution only after the fixed 42-transition release boundary and successful fresh native admission.

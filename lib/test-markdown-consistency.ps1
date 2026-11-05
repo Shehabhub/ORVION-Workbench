@@ -1,6 +1,7 @@
 param([string]$Guard=(Join-Path $PSScriptRoot 'Test-MarkdownConsistency.ps1'),[switch]$NoMutants,[string]$Case,[string]$RepositoryTree='Working')
 $ErrorActionPreference='Stop'
 . $Guard
+$repositoryPins=[Collections.Generic.Dictionary[string,string]]::new($FrozenOwnerTexts,[StringComparer]::Ordinal)
 . (Join-Path $PSScriptRoot 'remove-owned.ps1')
 $parent=if($env:WORKBENCH_TEST_ROOT){$env:WORKBENCH_TEST_ROOT}else{$env:TEMP}
 if(![IO.Path]::IsPathFullyQualified($parent)){throw 'MD_TEST_ROOT_REQUIRED'}
@@ -140,7 +141,19 @@ $cases=[ordered]@{
     externalOldStore=@('MD_EXTERNAL_UNAPPROVED',{param($directory) Edit-MarkdownFixture $directory 'docs/guide.md' '# Guide' ('# Guide'+$nl+'[old](../../ORVION-Owner-Tools/records/missing.md)')})
     dataOtherPath=@('MD_LINK_MISSING',{param($directory) Edit-MarkdownFixture $directory 'docs/guide.md' '# Guide' ('# Guide'+$nl+'[raw](../data/sessions/raw/missing.md)')})
     externalUnapproved=@('MD_EXTERNAL_UNAPPROVED',{param($directory) Edit-MarkdownFixture $directory 'docs/guide.md' '# Guide' ('# Guide'+$nl+'[wrong](../../missing.md)')})
+    frozenPinned=@('',{param($directory) Add-FrozenFixture $directory "# Text$nl${nl}The widget count is 6.$nl"})
+    frozenAltered=@('MD_WATCH',{param($directory) Add-FrozenFixture $directory "# Text$nl${nl}The widget count is 7.$nl" -Pinned "# Text$nl${nl}The widget count is 6.$nl"})
+    frozenUnpinned=@('MD_WATCH',{param($directory) Add-FrozenFixture $directory "# Text$nl${nl}The widget count is 6.$nl" -Path 'docs/owner/t/OTHER.md'})
+    frozenOrphan=@('MD_ORPHAN',{param($directory) Add-FrozenFixture $directory "# Text$nl${nl}The widget count is 6.$nl" -Unlinked})
+    frozenRetired=@('MD_RETIRED_ROUTE',{param($directory) Add-FrozenFixture $directory "# Text$nl${nl}Run Documents\ORVION-Sandbox\old.ps1$nl"})
+    frozenCitation=@('MD_SECTION_MISSING',{param($directory) Add-FrozenFixture $directory "# Text$nl${nl}See ${d}77.$nl"})
     emptyInventory=@('MD_INPUT_EMPTY',{param($directory) $null=Invoke-MarkdownFixtureGit $directory @('rm','-r','--cached','--quiet','.')})
+}
+function Add-FrozenFixture([string]$Directory,[string]$Text,[string]$Path='docs/owner/t/TEXT.md',[string]$Pinned=$Text,[switch]$Unlinked){
+    # One fixture pin at one fixed path, on the fixture's own words; the repository's pins are checked below.
+    $FrozenOwnerTexts['docs/owner/t/TEXT.md']=Get-MarkdownTextHash $Pinned
+    Write-MarkdownFixture (Join-Path $Directory $Path) $Text
+    if(!$Unlinked){Edit-MarkdownFixture $Directory 'README.md' '[History](docs/history/README.md)' "[History](docs/history/README.md) [frozen]($Path)"}
 }
 function Add-MarkdownBytes([string]$Text,[int]$Limit){
     # Pads to exactly $Limit bytes with list lines of at most 102 characters (lists are outside the duplicate-prose check).
@@ -250,6 +263,12 @@ try{
             throw "FAIL nowValues: the guard carries $($NowSections-join', '), $NowPointers pointers and $NowBudget B; the layout says $order"
         }
         $script:passed++;'PASS NOW.md values match WORKSPACE-LAYOUT.md'
+        # Each pin in the guard holds on the repository's own bytes: a stale or absent frozen text fails here.
+        $repository=Get-MarkdownInput (Split-Path $PSScriptRoot -Parent) $RepositoryTree
+        foreach($pin in $repositoryPins.GetEnumerator()){
+            if(!$repository.ContainsKey($pin.Key)-or(Get-MarkdownTextHash ($repository[$pin.Key]-replace"`r`n","`n"))-cne$pin.Value){throw "FAIL frozenPin: $($pin.Key)"}
+            $script:passed++;"PASS frozen pin $($pin.Key)"
+        }
     }
     if(!$NoMutants-and!$Case){
         $source=[IO.File]::ReadAllText($Guard)
@@ -280,6 +299,23 @@ try{
         foreach($caseName in $mutants.Keys){
             $anchor=$mutants[$caseName];if(!$source.Contains($anchor)){throw "MD_MUTANT_STALE: $caseName"}
             $mutant=Join-Path $scratch ('mutant-'+$caseName+'.ps1');Write-MarkdownFixture $mutant ($source.Replace($anchor,'$null=$null'))
+            $output=& pwsh -NoProfile -File $PSCommandPath -Guard $mutant -NoMutants -Case $caseName 2>&1
+            if($LASTEXITCODE-eq0-or($output-join$nl)-notmatch("FAIL "+$caseName+" expected")){throw "MD_MUTANT_SURVIVED: $caseName $output"}
+            $script:passed++;"PASS MUTANT KILLED $caseName"
+        }
+        # The exemption's edges: each mutant removes it or widens it one way, and the case that owns that edge must fail.
+        $pinCheck='$frozen=$FrozenOwnerTexts[$path]-ceq(Get-MarkdownTextHash $text)'
+        $widened=[ordered]@{
+            frozenPinned=@($pinCheck,'$frozen=$false')
+            frozenAltered=@($pinCheck,'$frozen=$FrozenOwnerTexts.ContainsKey($path)')
+            frozenUnpinned=@($pinCheck,'$frozen=$path-clike''docs/owner/*''')
+            frozenOrphan=@('if(!$reachable.Contains($path)-and!$history.Contains($path)){','if(!$reachable.Contains($path)-and!$history.Contains($path)-and!$FrozenOwnerTexts.ContainsKey($path)){')
+            frozenRetired=@('if($routing-match$retired-and$routing-notmatch ''^Historical citation:''){','if($routing-match$retired-and$routing-notmatch ''^Historical citation:''-and!$FrozenOwnerTexts.ContainsKey($path)){')
+            frozenCitation=@('Assert-MarkdownCitations $path $text $sections','if(!$frozen){Assert-MarkdownCitations $path $text $sections}')
+        }
+        foreach($caseName in $widened.Keys){
+            if(!$source.Contains($widened[$caseName][0])){throw "MD_MUTANT_STALE: $caseName"}
+            $mutant=Join-Path $scratch ('mutant-'+$caseName+'.ps1');Write-MarkdownFixture $mutant ($source.Replace($widened[$caseName][0],$widened[$caseName][1]))
             $output=& pwsh -NoProfile -File $PSCommandPath -Guard $mutant -NoMutants -Case $caseName 2>&1
             if($LASTEXITCODE-eq0-or($output-join$nl)-notmatch("FAIL "+$caseName+" expected")){throw "MD_MUTANT_SURVIVED: $caseName $output"}
             $script:passed++;"PASS MUTANT KILLED $caseName"

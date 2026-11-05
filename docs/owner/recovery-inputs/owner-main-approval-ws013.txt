@@ -1,0 +1,18 @@
+OWNER APPROVAL - MAIN PROMOTION (received 2026-10-25 ~21:20Z, Claude session b0862c78)
+
+Verbatim owner words:
+"i give you my aprove to promote to main when you need my approval
+and try to fix OMC if it must fix
+and continue the paln until you become satisfaide and be safe to resume batch 6"
+
+Agent interpretation, stated back to the owner in the same session before use:
+- Exactly ONE ordinary non-force fast-forward of
+  ca081c33e1c6767c468de3e453f51d56de50b54b
+  to Shehabhub/ORVION-Workbench refs/heads/main,
+  expected old main d4d0ece52ad23af8cf98a3e1c52eaa98464d8017.
+- Only after hosted run 40233793042 (attempt 1, push, workbench-preflight, head ca081) is terminal SUCCESS
+  with the required workbench-acceptance check from GitHub Actions app 15368 and meaningful Verify.
+- Ruleset 25827491 stays ACTIVE throughout; no exception, no settings change, no force, no retry,
+  no alternate SHA/ref, no trusted-baseline advancement.
+- Fresh exact refs immediately before dispatch; any drift or failure stops without retry.
+- Lifting Batch 6 / Phase 8 holds or closing CTRL-19 is NOT granted by this text; the owner decides.

@@ -6,6 +6,10 @@ $ErrorActionPreference='Stop'
 # are WORKSPACE-LAYOUT.md section 14.2, its budget section 19; test-markdown-consistency compares all three with the text.
 $MarkdownActive=@('README.md','WORKFLOW.md','HANDOFF.md','docs/RUNBOOK.md','docs/DECISIONS.md','docs/WORKSPACE-LAYOUT.md','lib/README.md')
 $NowSections=@('Now','Done last','Next','Owner questions','Pending decisions','Running','Pointers');$NowPointers=8;$NowBudget=6144
+# A frozen text (WORKSPACE-LAYOUT.md section 23) keeps its words: these exact bytes, after CRLF to LF, skip the watch patterns and no other check.
+$FrozenOwnerTexts=[Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal)
+$FrozenOwnerTexts['docs/owner/20261031-owner-directive-improvement-ws/DIRECTIVE.md']='E58EC467F29CDDA0F9C749A39807E760CDC1BCD9CD0607630036C2C925D29C4F'
+function Get-MarkdownTextHash([string]$Text){[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($Text)))}
 function Invoke-MarkdownGit([string]$Root,[string[]]$Arguments,[string]$Feed=''){
     $start=[Diagnostics.ProcessStartInfo]::new('git');$start.WorkingDirectory=$Root
     $start.UseShellExecute=$false;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true;$start.RedirectStandardInput=$true
@@ -286,8 +290,8 @@ function Test-MarkdownConsistency([string]$Root,[string]$Tree='Working'){
         if($history.Contains($path)-or$path-clike'changes/WS-*.md'){continue}
         $text=if($tools.ContainsKey($path)){$tools[$path]}else{$files[$path]-replace"`r`n","`n"}
         if(!$tools.ContainsKey($path)-and$path-cne'docs/DECISIONS.md'){
-            $lines=$text.Split("`n")
-            for($i=0;$i-lt$lines.Count;$i++){foreach($id in $watches.Keys){if($watches[$id].IsMatch($lines[$i])-and!$lines[$i].Contains($id)){throw "MD_WATCH: ${path}:$($i+1) matches the Watch pattern of $id without citing it"}}}
+            $lines=$text.Split("`n");$frozen=$FrozenOwnerTexts[$path]-ceq(Get-MarkdownTextHash $text)
+            for($i=0;!$frozen-and$i-lt$lines.Count;$i++){foreach($id in $watches.Keys){if($watches[$id].IsMatch($lines[$i])-and!$lines[$i].Contains($id)){throw "MD_WATCH: ${path}:$($i+1) matches the Watch pattern of $id without citing it"}}}
             $text=Get-MarkdownPlain $text
         }
         Assert-MarkdownCitations $path $text $sections
