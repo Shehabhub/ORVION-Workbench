@@ -125,7 +125,7 @@ OneDrive\ORVION-Recovery\
 │                           Backup-Workspace, which after each verified package runs Organize -Clean's retention tier:
 │                           older packages that no active file names are deleted with their sidecars (slice S7, DEC-27)
 ├── Restore-ORVION.cmd/.ps1 restore launchers, copied by every Backup-Workspace package run
-└── continuity/             Save-State's small copy of the latest progress: data/work/NOW.md, data/decisions-inbox.md,
+└── continuity/             Save-State's small copy of the latest progress: data/work/NOW.md, decisions-inbox.md when present,
                             data/events/ and the active workstream folder without its checkouts and temp (s/, t/, tmp/)
 OneDrive\ORVION-Recovery.status\   the packages' status sidecar (latest.json, operation.lock, under 1 KB), written by
                                    Backup-Workspace at this pinned path (unchanged)
@@ -138,14 +138,14 @@ and read it only to restore; its writers are Backup-Workspace and Save-State.
 
 | You have | It goes to | Written by | When |
 | --- | --- | --- | --- |
-| a new owner instruction or decision | `data/decisions-inbox.md` (the owner's words verbatim, appended) and a line in NOW.md | Claude main | the same turn |
+| a new owner instruction or decision | `decisions-inbox.md` in the data root (the owner's words verbatim, appended; absent until the first one) and a line in NOW.md | Claude main | the same turn |
 | the change that decision makes | its entry in `docs/DECISIONS.md`, rewritten as one updated decision (a new subject gets a new entry) | the next workstream contract | at that contract |
 | the replaced wording and the owner's words | `docs/history/DECISIONS-ARCHIVE.md`, appended, each item naming the entry it now lives in | the same contract | in the same contract |
 | replaced text from any active document | nowhere: it is deleted, and Git history keeps the earlier version (DEC-10) | the change that replaces it | in that change |
 | live state | `data/work/NOW.md` | Save-State | every operation |
 | a workstream's drafts, briefs, reviews, gate records, runtime, prototype, measurements, one-off scripts | `sb/W<NN>/` in temporary (section 12) | the step that makes it | during the workstream |
-| a workstream's summary: result, receipt, one line per failure, its cited files | `records/WS-0NN/README.md` (tracked) | the Complete step | at the end |
-| the files of a workstream that are cited (section 23) | `data/records/WS-0NN/`; every other file of `sb/W<NN>/` is deleted by `-Clean` (DEC-11) | the close step | after its push |
+| a workstream's summary: result, receipt, one line per failure, its cited files | `records/WS-<NN>/README.md` (tracked) | the Complete step | at the end |
+| the files of a workstream that are cited (section 23) | `data/records/WS-<NN>/`; every other file of `sb/W<NN>/` is deleted by `-Clean` (DEC-11) | the close step | after its push |
 | evidence from Owner-Tools without a tracked home | `data/records/`, at its old relative path (rows O02-O06, O12) | `Organize -Map` | WS-033 step P7.2b |
 | a new tool | `lib/<Tool>.ps1` + `lib/test-<tool>.ps1` + a row in `lib/README.md` | a contract | in that contract |
 | a tool's own run files | `data/work/` when another tool reads them (hunt-last.txt), else `temporary/scratch/` | the tool | while it runs |
@@ -159,7 +159,7 @@ and read it only to restore; its writers are Backup-Workspace and Save-State.
 ## 5. The organizer: README.md in every managed folder
 
 Managed folders: the two working folders, every folder drawn in sections 3.1 and 3.2, each `sb/W<NN>/` and
-`records/WS-0NN/`. The vault is not managed: only Backup-Workspace (with the retention tier it runs) and Save-State
+`records/WS-<NN>/`. The vault is not managed: only Backup-Workspace (with the retention tier it runs) and Save-State
 change it, and DEC-08 allows no organizer there.
 Drawn but without generated tables: `lib/` and `config/` keep their own README (the tool index; the reserved scaffold).
 Drawn but unmanaged: the native `.githooks/` and `.github/`, `workstation/` (reserved), `judges/` and `retired/` (kept
@@ -220,7 +220,7 @@ An orphan is anything that fails "Earn it": no active reader, kept only as histo
 
 | Item | Lifetime | At the end |
 | --- | --- | --- |
-| `sb/W<NN>/`, `cx/W<NN>-*`, `scratch/W<NN>-*`, `codex-relay-logs/W<NN>-*` | until workstream `NN` is Complete and pushed and its cited files are hash-verified in `data/records/WS-0NN/` or their content is in pushed Git history | deleted by `-Clean` |
+| `sb/W<NN>/`, `cx/W<NN>-*`, `scratch/W<NN>-*`, `codex-relay-logs/W<NN>-*` | until workstream `NN` is Complete and pushed and its cited files are hash-verified in `data/records/WS-<NN>/` or their content is in pushed Git history | deleted by `-Clean` |
 | `temporary/tmp/` | until the workstream's Finish runs are done | emptied by `-Clean` |
 | 0-byte logs | none | deleted by `-Clean` |
 | an exact duplicate (same SHA256) of a checkout file, in `data/work/` | none | the copy is deleted by `-Clean`; a duplicate in `data/records/` is evidence and waits for the owner-confirmed list |
@@ -260,10 +260,10 @@ record the refusal in LOG.tsv and NOW.md.
 | --- | --- | --- | --- |
 | live state | `data/work/NOW.md` | Save-State, overwritten | injected at session start and after compact |
 | decisions and rules in force | `docs/DECISIONS.md`: one entry per subject (DEC-NN), rewritten in place | the contract after an owner decision | by entry ID |
-| owner decisions not yet in DECISIONS.md | `data/decisions-inbox.md` and the "Pending decisions" list in NOW.md | Claude main | injected with NOW.md |
+| owner decisions not yet in DECISIONS.md | `decisions-inbox.md` in the data root, when present, and the "Pending decisions" list in NOW.md | Claude main | injected with NOW.md |
 | replaced wording and the owner's verbatim words | `docs/history/DECISIONS-ARCHIVE.md`, append-only, each item naming its DEC-NN | the contract that rewrites the entry | when tracing why |
 | workstream work in progress | `sb/W<NN>/` | the workstream's steps | during it |
-| workstream summary (result, receipt, failures, cited files) | `records/WS-0NN/README.md` | the Complete step | audits |
+| workstream summary (result, receipt, failures, cited files) | `records/WS-<NN>/README.md` | the Complete step | audits |
 | cited files of a finished workstream, and Owner-Tools evidence | `data/records/` | the close step; for Owner-Tools, P7.2b | audits; the Lift's C1 check |
 | raw session transcripts (the last 60 days) | `data/sessions/raw/` | Sync-Sessions | Spider searches |
 | the active workstream's plan | its plan file, in priority order; the status page is generated from it after each save (DEC-29) | Claude main; the page by its generator | each step; the owner on the page |
@@ -294,12 +294,11 @@ stale (DEC-28). Long output goes to a file; the agent prints one line.
 - A new owner decision rewrites each entry it changes into one updated decision, or adds an entry for a new subject.
   The replaced wording and the owner's words verbatim are appended to `docs/history/DECISIONS-ARCHIVE.md`, each item
   with its date, its archive ID and `Now in: DEC-NN`.
-- The old log D1-D101 is kept byte-exact in `docs/history/`; the archive's map gives every D-number its DEC-NN,
+- The old log D1-D122 is kept byte-exact as `docs/history/DECISIONS-LOG.md`; `docs/history/DECISIONS-MAP.tsv` gives every D-number its DEC-NN,
   Expired or History, so an old reference resolves in one step.
 - Hunt C2 checks that every archive item and every mapped D-number names an entry that exists; the Markdown guard
   checks DEC-ID uniqueness, the watch patterns and the size budget of DECISIONS.md (40 KB; each entry's decision at
   most 12 lines).
-- Until P7.4 the file is records/WS-033/DECISIONS.md, with decisions-map.tsv beside it (DEC-01).
 
 ## 12. Workstream lifecycle and where the drafts live
 
@@ -331,17 +330,17 @@ Save-State copies this folder, without `s/`, `t/` and `tmp/`, to `vault continui
 When the workstream is finished:
 
 1. The chosen version is the contract: `changes/WS-0NN-<slug>.md`, in Git, pushed with the workstream.
-2. `records/WS-0NN/README.md` is its one summary (DEC-11): the result and the receipt (verbatim, with its SHA256), each
+2. `records/WS-<NN>/README.md` is its one summary (DEC-11): the result and the receipt (verbatim, with its SHA256), each
    failed, refused or superseded attempt in one line with its reason, every version (role: design, adversarial,
    evidence refresh, corrective; author; SHA256; review verdict; why chosen or not), and each cited file (section 23)
-   with its SHA256 and its path under `data/records/WS-0NN/`.
-3. After the push and release, the cited files of `sb/W<NN>/` are copied to `data/records/WS-0NN/` and hash-checked
+   with its SHA256 and its path under `data/records/WS-<NN>/`.
+3. After the push and release, the cited files of `sb/W<NN>/` are copied to `data/records/WS-<NN>/` and hash-checked
    against the summary; then `-Clean` deletes the temporary items of `W<NN>`.
 4. Timing limit: the chosen draft names V1 and V2 by path and hash, so both are cited files. They leave `sb/W<NN>/`
    only after the push and release, and only if P1 has confirmed that no later native check reads them there again.
 
 Existing records (WS-022 to WS-033) follow row O04: their summaries come from WS-033 step P1.3b, and the rest of each
-folder goes to `data/records/WS-0NN/` until the Lift's C1 pass.
+folder goes to `data/records/WS-<NN>/` until the Lift's C1 pass.
 
 ## 13. Tools
 
@@ -372,7 +371,7 @@ Spider searches: the repository (tracked files), `data/` (with the raw transcrip
 `ORVION-Workbench-temporary` (bounded: organizers, names, workstream folders, no sandbox checkouts, no binaries). Every
 hit carries its source label (repo, data, temporary); a Markdown hit also carries `path:line section N` (signposting.md
 SP06). An unreadable source is reported UNAVAILABLE, never as zero hits. The evidence of a finished workstream is found
-through its `records/WS-0NN/README.md`.
+through its `records/WS-<NN>/README.md`.
 
 ## 14. The method (every agent, every task)
 
@@ -502,10 +501,10 @@ START        AGENTS.md (auto) + NOW.md (injected) ------------------------> work
 NEED A RULE  docs/DECISIONS.md by DEC-NN --> why, or what it said before? its History IDs in the archive
 EACH STEP    Save-State --> NOW.md overwritten, LOG line, vault continuity copy, status page regenerated
                        \--> prints the /compact line and the resume message for the owner
-NEW DECISION owner --> data/decisions-inbox.md + NOW.md "Pending decisions"
+NEW DECISION owner --> decisions-inbox.md (data root) + NOW.md "Pending decisions"
                        \--> next contract: its entry rewritten in docs/DECISIONS.md; the old wording --> the archive
-WS END       summary --> records/WS-0NN/README.md; push through the release checks;
-             cited files --> data/records/WS-0NN; Organize -Clean deletes the W<NN> items in temporary
+WS END       summary --> records/WS-<NN>/README.md; push through the release checks;
+             cited files --> data/records/WS-<NN>; Organize -Clean deletes the W<NN> items in temporary
 02:00 DAILY  Backup-Workspace --> one package in the vault --> -Clean retention: last 7 packages, transcripts 60 days
 ```
 
@@ -536,7 +535,7 @@ The owner authorized improvements as needs arise (DEC-02). The procedure, with n
    or 18.
 3. Make it, and in the same operation record it: a LOG.tsv row if a folder changed; this document rewritten in place,
    with no change notes inside it (earlier versions: Git history; before slice S1, the daily packages); the owner's words in
-   `data/decisions-inbox.md` if it changes a decision; a line in NOW.md.
+   `decisions-inbox.md` (data root) if it changes a decision; a line in NOW.md.
 4. If the change would weaken a gate, a test or security, or needs an approval only the owner can give: STOP and ask
    the owner. Never work around a refusal.
 

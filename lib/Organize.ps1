@@ -476,7 +476,7 @@ function Get-OrganizeCiters([string[]]$Doomed=@()){
         $named.Add((Get-OrganizeProse $file $read.Text))
     }
     foreach($contract in @(Get-ChildItem -LiteralPath (Join-Path $places.workbench 'changes') -Filter '*.md' -File)){$contracts.Add([IO.File]::ReadAllText($contract.FullName))}
-    foreach($inputs in [IO.Path]::Combine($places.workbench,'docs\owner\recovery-inputs\recovery-inputs.json'),[IO.Path]::Combine($places.data,'records\recovery-inputs\recovery-inputs.json')){
+    foreach($inputs in [IO.Path]::Combine($places.workbench,'docs\owner\recovery-inputs\recovery-inputs.json')){
         if(Test-Path -LiteralPath $inputs -PathType Leaf){$named.Add([IO.File]::ReadAllText($inputs))}
     }
     $journal=[IO.Path]::Combine($places.data,'events\events.jsonl')

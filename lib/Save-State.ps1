@@ -4,7 +4,7 @@
 # line to the workstream's LOG.md, writes the page beside it, replaces the vault's continuity copy (WORKSPACE-LAYOUT.md
 # section 3.3) once every copied file's SHA256 matches its source, and prints the page line, the SAVED line, the
 # /compact line and the resume message. Owner questions, pointers and the workstream carry over from the previous
-# NOW.md unless given; pending decisions are the ## headings of data/decisions-inbox.md; Running is stated at every
+# NOW.md unless given; pending decisions are the ## headings of decisions-inbox.md in the data root; Running is stated at every
 # save. It reads none of the legacy folders (MIGRATION-MAP.tsv L05, X01). -Check compares each sb\W*\status.html with a
 # fresh page from the PLAN.md beside it, skipping the one stamped line, and writes nothing (GENERATED STALE: <path>, exit 1).
 [CmdletBinding(DefaultParameterSetName='Save')]
@@ -274,10 +274,12 @@ $pagePath=Join-Path $folder 'status.html'
 # The continuity copy is built beside the old one and swapped in only after every file matches its source, so a failed
 # copy leaves the previous one whole; a mismatch (a file written to during the copy) refuses, and the save is run again.
 $copies=@(,@('data/work/NOW.md',$nowPath))
-if(Test-Path -LiteralPath $inbox){$copies+=,@('data/decisions-inbox.md',$inbox)}
+if(Test-Path -LiteralPath $inbox){$copies+=,@("data/$(Split-Path $inbox -Leaf)",$inbox)}
 $events=Join-Path $DataRoot 'events';if(Test-Path -LiteralPath $events -PathType Container){$copies+=@(Get-ContinuityFile $events 'data/events')}
 $copies+=@(Get-ContinuityFile $folder "sb/$(Split-Path $folder -Leaf)" 's','t','tmp')
 $continuity=Join-Path $Vault 'continuity';$stage="$continuity.new";$previous="$continuity.old"
+# A stop between the two moves below leaves continuity.old as the only whole copy: it is restored, never deleted (F1).
+if(!(Test-Path -LiteralPath $continuity)-and(Test-Path -LiteralPath $previous)){[IO.Directory]::Move($previous,$continuity)}
 foreach($path in $stage,$previous){if(Test-Path -LiteralPath $path){[IO.Directory]::Delete($path,$true)}}
 foreach($copy in $copies){$target=Join-Path $stage $copy[0];[void][IO.Directory]::CreateDirectory((Split-Path $target -Parent));[IO.File]::Copy($copy[1],$target)}
 $differ=@(foreach($copy in $copies){if((Get-FileHash -LiteralPath $copy[1]).Hash-cne(Get-FileHash -LiteralPath (Join-Path $stage $copy[0])).Hash){$copy[0]}})

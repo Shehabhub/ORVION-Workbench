@@ -1,0 +1,126 @@
+d	date	status	now_in	reason
+D1	2026-10-26	History	-	WS-015 and the Founder CR contract shape; both delivered
+D2	2026-10-26	DEC	DEC-05	Shared Evidence waived as a closure prerequisite, not earned
+D3	2026-10-26	DEC	DEC-05	CTRL-19 open with its residual risk accepted
+D4	2026-10-26	DEC	DEC-05	Lift point; contract C2 (clean-Windows recovery) dropped when the reinstall was cancelled
+D5	2026-10-26	DEC	DEC-09 DEC-27	key custody ended by D10 (DEC-27); the never-expose-a-key rule is in DEC-09
+D6	2026-10-26	DEC	DEC-27	Marketing-MCP and non-ORVION transcripts are not packaged
+D7	2026-10-26	Expired	DEC-20	parallel evaluation of the delegate skills, ended by D8 and D9
+D8	2026-10-26	DEC	DEC-20	--ignore-user-config; Codex Windows sandbox not working; skills not installed
+D9	2026-10-26	DEC	DEC-20	unrestricted Codex mode with the owner-accepted residual risk
+D10	2026-10-26	DEC	DEC-27	plain unencrypted package synced to OneDrive
+D11	2026-10-26	DEC	DEC-27	no key; upload at its step; the scan identifies only
+D12	2026-10-26	History	DEC-02	one session's permission to continue unattended; its no-new-scope rule is in DEC-02
+D13	2026-10-26	DEC	DEC-27	scan findings by path and rule only; transcripts verbatim; gh revocation after a reinstall
+D14	2026-10-26	History	DEC-11 DEC-23	WS-015 Finish attempt 1 refused; continuity mirror moved to work\continuity
+D15	2026-10-26	DEC	DEC-22 DEC-25	an owner's interactive confirmation is never emulated
+D16	2026-10-26	History	DEC-22 DEC-25	one-time SPEC-298 release through the native engines
+D17	2026-10-26	History	-	WS-016 map delivered; the tool's contract is in lib/README
+D18	2026-10-26	History	-	WS-016 delegated Gate 1 and the two reports
+D19	2026-10-26	DEC	DEC-03 DEC-17	tools must really work and earn their cost; WS-017 itself is history
+D20	2026-10-26	DEC	DEC-12 DEC-19 DEC-26	bundle goals; Codex proves with evidence; save continuously; its push rule was replaced by D90 (DEC-25)
+D21	2026-10-26	DEC	DEC-03 DEC-24	fix every bug seen; two jobs at once where safe; WS-019 itself is history
+D22	2026-10-26	DEC	DEC-11 DEC-23	a fresh Finish attempt after an attempt that ran no test
+D23	2026-10-26	History	-	WS-020 contract
+D24	2026-10-26	DEC	DEC-14 DEC-19	one rebuttal round for a rejected Codex item; the WS-021 contract is history
+D25	2026-10-26	DEC	DEC-23 DEC-24	a fresh attempt after a measured resource block; no heavy job beside a Finish
+D26	2026-10-27	DEC	DEC-05 DEC-27	reinstall cancelled; criterion 5 amended; clean-Windows install UNPROVEN; the UTC assurance date is enforced by the native judge
+D27	2026-10-27	DEC	DEC-04 DEC-08 DEC-19	Batch 6 waits for the owner's lift; rebuildable temporary; no duplicate documents; two-way Codex; three folders and the xhigh ceiling replaced (DEC-08, DEC-18)
+D28	2026-10-27	DEC	DEC-20	Delegate is the one Codex launcher and its tripwire detects only; the WS-025 contract is history
+D29	2026-10-27	History	DEC-22 DEC-25	one-time release method for the two Step 2 SPECs
+D30	2026-10-27	History	DEC-24 DEC-25	Step 2 concurrency; its resource rules are in DEC-24
+D31	2026-10-27	DEC	DEC-12 DEC-13 DEC-14	Draft purposes, diffs, selection table, no manufactured differences; authors replaced (DEC-13)
+D32	2026-10-27	DEC	DEC-21	Codex input rules; its fresh-session-per-phase part changed by D87
+D33	2026-10-27	DEC	DEC-13 DEC-16 DEC-20	multi_agent=false (as corrected by D37) and the sources format; Codex authorship and web search expired
+D34	2026-10-27	DEC	DEC-05 DEC-10 DEC-13 DEC-16 DEC-17 DEC-18	query and web-content rules (F2); tools first; F1 and the model addendum expired; F3-F5 history
+D35	2026-10-27	DEC	DEC-01 DEC-02	memory holds pointers (C4) and owner words are carried faithfully (C5); back-pointers (C2) replaced by D101; Codex audit role expired
+D36	2026-10-27	DEC	DEC-16 DEC-20 DEC-21	Codex memories off per run; the global AGENTS.md override is guidance only; WS-026 to WS-028 approvals are history
+D37	2026-10-28	DEC	DEC-03 DEC-20	sub-agent prevention never claimed; minimal safe solutions over rescue complexity; WS-029 order is history
+D38	2026-10-28	DEC	DEC-05 DEC-10 DEC-12 DEC-13 DEC-14 DEC-15 DEC-16 DEC-18	tier by risk; dual review, one V4, gates over agreement; Terra research and subagent V3 expired; order replaced (DEC-04)
+D39	2026-10-28	DEC	DEC-15 DEC-18	no silent downgrade and verified effective effort; the max level and the subagent fallback expired
+D40	2026-10-28	DEC	DEC-15 DEC-18	model by family, exact identifiers only in run records; the WS-029 V3 approval is history
+D41	2026-10-28	DEC	DEC-11 DEC-18	records hold no fixture trees; the xhigh level expired
+D42	2026-10-28	History	DEC-18	WS-029 V3 run at Sol high
+D43	2026-10-28	DEC	DEC-10	restore staging kept and reported; disposal is the owner's; Candidate C is history
+D44	2026-10-28	History	DEC-22	WS-030 delegated diagnostic succession
+D45	2026-10-28	DEC	DEC-22 DEC-25	no invented REMOTE_CERTIFY; the WS-030 promotion is history
+D46	2026-10-28	DEC	DEC-05 DEC-11	same-machine launcher proof PASS for criterion 5
+D47	2026-10-28	History	DEC-19	Codex in Claude roles for WS-026 only
+D48	2026-10-29	History	DEC-02 DEC-03	WS-026 V3 continuation; "choose the best" grants judgment, not scope
+D49	2026-10-29	History	-	WS-026 sandbox admission
+D50	2026-10-29	History	-	WS-026 original admission
+D51	2026-10-29	History	DEC-25	WS-026 preflight publication
+D52	2026-10-29	History	DEC-25	WS-026 one-time promotion authority
+D53	2026-10-29	History	DEC-25	WS-026 promotion verified
+D54	2026-10-29	History	DEC-02	WS-031 bootstrap choice
+D55	2026-10-29	History	DEC-19	WS-031 Sol author substitution
+D56	2026-10-30	History	-	WS-031 sandbox admission
+D57	2026-10-30	History	-	WS-031 original admission
+D58	2026-10-30	History	DEC-05	WS-031 completion; its open risks are in DEC-05
+D59	2026-10-30	History	DEC-25	WS-031 preflight publication
+D60	2026-10-30	History	DEC-25	WS-031 promotion
+D61	2026-10-30	History	DEC-16	WS-032 research-profile correction; the profile is retired
+D62	2026-10-30	History	DEC-16 DEC-26	WS-032 stop; the V3 and Finish hold was released by D63
+D63	2026-10-30	History	-	release of the D62 hold
+D64	2026-10-30	History	DEC-16	WS-032 read-only feasibility check
+D65	2026-10-30	History	DEC-02 DEC-03	WS-032 namespace-trial authority
+D66	2026-10-30	History	DEC-16	WS-032 namespace trial failed
+D67	2026-10-30	DEC	DEC-04	stay on the roadmap with no new unit or framework; the WS-032 diagnostic is history
+D68	2026-10-30	History	DEC-04 DEC-16	WS-032 deferred (now retired); the WS-027-only source-pack exception was used; its sequence was replaced
+D69	2026-10-30	History	-	WS-027 start; the Terra transport was refused
+D70	2026-10-30	History	DEC-18	all WS-027 roles at Sol high
+D71	2026-10-30	DEC	DEC-23 DEC-26	save after every pass; no journal append or heavy copy during a native Finish
+D72	2026-10-30	History	DEC-19	Claude took over the Codex role for WS-027 V3
+D73	2026-10-30	DEC	DEC-14 DEC-15 DEC-19	the interim usage-limit rule became standing (D100); authors never review their own subject; Opus subagent reviews expired
+D74	2026-10-30	Expired	DEC-14	one review for WS-027 V3, replaced by D75
+D75	2026-10-30	DEC	DEC-14 DEC-22	no weakened tests, suppressed failures, frozen edits or unverified PASS; WS-027 Option 1 is history
+D76	2026-10-30	Expired	DEC-19	bypass Codex until its reset, replaced by D77 and D100
+D77	2026-10-30	DEC	DEC-14 DEC-19 DEC-23	a passed check is not rerun; the Codex bypass was lifted by D83
+D78	2026-10-30	History	DEC-27	WS-027 actions on the real repository
+D79	2026-10-30	DEC	DEC-02 DEC-04 DEC-27	autonomy rules; 60-minute backup limit; its order was changed by D96
+D80	2026-10-31	History	DEC-14	WS-028 V5 exception
+D81	2026-10-31	Expired	DEC-15 DEC-18	medium effort for Claude subagents, replaced by D83 and D85
+D82	2026-10-31	DEC	DEC-14 DEC-18	Codex latest Sol at high; the WS-028 V6 is history
+D83	2026-10-31	DEC	DEC-01 DEC-04 DEC-06 DEC-18 DEC-19	WS-033 designation and scope; Claude default effort; instructions updated in place
+D84	2026-10-31	DEC	DEC-10 DEC-14	manual check before a C1 run that informs deletion; the WS-028 V7 is history
+D85	2026-10-31	DEC	DEC-14 DEC-15	no Claude subagents; labelled self-reviews
+D86	2026-10-31	DEC	DEC-24	no free-commit buffer above the native minimum
+D87	2026-10-31	DEC	DEC-01 DEC-06 DEC-08 DEC-10 DEC-13 DEC-14 DEC-15 DEC-17 DEC-21 DEC-26	plan refinement points 1-7; point 8 (index and rules file) replaced by D101 (DEC-01)
+D88	2026-10-31	DEC	DEC-01 DEC-02 DEC-03 DEC-06 DEC-08 DEC-10	organizers, one folder tool, deletion authority; the per-decision split replaced by D101
+D89	2026-10-31	DEC	DEC-08 DEC-09	two folders, fixed by D90
+D90	2026-10-31	DEC	DEC-08 DEC-09 DEC-25	public repository, push per workstream, data/ and the vault
+D91	2026-10-31	DEC	DEC-02 DEC-06	WS-033 approved; ARCHITECTURE.md mandatory; improvements through its section 22
+D92	2026-10-31	History	DEC-25	R1 preflight publication of WS-027 and WS-028
+D93	2026-10-31	History	DEC-25	R1 stopped on the hosted failure; main not promoted
+D94	2026-10-31	DEC	DEC-06 DEC-12 DEC-25	S0 inside WS-033; release at P6.2; the portability check
+D95	2026-10-31	DEC	DEC-03 DEC-06 DEC-07 DEC-08	fix every gap; be informed before acting; personal OneDrive files untouched; S10; the TEMP gap
+D96	2026-10-31	DEC	DEC-04 DEC-07 DEC-12	tiers and purpose checks; WS-034; the order
+D97	2026-10-31	DEC	DEC-06 DEC-08 DEC-21	the WS-033 fixes; read-only learning from CRM and ORVION
+D98	2026-10-31	DEC	DEC-18	Codex always at the latest Sol, effort high, fixed
+D99	2026-10-31	DEC	DEC-06 DEC-08 DEC-32	signposting (P1.1d); the Workbench may read and index CRM and ORVION
+D100	2026-10-31	DEC	DEC-01 DEC-13 DEC-14 DEC-15 DEC-16 DEC-19 DEC-21	one source of truth; Codex offline; Claude main research, prototype and V3; Codex never blocks; no subagents; the brief
+D101	2026-10-31	DEC	DEC-01 DEC-06	consolidate into one updated decision per subject, never layered
+D102	2026-10-31	DEC	DEC-01 DEC-13 DEC-14	the owner accepted the consolidated file; the V3 review and the V3 purpose confirmed
+D103	2026-11-01	DEC	DEC-03 DEC-08 DEC-09 DEC-10 DEC-11 DEC-27 DEC-28 DEC-29	compact GitHub, OneDrive for the last 7 backups only, nothing kept only as history, a fourth principle, guards and self-updating files, a plan with a status page
+D104	2026-11-01	DEC	DEC-10 DEC-27	the WS-029 test package deleted in WS-033 step P8; the Lift's restore package kept until the Lift; package retention through Organize -Clean
+D105	2026-11-01	DEC	DEC-20	Codex confined by the MXC sandbox (workspace-write, writable roots the clone and the run folder), refused when MXC is unavailable, the tripwire kept
+D106	2026-11-01	DEC	DEC-02 DEC-03 DEC-04 DEC-11 DEC-12 DEC-16 DEC-19 DEC-20 DEC-22 DEC-28 DEC-30 DEC-31 DEC-32	the owner's standing rules found outside DECISIONS.md (P1.3 TO-DEC), the CRM rows L05, L06, L12, L16, L21, L28 and the signposting design given their home by slice S1
+D107	2026-11-01	DEC	DEC-18	each plan step names who runs it and the least costly model family and effort that fits, Codex on the latest Sol at high unless a per-step choice can be verified, Claude main taking Codex's role while it is unavailable; each step's estimated time on the status page
+D108	2026-11-02	DEC	DEC-18	open steps run in batches by the files they share, ended by the cheaper of compact and clear, with reads tracked at each save; P1.6 first with a Serena trial and S7 beside S4 and S11; each Claude account keeps its own status page (DEC-29)
+D112	2026-11-02	DEC	DEC-33	the owner offered 25 rules as the general constitution of ORVION; words in records/WS-033/owner-constitution-20261102.md; numbered D109 until the map's key check refused the duplicate on 2026-11-03
+D110	2026-11-02	DEC	DEC-33	the owner asked for 31 proposed rules examined and the best form adopted: twelve rules; DEC-30 restored; the map of every name is in records/WS-033/owner-constitution-20261102.md
+D109	2026-11-03	DEC	DEC-15	no automated agent loop, headless session, automatic retry or background agent session for the rest of WS-033; each slice in a Claude main session the owner starts, on the model and effort the owner selects; Probe-Guard not run; S6 and S8 not cut merely to save tokens
+D111	2026-11-03	DEC	DEC-15	S11 accepted; the two loop files retired to records with hashes and provenance; the OneDrive question deferred; only Claude main sessions the owner starts
+D113	2026-11-03	DEC	DEC-15	all remaining WS-033 execution directly in the main session: no subagents, headless or background agents, automatic retries, session switching or scheduling; /clear or /compact chosen on the evidence, under the constitutional rules
+D114	2026-11-04	History	-	startup token options deferred, no MCP, plugin, hook or tool change during WS-033; findings in records/WS-033/startup-tokens/FINDINGS.md
+D115	2026-11-04	History	-	WS-033 P2.3 to P4.3 in one Claude main session, stop before P5; the 200k alert alone forces no session change; D108 still decides any /clear or /compact
+D116	2026-11-04	History	-	WS-033 P4: Codex at its usage limit, so one thorough Claude main self-review suffices; P4.2 recorded SKIPPED, Codex unavailable, never PASS or independent; all tests and gates kept; stop before P5.1
+D117	2026-11-04	History	-	WS-033 P7 answers: P7.2b contract drafting, P7.2 run, guard workarounds must not recur; DEC-28 text unchanged
+D118	2026-11-04	History	-	WS-035 preparation decisions
+D119	2026-11-04	History	-	WS-035 answers to B1, P1, B3 and B4; P7.21 and P7.22 only
+D120	2026-11-04	DEC	DEC-14 DEC-19	automatic Codex fallback is the standing policy; one Claude review when Codex is at its limit (written into DEC-14 by D124)
+D121	2026-11-04	History	-	WS-035 execution approval, P7.25 only, with six answers
+D122	2026-11-04	History	-	Option A, a scoped exception to the WS-033 dryrun refusal; P7.25 sandbox only
+D123	2026-11-07	DEC	DEC-04 DEC-07 DEC-13 DEC-23	G1-G4: WS-033 then the Owner Lift then STOP, WS-034 deferred; product SPECs follow only their own lifecycle; attempt rules for Workbench Finishes
+D124	2026-11-07	DEC	DEC-14 DEC-19 DEC-20	D-11: D120 written into DEC-14 and DEC-19; DEC-20 narrative shortened
+D125	2026-11-07	DEC	DEC-01 DEC-26	P7.3 and P7.4: archive, old log and map in docs/history; Save-State the one save method

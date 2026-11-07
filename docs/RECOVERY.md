@@ -26,7 +26,7 @@ not into this folder. Never put the package or its scan in a Git repository.
 | Claude settings, statusline and ORVION project memory; Codex config.toml (URL passwords masked); declared recovery inputs (owner approvals, sealed proofs) | Everything outside the folders listed on the left |
 
 The package refuses (no archive) rather than lose state a bundle cannot carry: uncommitted work, more than one stash or
-a linked worktree in a main repository, or files under the one data root's `work\sandboxes`. Commit or remove them only under their owning authority first. Protected records/runtime and required unique evidence remain package inputs; disposable temporary trees are excluded.
+a linked worktree in a main repository, or files under the one data root's `work\sandboxes`. Commit or remove them only under their owning authority first. Protected records, runtime and required unique evidence remain package inputs; disposable temporary trees are excluded.
 
 Historical citation: Documents\ORVION-Owner-Review, Documents\ORVION-Owner-Tools, Documents\ORVION-Owner-Recovery, Documents\ORVION-Sandbox, Documents\ORVION-drafts-backup and Documents\Windows-Memory-Config were the retained legacy inputs. Their sealed paths are provenance, not current entry routes.
 
@@ -76,7 +76,7 @@ unreadable/malformed evidence or insufficient space refuses before extraction wi
 compressed-size multiplier, a space reservation, exact physical allocation accounting, or a guarantee of capacity for
 later clone, restore and product work. Check additional free space for those operations separately.
 
-Retained extraction is sensitive and unencrypted: owner records/sessions, settings and Git bundles can contain secrets.
+Retained extraction is sensitive and unencrypted: owner records, sessions, settings and Git bundles can contain secrets.
 URL-password masking and credential exclusions do not prove otherwise; gitleaks scans files, not bundle history.
 Use an owner-controlled local location with appropriate existing access protection; keep it outside sync and repositories.
 The launcher does not change ACLs or machine settings. Review accumulated attempts after verification and obtain separate
@@ -166,7 +166,7 @@ A successful directory backup does not advance it. Refusal, partial publication 
 verified pointer and archive. Scanner findings/failure/skipping do not block successful publication or pointer advancement;
 previous archives remain retained. Status replacement is one same-directory
 move; local failure preservation is tested, cloud/remote atomicity and crash durability are unproven. Failed pending
-records/partial archives can remain for inspection. Only the retention tier prunes archives, by name, never hydrating one; its failure is reported and leaves the backup standing. Scan findings,
+`<root>/records/partial` archives can remain for inspection. Only the retention tier prunes archives, by name, never hydrating one; its failure is reported and leaves the backup standing. Scan findings,
 failure or skipping are report-only; Git history inside bundles is outside scan coverage. Concurrent source changes
 are possible: this is not a coherent snapshot. Shared restore launchers and second-resolution archive-name refusal
 remain engine limitations. Candidate C launcher's staging retention above is unchanged and separate.

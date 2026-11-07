@@ -182,7 +182,7 @@ Ask only what cannot be derived (DEC-02, DEC-29, DEC-31), in this form:
 
 ## 11. Saving
 
-One call saves every operation once Save-State is live (WS-033 step P7.3, DEC-26); until then the save of DEC-26 holds.
+One call saves every operation (DEC-26).
 
 ~~~powershell
 pwsh -NoProfile -File lib/Save-State.ps1 -Operation '<operation>' -Done '<what finished>' -Evidence '<path>','<path>' `
@@ -196,7 +196,7 @@ pwsh -NoProfile -File lib/Save-State.ps1 -Operation '<operation>' -Done '<what f
 - Owner questions and pointers carry over from the previous NOW.md unless given, and `-Question @()` clears them.
   Running is stated at every save (None when omitted). Now defaults to the workstream and operation with "done";
   `-Blocker` adds "BLOCKED: <text>".
-- Pending decisions are the `## ` headings of `data/decisions-inbox.md`: one heading per owner decision not yet
+- Pending decisions are the `## ` headings of `decisions-inbox.md` in the data root (absent until the first owner decision is captured): one heading per owner decision not yet
   folded into DECISIONS.md (DEC-01), and the contract that folds it removes the item.
 - Nothing is written until three checks pass. The Markdown guard's `Test-NowMarkdown` checks the text: the budget and
   line length of WORKSPACE-LAYOUT.md section 19, the sections of section 14.2, the pointers and the citations. The vault

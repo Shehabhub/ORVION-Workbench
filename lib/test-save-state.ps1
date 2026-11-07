@@ -47,6 +47,15 @@ function Assert-Unchanged($Fixture,[scriptblock]$Refused){
     try{& $Refused}catch{$message=$_.Exception.Message
         Assert-Save ((Get-SaveSnapshot $Fixture)-ceq$before) 'a refused save wrote';throw $message}
 }
+function New-MismatchSave([string]$Name){
+    # A copy that alters each file it writes, injected into a copy of the script under test, stands in for a file
+    # written to during the copy.
+    $source=[IO.File]::ReadAllText($SaveState);$anchor='[IO.File]::Copy($copy[1],$target)';if(!$source.Contains($anchor)){throw 'SAVE_INJECTION_STALE'}
+    $folder=Join-Path $scratch $Name;[void][IO.Directory]::CreateDirectory($folder)
+    Copy-Item -LiteralPath (Join-Path (Split-Path $SaveState -Parent) 'Test-MarkdownConsistency.ps1') -Destination $folder
+    $injected=Join-Path $folder 'Save-State.ps1';[IO.File]::WriteAllText($injected,$source.Replace($anchor,$anchor+";[IO.File]::AppendAllText(`$target,'x')"),[Text.UTF8Encoding]::new($false))
+    $injected
+}
 function Test-PlanRefusal([string]$Name,[scriptblock]$Edit){
     # A good save first, then the plan file is broken as $Edit says and the next save must refuse without writing.
     $f=New-SaveFixture $Name;$null=Invoke-Save $f $first
@@ -141,14 +150,15 @@ $cases=[ordered]@{
     planStepColumn=@('SAVE_PLAN_STEP_COLUMN',{Test-PlanRefusal 'stepColumn' {param($p)$p.Replace('| Step | Do | Run by | Time |','| Step | Do | Run by | Hours |')}})
     planControl=@('SAVE_PLAN_CONTROL_CHARACTER',{Test-PlanRefusal 'control' {param($p)$p.Replace('A note.',"A note$([char]1).")}})
     continuityMismatch=@('SAVE_CONTINUITY_MISMATCH',{$f=New-SaveFixture 'mismatch';$null=Invoke-Save $f $first
-        # A copy that alters each file it writes, injected into a copy of the script under test, stands in for a file
-        # written to during the copy; the previous continuity copy must stay whole and no staging folder may remain.
-        $source=[IO.File]::ReadAllText($SaveState);$anchor='[IO.File]::Copy($copy[1],$target)';if(!$source.Contains($anchor)){throw 'SAVE_INJECTION_STALE'}
-        $folder=Join-Path $scratch 'injected';[void][IO.Directory]::CreateDirectory($folder)
-        Copy-Item -LiteralPath (Join-Path (Split-Path $SaveState -Parent) 'Test-MarkdownConsistency.ps1') -Destination $folder
-        $injected=Join-Path $folder 'Save-State.ps1';[IO.File]::WriteAllText($injected,$source.Replace($anchor,$anchor+";[IO.File]::AppendAllText(`$target,'x')"),[Text.UTF8Encoding]::new($false))
-        $before=Get-VaultState $f
+        # The previous continuity copy must stay whole and no staging folder may remain.
+        $injected=New-MismatchSave 'injected';$before=Get-VaultState $f
         try{$null=Invoke-Save $f @{} $injected}finally{Assert-Save ((Get-VaultState $f)-ceq$before) 'the previous continuity copy changed'}})
+    continuityRestore=@('SAVE_CONTINUITY_MISMATCH',{$f=New-SaveFixture 'restore'
+        # F1: a stop between the two moves leaves continuity.old as the only whole copy; the next save restores it first,
+        # so even a refused save leaves it whole.
+        $old=[IO.Path]::Combine($f.Vault,'continuity.old','kept');[void][IO.Directory]::CreateDirectory($old);[IO.File]::WriteAllText((Join-Path $old 'a.txt'),'last whole copy')
+        $injected=New-MismatchSave 'restoreInjected';$kept=[IO.Path]::Combine($f.Vault,'continuity','kept','a.txt')
+        try{$null=Invoke-Save $f $first $injected}finally{Assert-Save ((Test-Path -LiteralPath $kept)-and!(Test-Path -LiteralPath (Join-Path $f.Vault 'continuity.old'))-and[IO.File]::ReadAllText($kept)-ceq'last whole copy') 'the leftover continuity.old was not restored'}})
 }
 try{
     foreach($caseName in $cases.Keys){
@@ -174,6 +184,7 @@ try{
             planSection7="throw 'SAVE_PLAN_SECTION_7_TABLE'";planSection7Table="throw 'SAVE_PLAN_SECTION_7_TABLE'";planSection7Header="throw 'SAVE_PLAN_SECTION_7_HEADER'"
             planBatchNoSteps='throw "SAVE_PLAN_BATCH_NO_STEPS: $($t7.Rows[$r][0])"';planBatchStep='throw "SAVE_PLAN_BATCH_STEP: $id"';planStepNoBatch='throw "SAVE_PLAN_STEP_NO_BATCH: $id"'
             planStepColumn='throw "SAVE_PLAN_STEP_COLUMN: $($Entry.Row[0]) has no $Like column"'
+            continuityRestore='if(!(Test-Path -LiteralPath $continuity)-and(Test-Path -LiteralPath $previous)){[IO.Directory]::Move($previous,$continuity)}'
             continuityMismatch='if($differ.Count){[IO.Directory]::Delete($stage,$true);throw "SAVE_CONTINUITY_MISMATCH: $($differ-join'', '')"}'
         }
         $folder=Join-Path $scratch 'mutants';[void][IO.Directory]::CreateDirectory($folder)
