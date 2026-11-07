@@ -465,7 +465,7 @@ Apply the literal file steps with the accepted baseline lib/apply-draft-steps.ps
 
 ## Runtime Checkpoint
 
-Resume Step: 1
+Resume Step: DONE
 Blocker: None
 Recovery Attempt: 0
 
@@ -479,6 +479,7 @@ Owner Evidence SHA256: 9CAC0E83AFFFD6B672C56FB8E69D51FACA1F8C1A28AF98E89F353D735
 Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
 Sandbox Receipt: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench-temporary\sb\W37\runtime\sandbox\own-finish-receipt.json
 Sandbox Receipt SHA256: 087BB5B9C3285F4A5AC507CB127D944546A9016EB6969AD9FE406522E083EA57
+Original exact declared outputs applied by accepted native Execute; fresh own Finish and Review/Complete remain required. Other protected roots unchanged.
 
 ## Verification Notes
 

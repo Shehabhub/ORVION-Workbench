@@ -210,3 +210,150 @@ Replaced wording of DEC-26, verbatim:
 > History: D20, D62, D71, D87
 
 Now in: DEC-01, DEC-26
+
+## D126 2026-11-07 Owner: A6 Owner Lift approved; all seven legacy folders stay (transcribed at the owner's instruction)
+
+The owner's words verbatim, as quoted in data/decisions-inbox.md until this contract (byte copy:
+data/records/WS-037/owner-words/decisions-inbox-20261107T1900.md, SHA256 33E5817BDB7E3E20A5B2DBE09F58DE905AC53D8C46799922C075768675AC7AA1).
+
+2026-11-07 18:30 Cairo: A6 Owner Lift approved; all seven legacy folders retained (DEC-05 amendment pending), the A6 decision:
+
+> # Owner Decision — A6 Lift Approved, Legacy Folders Retained
+>
+> I have reviewed the WS-033 handoff and `LIFT-READINESS.md`.
+>
+> **My final Owner decision is: APPROVE A6 — Owner Lift, with all seven legacy folders retained temporarily.**
+>
+> This supersedes only DEC-05's requirement to delete the five legacy folders at the Lift. No other governance decision or approved workflow is changed.
+>
+> ## 1. Record the narrow DEC-05 amendment
+>
+> Verify the current authoritative `docs/DECISIONS.md` and its byte budget.
+>
+> Replace only this existing sentence:
+>
+> "At the Lift the owner deletes the five legacy folders; until then they stay owner-controlled."
+>
+> With:
+>
+> "At Lift, all seven legacy folders stay. Later deletion requires DEC-10 and owner approval."
+>
+> Preserve the remaining DEC-05 text, its accepted residual risks, and the 40,960-byte document limit.
+>
+> Do not modify DEC-10.
+>
+> ## 2. Retain all seven legacy folders
+>
+> The exact seven paths are listed in `data/records/WS-033/LIFT-READINESS.md`, Section 5.
+>
+> I explicitly authorize their temporary retention, not their deletion.
+>
+> This includes the five Documents folders and both ORVION-Owner-Tools folders in GitHub and OneDrive.
+>
+> Do not delete, relocate, clean, or overwrite these folders. Keep the 14 historical file versions and all existing rollback material.
+>
+> My approval of the seven-path inventory is NOT approval to delete any of those paths.
+>
+> Any future deletion requires the applicable DEC-10 checks, a fresh review of the exact deletion list, and my separate explicit approval.
+>
+> Leave the related restore staging, vault recovery material, and existing client Read grants unchanged for now.
+>
+> ## 3. Record my Owner Lift decision
+>
+> The five HANDOFF Section 12 criteria are reported as MET in the completed WS-033 readiness package.
+>
+> I explicitly approve A6 and authorize transcription of my Owner decision into the existing authoritative `HANDOFF.md`, Section 11, using its prescribed format:
+>
+> `LIFT 2026-11-07: Batch 6 hold lifted by the owner; HANDOFF.md section 12 criteria 1-5 evidenced in data\records\delegation-20261026\LIFT-EVIDENCE.md.`
+>
+> This is a record of my explicit Owner decision, not a new decision delegated to the agent.
+>
+> First reconcile DEC-05 using the narrow amendment above. Follow the existing repository approval, writing and validation controls. If a native control prohibits recording the Lift through this route, STOP and report that specific blocker rather than bypassing it.
+>
+> Do not use the attached `HANDOFF(6).md` as a replacement for the repository's authoritative `HANDOFF.md`; verify the actual file and its current contents first.
+>
+> Preserve my words in the existing owner-decision archive as required by DEC-01.
+>
+> ## 4. Preserve all unresolved risks
+>
+> Keep the following accurately recorded:
+>
+> - Restore Launcher remains UNPROVEN on the post-fold layout.
+> - Fourteen older Owner-Tools file versions remain retained.
+> - `Organize -Check` reported FAIL 360; do not relabel it PASS.
+> - Windows format readiness remains NOT READY.
+> - Save-State's vault cleanup workaround is not its permanent code fix.
+> - Independent review gaps, memory-margin decisions and other R1–R9 risks remain open or accepted exactly as documented.
+>
+> Do not introduce additional remediation into this Lift-recording step.
+>
+> ## 5. Verify, save and STOP
+>
+> After the bounded governance update:
+>
+> 1. Verify the exact DEC-05 change, the Lift record, the document byte limit, and applicable existing guards.
+> 2. Confirm that none of the seven legacy folders or protected backup materials changed.
+> 3. Save the Owner decision and update the authoritative continuity records.
+> 4. Run the existing Save-State procedure and publish the updated status page.
+> 5. Report the exact changes, evidence, and current Lift status.
+>
+> **STOP after recording and verifying the Lift.**
+>
+> This approval removes the programme-level Batch 6 hold, but does not authorize executing Batch 6 inside ORVION or CRM. Each product still requires its own native Boot, SPEC authorization and lifecycle.
+>
+> Do not begin B15, Batch 6, deletion, Windows reinstallation, Codex updates, RAM changes, scheduled-task modifications or unrelated improvements as part of this step.
+>
+> No new architecture, review cycle or workstream. Execute only this approved Owner decision.
+
+2026-11-07 ~19:00 Cairo: one narrow Workbench contract authorized to record A6 (inbox not accepted as the final Lift record):
+
+> I have reviewed your assessment and recommendations.
+>
+> I agree that a dedicated contract is expensive for a small textual change. However, I do not approve treating `decisions-inbox.md` as the final A6 Lift record while DEC-01, DEC-04, DEC-05 and HANDOFF Section 11 still prescribe the formal recording process.
+>
+> **My decision: authorize ONE narrowly scoped Workbench contract to resolve this proven governance blocker.** This is a limited exception to my earlier instruction against creating another workstream, not permission for additional improvements.
+>
+> The contract must:
+>
+> 1. Incorporate my already-approved A6 decision from the inbox, preserving my exact words.
+> 2. Amend only DEC-05's legacy-folder deletion requirement. All seven folders remain intact; any future deletion requires DEC-10 and separate owner approval.
+> 3. Record the approved Lift line in HANDOFF Section 11 through the native authorized procedure, respecting DEC-02's owner-only authority.
+> 4. Update only the required decision archive, decision map, inbox and associated evidence.
+> 5. Address the 158 pending `LOG.tsv` rows only as required by the native clean-checkout admission, preserving their provenance.
+> 6. Preserve the existing byte limits, guards, mandatory assurance, native lifecycle and release requirements.
+>
+> Do not shorten or bypass required gates, but do not introduce unnecessary review work, additional features, new architecture or unrelated fixes.
+>
+> Before execution, verify that the proposed contract can legitimately record the owner's Lift line. If DEC-02 or another binding rule still prohibits this even with my explicit transcription authorization, identify the exact blocker and STOP.
+>
+> Keep all seven legacy folders, historical versions, rollback copies, recovery material and existing product dependencies untouched.
+>
+> No Batch 6 execution, B15, Codex update, RAM change, scheduled-task modification, or unrelated cleanup.
+>
+> Execute only the authorized native contract and its required release, preserving evidence of any failure. After the formal Lift record is verified, report the result and STOP. Both products still require separate Batch 6 authorizations.
+>
+> **Priority: compliant completion with the minimum necessary work—not optimization, expansion or perfection.**
+
+Transcribed by Claude main at the owner's explicit instruction of 2026-11-07: the DEC-05 sentence and the HANDOFF.md
+section 11 Lift line are the owner's own text. Neither is DELEGATED, and neither was typed by the owner.
+
+Replaced wording of DEC-05, verbatim:
+
+> ## DEC-05 Lift criteria and accepted open risks
+>
+> The owner decides the Lift on the closure criteria of HANDOFF section 12 as amended. Criterion 5, amended when the
+> owner cancelled the Windows reinstall: the isolated restore of orvion-backup-20261026T201821Z.7z (done 2026-10-26)
+> plus one isolated run of the released Restore-ORVION.cmd against a fresh package (same-machine PASS on 2026-10-28:
+> records/WS-029/package/successor/step3/attempt-20261028T180229Z-r2/result.json). With the reinstall cancelled,
+> clean-Windows recovery (contract C2) is not a Lift condition. Stated as open wherever the Lift is discussed:
+> clean-machine recovery and clean-Windows tool installation are UNPROVEN (residual risk accepted by the owner); Shared
+> Evidence is WAIVED as a closure prerequisite, not earned, and no assurance is claimed from it; CTRL-19 is OPEN with
+> its residual risk accepted (both gh tokens are reachable by this OS user; main protection depends on GitHub settings).
+> At the Lift the owner deletes the five legacy folders; until then they stay owner-controlled.
+>
+> Scope: the Owner Lift and every report that mentions it.
+> Why: the Lift must rest on what was proven, with every open risk visible.
+> Changed: 2026-10-31
+> History: D2, D3, D4, D26, D34, D38, D46, D58
+
+Now in: DEC-05

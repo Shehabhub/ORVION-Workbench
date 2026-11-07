@@ -9,6 +9,8 @@ The Lift record and the criteria that close the programme and resume Batch 6 (DE
 LIFT <yyyy-mm-dd>: Batch 6 hold lifted by the owner; HANDOFF.md section 12 criteria 1-5 evidenced in data\records\delegation-20261026\LIFT-EVIDENCE.md.
 ```
 
+LIFT 2026-11-07: Batch 6 hold lifted by the owner; HANDOFF.md section 12 criteria 1-5 evidenced in data\records\delegation-20261026\LIFT-EVIDENCE.md.
+
 ## 12. Success criteria before the programme closes and Batch 6 resumes
 
 These are the written closure criteria (contract C1); each needs recorded evidence, none is inferred:

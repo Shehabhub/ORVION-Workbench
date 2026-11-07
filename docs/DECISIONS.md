@@ -86,12 +86,12 @@ clean-Windows recovery (contract C2) is not a Lift condition. Stated as open whe
 clean-machine recovery and clean-Windows tool installation are UNPROVEN (residual risk accepted by the owner); Shared
 Evidence is WAIVED as a closure prerequisite, not earned, and no assurance is claimed from it; CTRL-19 is OPEN with
 its residual risk accepted (both gh tokens are reachable by this OS user; main protection depends on GitHub settings).
-At the Lift the owner deletes the five legacy folders; until then they stay owner-controlled.
+At Lift, all seven legacy folders stay. Later deletion requires DEC-10 and owner approval.
 
 Scope: the Owner Lift and every report that mentions it.
 Why: the Lift must rest on what was proven, with every open risk visible.
-Changed: 2026-10-31
-History: D2, D3, D4, D26, D34, D38, D46, D58
+Changed: 2026-11-07
+History: D2, D3, D4, D26, D34, D38, D46, D58, D126
 
 ## DEC-06 WS-033 scope
 
