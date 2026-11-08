@@ -236,7 +236,9 @@ exit 0
         # Fail git show after mktemp, while retaining the actual Git-for-Windows hook interpreter.
         $shimBin=Join-Path $scratch 'shim';$gitShell=$gitExe.Replace('\','/')
         Write-LayoutFile (Join-Path $shimBin 'git') ("#!/bin/sh`nif [ `"`$1`" = show ]; then printf partial; exit 1; fi`nexec `"$gitShell`" `"`$@`"`n")
-        $shExe=Join-Path (Split-Path (Split-Path $gitExe -Parent) -Parent) 'usr/bin/sh.exe'
+        # Git for Windows keeps sh.exe in <home>\usr\bin; git.exe is <home>\cmd\git.exe or, first on Git Bash's PATH, <home>\mingw64\bin\git.exe.
+        $gitHome=Split-Path (Split-Path $gitExe -Parent) -Parent
+        $shExe=@($gitHome,(Split-Path $gitHome -Parent)|ForEach-Object{Join-Path $_ 'usr/bin/sh.exe'}|Where-Object{Test-Path -LiteralPath $_})[0]
         $failedShow=Invoke-LayoutChild $shExe @('-c','PATH="$(cygpath -u "$WS022_SHIM"):$PATH"; export PATH; exec sh .githooks/pre-commit') @{TMPDIR=$null;WS022_SHIM=$shimBin.Replace('\','/');PATH=(Split-Path $shExe -Parent)+';'+$env:PATH} $hookCheckout
         Assert-Layout 'hook trap removes a partially materialized judge on git show failure' ($failedShow.Exit-ne0-and@(Get-ChildItem -LiteralPath $expected -Filter 'workbench-judge-*').Count-eq0)
     }

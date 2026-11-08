@@ -102,6 +102,10 @@ $cases=[ordered]@{
         Assert-Save (($found-join'|')-ceq(@($sources.Keys|Sort-Object)-join'|')) "continuity holds $($found-join', ')"
         foreach($name in $sources.Keys){Assert-Save ((Get-FileHash -LiteralPath (Join-Path $copy $name)).Hash-ceq(Get-FileHash -LiteralPath $sources[$name]).Hash) "hash $name"}
         Assert-Save ((@(Get-ChildItem -LiteralPath $f.Vault -Force).Name-join'|')-ceq'continuity') 'only continuity/ in the vault'})
+    readOnlyCopy=@('',{$f=New-SaveFixture 'readonly';$file=Join-Path $f.Work 'sx/locked.txt';[void][IO.Directory]::CreateDirectory((Split-Path $file -Parent))
+        [IO.File]::WriteAllText($file,'git object');[IO.File]::SetAttributes($file,[IO.FileAttributes]::ReadOnly)
+        try{$null=Invoke-Save $f $first;$null=Invoke-Save $f @{Operation='op 2'}}finally{[IO.File]::SetAttributes($file,[IO.FileAttributes]::Normal)}
+        Assert-Save ((@(Get-ChildItem -LiteralPath $f.Vault -Force).Name-join'|')-ceq'continuity') 'a read-only file in the old copy does not stop the next save'})
     carryForward=@('',{$f=New-SaveFixture 'carry';$null=Invoke-Save $f $first;$null=Invoke-Save $f @{Operation='op 2'};$now=Get-SaveText $f 'NOW'
         foreach($part in "# NOW WS-033$nl","## 4. Owner questions$nl$nl- Which one?$nl","## 6. Running$nl${nl}None.$nl","## 7. Pointers$nl$nl- lib/README.md$nl"){Assert-Save $now.Contains($part) "carried $part"}
         Assert-Save (@((Get-SaveText $f 'LOG.md').Split($nl)|Where-Object{$_.StartsWith('- ')}).Count-eq2) 'two LOG lines'
@@ -185,7 +189,8 @@ try{
             planBatchNoSteps='throw "SAVE_PLAN_BATCH_NO_STEPS: $($t7.Rows[$r][0])"';planBatchStep='throw "SAVE_PLAN_BATCH_STEP: $id"';planStepNoBatch='throw "SAVE_PLAN_STEP_NO_BATCH: $id"'
             planStepColumn='throw "SAVE_PLAN_STEP_COLUMN: $($Entry.Row[0]) has no $Like column"'
             continuityRestore='if(!(Test-Path -LiteralPath $continuity)-and(Test-Path -LiteralPath $previous)){[IO.Directory]::Move($previous,$continuity)}'
-            continuityMismatch='if($differ.Count){[IO.Directory]::Delete($stage,$true);throw "SAVE_CONTINUITY_MISMATCH: $($differ-join'', '')"}'
+            continuityMismatch='if($differ.Count){Remove-Copy $stage;throw "SAVE_CONTINUITY_MISMATCH: $($differ-join'', '')"}'
+            readOnlyCopy='$_.IsReadOnly=$false'
         }
         $folder=Join-Path $scratch 'mutants';[void][IO.Directory]::CreateDirectory($folder)
         Copy-Item -LiteralPath (Join-Path (Split-Path $SaveState -Parent) 'Test-MarkdownConsistency.ps1') -Destination $folder

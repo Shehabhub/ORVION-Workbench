@@ -5,3 +5,4 @@ session start and after a compact (DEC-26): do not re-read what is already in co
 Engineering entry: `pwsh -NoProfile -File lib/Workbench.ps1 -Boot`; use its actual contract or blocked result.
 Non-negotiables, each in docs/DECISIONS.md: the owner's live instruction wins and history never grants scope (DEC-02);
 never commit a secret (DEC-09); CRM and ORVION change only through their own README, AGENTS and Boot (DEC-08).
+The constitution binds every session: read DEC-30 and DEC-33 before the first decision and decide by them.

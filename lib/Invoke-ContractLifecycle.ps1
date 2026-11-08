@@ -9,7 +9,7 @@ param([Parameter(Mandatory)][string]$Manifest,
 $ErrorActionPreference='Stop'
 function Get-Json([string]$Path){Get-Content -LiteralPath $Path -Raw|ConvertFrom-Json}
 $m=Get-Json $Manifest
-foreach($field in 'Workstream','Packet','Draft','DraftSHA256','Baseline','Contract','Judge','JudgeSHA256','JudgeSource','Original','OriginalRemote','Sandbox','RuntimeRoot','HostExe','HostSHA256','HostVersion','Actionlint','RealData','MinPhysicalGB','MinCommitGB','ProtectedRoots','Closures','Approval','OriginalApprovalTemplate','Authority','Outputs','AllocateLabel','ImplementLog','Evidence','ReviewText','ReviewsLabel','KnownExtraCommits'){
+foreach($field in 'Workstream','Packet','Draft','DraftSHA256','Baseline','Contract','Judge','JudgeSHA256','JudgeSource','Original','OriginalRemote','Sandbox','RuntimeRoot','HostExe','HostSHA256','HostVersion','Actionlint','RealData','ProtectedRoots','Closures','Approval','OriginalApprovalTemplate','Authority','Outputs','AllocateLabel','ImplementLog','Evidence','ReviewText','ReviewsLabel','KnownExtraCommits'){
     if($null-eq$m.$field){throw "LIFECYCLE_MANIFEST_FIELD_MISSING:$field"}
 }
 $isOriginal=$Role-ceq'Original'
@@ -389,9 +389,12 @@ switch($Stage){
     $journal=Join-Path $env:ORVION_DATA_ROOT 'events\events.jsonl'
     if(!(Test-Path -LiteralPath $journal -PathType Leaf)){throw 'LIFECYCLE_REAL_JOURNAL_REQUIRED'}
     $null=Assert-WorkbenchContextRuntime $executionRoot $context -ResourceCheck
+    # The only memory floors are the Draft's (DEC-24). ES_CONTINUOUS|ES_SYSTEM_REQUIRED keeps the machine awake while this
+    # process waits for the Finish; Windows releases it when the process ends.
+    Add-Type -Namespace OrvionLifecycle -Name Power -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint flags);'
+    $awake=[OrvionLifecycle.Power]::SetThreadExecutionState([uint32]2147483649)-ne0
     $memory=Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
-    $headroom=[ordered]@{Utc=[DateTime]::UtcNow.ToString('o');PhysicalGB=[Math]::Round($memory.FreePhysicalMemory/1MB,2);CommitGB=[Math]::Round($memory.FreeVirtualMemory/1MB,2);RealJournal=$journal;JournalBeforeSHA256=(Get-FileHash -LiteralPath $journal).Hash;MinPhysicalGB=$m.MinPhysicalGB;MinCommitGB=$m.MinCommitGB}
-    if($headroom.PhysicalGB-lt$m.MinPhysicalGB-or$headroom.CommitGB-lt$m.MinCommitGB){throw 'LIFECYCLE_MEMORY_BUFFER_NOT_READY_NO_FINISH_STARTED'}
+    $headroom=[ordered]@{Utc=[DateTime]::UtcNow.ToString('o');PhysicalGB=[Math]::Round($memory.FreePhysicalMemory/1MB,2);CommitGB=[Math]::Round($memory.FreeVirtualMemory/1MB,2);RealJournal=$journal;JournalBeforeSHA256=(Get-FileHash -LiteralPath $journal).Hash;KeepAwake=$awake}
     Write-Evidence 'launch-resources.json' $headroom
     if($record.Status-cne'In Progress'-or$record.Checkpoint['Resume Step']-cne'DONE'-or@(Invoke-RootGit @('status','--porcelain','--untracked-files=all')).Count){throw 'LIFECYCLE_CLEAN_DONE_REQUIRED'}
     if((Get-FileHash -LiteralPath $m.Actionlint).Hash-cne(Get-WorkbenchCITool).SHA256){throw 'LIFECYCLE_PINNED_ACTIONLINT_REQUIRED'}

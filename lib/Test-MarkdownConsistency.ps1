@@ -190,7 +190,7 @@ function Test-MarkdownConsistency([string]$Root,[string]$Tree='Working'){
     $files=[Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal)
     foreach($path in $inputs.Keys){if($path-match '(?i)\.md$'){$files.Add($path,$inputs[$path])}else{$tools[$path]=$inputs[$path]}}
     # Byte budgets after CRLF to LF: WORKSPACE-LAYOUT.md section 19.
-    $budgets=@{'AGENTS.md'=1536;'README.md'=8192;'RESUME.md'=900;'HANDOFF.md'=4500;'WORKFLOW.md'=20300;'docs/DECISIONS.md'=40960}
+    $budgets=@{'AGENTS.md'=1536;'README.md'=8192;'RESUME.md'=900;'HANDOFF.md'=4500;'WORKFLOW.md'=20300;'docs/DECISIONS.md'=49152}
     $active=$MarkdownActive
     $index='docs/history/README.md'
     foreach($path in @($budgets.Keys)+$active+$index){if(!$files.ContainsKey($path)){throw "MD_ROOT_MISSING: $path"}}

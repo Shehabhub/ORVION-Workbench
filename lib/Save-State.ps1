@@ -280,13 +280,15 @@ $copies+=@(Get-ContinuityFile $folder "sb/$(Split-Path $folder -Leaf)" 's','t','
 $continuity=Join-Path $Vault 'continuity';$stage="$continuity.new";$previous="$continuity.old"
 # A stop between the two moves below leaves continuity.old as the only whole copy: it is restored, never deleted (F1).
 if(!(Test-Path -LiteralPath $continuity)-and(Test-Path -LiteralPath $previous)){[IO.Directory]::Move($previous,$continuity)}
-foreach($path in $stage,$previous){if(Test-Path -LiteralPath $path){[IO.Directory]::Delete($path,$true)}}
+# Git object files copied from nested clones are read-only, and Directory.Delete refuses them (2026-11-07).
+function Remove-Copy([string]$Path){Get-ChildItem -LiteralPath $Path -Recurse -Force -File|Where-Object IsReadOnly|ForEach-Object{$_.IsReadOnly=$false};[IO.Directory]::Delete($Path,$true)}
+foreach($path in $stage,$previous){if(Test-Path -LiteralPath $path){Remove-Copy $path}}
 foreach($copy in $copies){$target=Join-Path $stage $copy[0];[void][IO.Directory]::CreateDirectory((Split-Path $target -Parent));[IO.File]::Copy($copy[1],$target)}
 $differ=@(foreach($copy in $copies){if((Get-FileHash -LiteralPath $copy[1]).Hash-cne(Get-FileHash -LiteralPath (Join-Path $stage $copy[0])).Hash){$copy[0]}})
-if($differ.Count){[IO.Directory]::Delete($stage,$true);throw "SAVE_CONTINUITY_MISMATCH: $($differ-join', ')"}
+if($differ.Count){Remove-Copy $stage;throw "SAVE_CONTINUITY_MISMATCH: $($differ-join', ')"}
 if(Test-Path -LiteralPath $continuity){[IO.Directory]::Move($continuity,$previous)}
 [IO.Directory]::Move($stage,$continuity)
-if(Test-Path -LiteralPath $previous){[IO.Directory]::Delete($previous,$true)}
+if(Test-Path -LiteralPath $previous){Remove-Copy $previous}
 
 $ask=if($Question.Count){' Open owner questions: '+(@($Question|ForEach-Object{Format-Clause $_})-join' ')}else{''}
 # The two pasted lines carry only the first sentence of Next; NOW.md holds the whole step. Ceiling: an abbreviation such

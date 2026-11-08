@@ -231,7 +231,7 @@ Minimum Commit GB: 0.001
     $words=[ordered]@{Rows=$rowsFile;ResidualLog='Residual: none.';Notes='Reviewed {{Suites}} suites, receipt {{Receipt}}.';Boundaries='Fixture only.'}
     Write-Json $manifest ([ordered]@{Workstream='WS-999';Packet=$packet;Draft=$draft;DraftSHA256=$draftSha;Baseline=$baseline;Contract='changes/WS-999-fixture.md'
         Judge=(Join-Path $packet 'accepted\Test-WorkbenchChange.ps1');JudgeSHA256=$judgeSha;JudgeSource=$trusted;Original=$original;OriginalRemote='^https://fixture\.invalid/original\.git$';Sandbox=$sandbox;RuntimeRoot=$runtimeRoot
-        HostExe=$hostExe;HostSHA256=(Get-FileHash -LiteralPath $hostExe).Hash;HostVersion=$PSVersionTable.PSVersion.ToString();Actionlint=$actionlint;RealData=$realData;MinPhysicalGB=0.001;MinCommitGB=0.001
+        HostExe=$hostExe;HostSHA256=(Get-FileHash -LiteralPath $hostExe).Hash;HostVersion=$PSVersionTable.PSVersion.ToString();Actionlint=$actionlint;RealData=$realData
         ProtectedRoots=@($original,$other);Closures=@([ordered]@{Root=$closureRoot;Manifest=$closureManifest;SHA256=(Get-FileHash -LiteralPath $closureManifest).Hash})
         Approval=[ordered]@{Sandbox=$approvalSandbox;Original=$approvalOriginal}
         OriginalApprovalTemplate='Approved {{DraftSHA256}} of {{Draft}} for {{Root}} at {{Baseline}}; sandbox {{Sandbox}} head {{SandboxHead}} receipt {{Receipt}} proof {{Proof}} {{ProofSHA256}} fingerprint {{Fingerprint}} recipe {{Recipe}} evaluator {{Evaluator}}.'
@@ -301,7 +301,6 @@ Minimum Commit GB: 0.001
     Test-Refused 'a second implementation is refused' Sandbox implement 'LIFECYCLE_APPROVED_STATE_REQUIRED'
     Test-Refused 'another host version is refused' Sandbox finish 'LIFECYCLE_PINNED_HOST_REQUIRED' -With (New-Variant {param($v)$v.HostVersion='0.0.0'})
     Test-Refused 'a missing real journal is refused' Sandbox finish 'LIFECYCLE_REAL_JOURNAL_REQUIRED' -With (New-Variant {param($v)$v.RealData=(Join-Path $root 'none')})
-    Test-Refused 'too little memory starts no Finish' Sandbox finish 'LIFECYCLE_MEMORY_BUFFER_NOT_READY_NO_FINISH_STARTED' -With (New-Variant {param($v)$v.MinPhysicalGB=1000000})
     Test-Refused 'Finish on a dirty root is refused' Sandbox finish 'LIFECYCLE_CLEAN_DONE_REQUIRED' -Edit {Write-Crlf (Join-Path $sandbox 'stray.txt') "x`n"}
     $wrongLint=Join-Path $root 'other-lint.exe';Write-Crlf $wrongLint 'other'
     Test-Refused 'another actionlint is refused' Sandbox finish 'LIFECYCLE_PINNED_ACTIONLINT_REQUIRED' -With (New-Variant {param($v)$v.Actionlint=$wrongLint})
@@ -311,6 +310,7 @@ Minimum Commit GB: 0.001
     Test-Refused 'a second Finish is refused without a blind retry' Sandbox finish 'LIFECYCLE_ONE_FINISH_ALREADY_STARTED_NO_BLIND_RETRY'
     foreach($name in @('operation.json','run-result.json','finish.log')+@('runner','watcher','host'|ForEach-Object{"finish-$_.log","finish-$_.stderr.log","finish-$_.exit"})){Remove-Item -LiteralPath (Join-Path $sandboxRuntime $name) -Force}
     Test-Pass Sandbox finish 'ONE SANDBOX FINISH STARTED'
+    Check 'a Finish holds the machine awake and records it' ((Read-Json (Join-Path $sandboxRuntime 'launch-resources.json')).KeepAwake-eq$true)
     Check 'the real journal is reported unchanged' ((Read-Json (Join-Path $sandboxRuntime 'run-result.json')).RealJournalUnchanged-eq$true)
 
     $runResult=Join-Path $sandboxRuntime 'run-result.json';$finishLog=Join-Path $sandboxRuntime 'finish.log'

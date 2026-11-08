@@ -171,7 +171,7 @@ function Add-DecisionBytes([string]$Text,[int]$Limit){
     }
     return $Text
 }
-$budgetLimits=@{'AGENTS.md'=1536;'README.md'=8192;'RESUME.md'=900;'HANDOFF.md'=4500;'WORKFLOW.md'=20300;'docs/DECISIONS.md'=40960}
+$budgetLimits=@{'AGENTS.md'=1536;'README.md'=8192;'RESUME.md'=900;'HANDOFF.md'=4500;'WORKFLOW.md'=20300;'docs/DECISIONS.md'=49152}
 $cases['atBudgets']=@('',{param($directory)
     foreach($budgetPath in $budgetLimits.Keys){
         $text=[IO.File]::ReadAllText((Join-Path $directory $budgetPath))

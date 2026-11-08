@@ -403,14 +403,14 @@ History: D14, D22, D25, D71, D77, D123
 
 Two jobs run at once where it is safe: light work, or two Codex reviews. Codex never runs beside a heavy job (a
 Finish, a full suite, a package build, a restore). Heavy runs are watched by one Watch-Host; COMMIT LOW means
-applying the owning run's recovery policy, never killing unrelated work. A Finish launch keeps the native minimum of
-3 GB free commit (enforced by Assert-WorkbenchContextRuntime -ResourceCheck) and the launch scripts' 5 GB physical
-buffer; no task script adds a larger free-commit buffer.
+applying the owning run's recovery policy, never killing unrelated work. A Finish keeps only the memory floors of its
+Draft's Execution Context (enforced by Assert-WorkbenchContextRuntime -ResourceCheck); no launch script or manifest
+adds one, and the lifecycle holds the machine awake while a Finish runs.
 
 Scope: every heavy run and every parallel job.
-Why: the host has limited memory; a starved Finish fails for reasons unrelated to the candidate.
-Changed: 2026-10-31
-History: D21, D25, D30, D86
+Why: the host has limited memory; a starved or sleeping Finish fails for reasons unrelated to the candidate.
+Changed: 2026-11-08
+History: D21, D25, D30, D86, D127
 
 ## DEC-25 Release and promotion
 

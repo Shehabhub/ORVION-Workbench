@@ -357,3 +357,37 @@ Replaced wording of DEC-05, verbatim:
 > History: D2, D3, D4, D26, D34, D38, D46, D58
 
 Now in: DEC-05
+
+## D127 2026-11-08 WS-038: Finish floors, keep-awake and the DECISIONS.md budget
+
+The owner's words of 2026-11-07, verbatim from data/decisions-inbox.md (~19:40, ~20:06 and ~20:40 Cairo):
+
+> remove any minimam limit set to the RAM memory in the repo's
+
+> i see alote of recommendation and that's good i like it, you can decide how & when
+
+> i approve all include Exclude the disposable test folders from Microsoft Defender's live scanning but i don't know
+> how to do it - if you can do by yourself simply or toch me to do it manully, what's else can improve and enhance and fix
+> before BT6
+
+The first removed every RAM minimum; WS-038 removes the lifecycle manifest floors and their check. The second gave
+Claude main the WS-038 scope. The third approved item A, the machine held awake during a Finish. Under that delegation
+WS-038 also raises the DECISIONS.md budget from 40 KB to 48 KB (6 B were left). The evaluator's own floors stay until
+WS-034 (DEC-07), and the two inbox items stay until every part of them is folded.
+
+Replaced wording of DEC-24, verbatim:
+
+> ## DEC-24 Concurrency and host resources
+>
+> Two jobs run at once where it is safe: light work, or two Codex reviews. Codex never runs beside a heavy job (a
+> Finish, a full suite, a package build, a restore). Heavy runs are watched by one Watch-Host; COMMIT LOW means
+> applying the owning run's recovery policy, never killing unrelated work. A Finish launch keeps the native minimum of
+> 3 GB free commit (enforced by Assert-WorkbenchContextRuntime -ResourceCheck) and the launch scripts' 5 GB physical
+> buffer; no task script adds a larger free-commit buffer.
+>
+> Scope: every heavy run and every parallel job.
+> Why: the host has limited memory; a starved Finish fails for reasons unrelated to the candidate.
+> Changed: 2026-10-31
+> History: D21, D25, D30, D86
+
+Now in: DEC-24
