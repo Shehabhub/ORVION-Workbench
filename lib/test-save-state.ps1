@@ -8,6 +8,8 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'remove-owned.ps1')
 $parent=if($env:WORKBENCH_TEST_ROOT){$env:WORKBENCH_TEST_ROOT}else{$env:TEMP}
 if(![IO.Path]::IsPathFullyQualified($parent)){throw 'SAVE_TEST_ROOT_REQUIRED'}
+# Get-Item expands a short (8.3) TEMP such as C:\Users\MYLAB~1 to the long names Save-State's -Check prints.
+[void][IO.Directory]::CreateDirectory($parent);$parent=(Get-Item -LiteralPath $parent).FullName
 $scratch=Join-Path $parent ('ss-'+[guid]::NewGuid().ToString('N').Substring(0,8))
 [void][IO.Directory]::CreateDirectory($scratch)
 $checkout=Split-Path $PSScriptRoot -Parent;$script:passed=0;$nl=[string][char]10
@@ -163,6 +165,25 @@ $cases=[ordered]@{
         $old=[IO.Path]::Combine($f.Vault,'continuity.old','kept');[void][IO.Directory]::CreateDirectory($old);[IO.File]::WriteAllText((Join-Path $old 'a.txt'),'last whole copy')
         $injected=New-MismatchSave 'restoreInjected';$kept=[IO.Path]::Combine($f.Vault,'continuity','kept','a.txt')
         try{$null=Invoke-Save $f $first $injected}finally{Assert-Save ((Test-Path -LiteralPath $kept)-and!(Test-Path -LiteralPath (Join-Path $f.Vault 'continuity.old'))-and[IO.File]::ReadAllText($kept)-ceq'last whole copy') 'the leftover continuity.old was not restored'}})
+    planStore=@('',{$f=New-SaveFixture 'store';$plan=Join-Path $f.Temporary 'PLAN-elsewhere.md';[IO.File]::WriteAllText($plan,$planText)
+        $null=Invoke-Save $f @{Workstream='WS-034';Plan=$plan};$w34=[IO.Path]::Combine($f.Temporary,'sb','W34')
+        Assert-Save ([IO.File]::ReadAllText((Join-Path $w34 'plan.txt'))-ceq$plan) 'a given plan starts a new workstream folder and is remembered'
+        $null=Invoke-Save $f @{Operation='op 2'}
+        Assert-Save (@((Get-SaveText $f '../W34/LOG.md').Split($nl)|Where-Object{$_.StartsWith('- ')}).Count-eq2) 'the remembered plan serves the next save'
+        [void][IO.Directory]::CreateDirectory([IO.Path]::Combine($f.Temporary,'sb','W35'));$null=Invoke-Save $f @{Workstream='WS-035'}
+        Assert-Save (Test-Path -LiteralPath ([IO.Path]::Combine($f.Temporary,'sb','W35','status.html'))) 'the previous workstream plan serves a folder without one'})
+    evidenceSplit=@('',{$f=New-SaveFixture 'split';$null=Invoke-Save $f ($first+@{Evidence=@('lib/README.md, lib/Save-State.ps1')})
+        Assert-Save ((Get-SaveText $f 'NOW').Contains("Evidence:$nl- lib/README.md$nl- lib/Save-State.ps1$nl")) 'a comma-joined Evidence string is split'})
+    moveRetry=@('',{$f=New-SaveFixture 'retry';$null=Invoke-Save $f $first;$held=Join-Path $f.Vault 'continuity/data/work/NOW.md'
+        # A child process holds one file of the continuity copy open, as OneDrive does, for the seconds given.
+        $hold={param([int]$Seconds)$ready=Join-Path $scratch ('held-'+[guid]::NewGuid().ToString('N'))
+            $child=Start-Process pwsh -PassThru -WindowStyle Hidden -ArgumentList @('-NoProfile','-Command',"`$s=[IO.File]::Open('$held','Open','Read','Read');[IO.File]::WriteAllText('$ready','');Start-Sleep -Seconds $Seconds;`$s.Dispose()")
+            while(!(Test-Path -LiteralPath $ready)){if($child.HasExited){throw 'SAVE_TEST_HOLD_FAILED'};Start-Sleep -Milliseconds 100};$child}
+        $child=& $hold 3;try{$null=Invoke-Save $f @{Operation='op 2'}}finally{$child.WaitForExit()}
+        Assert-Save ([IO.File]::ReadAllText($held).Contains('op 2')) 'held for 3 s, the save waits and completes'
+        $whole=(Get-FileHash -LiteralPath $held).Hash;$failed=$false;$child=& $hold 15
+        try{$null=Invoke-Save $f @{Operation='op 3'}}catch{$failed=$true}finally{$child.WaitForExit()}
+        Assert-Save ($failed-and(Get-FileHash -LiteralPath $held).Hash-ceq$whole) 'held past five tries, the save fails and continuity stays whole'})
 }
 try{
     foreach($caseName in $cases.Keys){
@@ -176,7 +197,7 @@ try{
         $source=[IO.File]::ReadAllText($SaveState)
         $mutants=[ordered]@{
             workstreamRequired="throw 'SAVE_WORKSTREAM_REQUIRED'";workstreamFormat='throw "SAVE_WORKSTREAM_FORMAT: $Workstream"'
-            folderMissing='throw "SAVE_WORKSTREAM_FOLDER_MISSING: $folder"';evidenceMissing='throw "SAVE_EVIDENCE_MISSING: $path"'
+            folderMissing='throw "SAVE_WORKSTREAM_FOLDER_MISSING: $folder; give -Plan to start it"';evidenceMissing='throw "SAVE_EVIDENCE_MISSING: $path"'
             guardRefusal='$guarded=Test-NowMarkdown $Checkout $text'
             vaultMissing='throw "SAVE_VAULT_MISSING: $Vault"';planMissing='throw "SAVE_PLAN_MISSING: $Plan"'
             planCodeSpan='throw "SAVE_PLAN_CODE_SPAN: $s"';planTableUnreadable='throw "SAVE_PLAN_TABLE_UNREADABLE: $where"'
@@ -188,7 +209,10 @@ try{
             planSection7="throw 'SAVE_PLAN_SECTION_7_TABLE'";planSection7Table="throw 'SAVE_PLAN_SECTION_7_TABLE'";planSection7Header="throw 'SAVE_PLAN_SECTION_7_HEADER'"
             planBatchNoSteps='throw "SAVE_PLAN_BATCH_NO_STEPS: $($t7.Rows[$r][0])"';planBatchStep='throw "SAVE_PLAN_BATCH_STEP: $id"';planStepNoBatch='throw "SAVE_PLAN_STEP_NO_BATCH: $id"'
             planStepColumn='throw "SAVE_PLAN_STEP_COLUMN: $($Entry.Row[0]) has no $Like column"'
-            continuityRestore='if(!(Test-Path -LiteralPath $continuity)-and(Test-Path -LiteralPath $previous)){[IO.Directory]::Move($previous,$continuity)}'
+            continuityRestore='if(!(Test-Path -LiteralPath $continuity)-and(Test-Path -LiteralPath $previous)){Move-Folder $previous $continuity}'
+            planStore='$Plan=[IO.File]::ReadAllText($store).Trim();break'
+            evidenceSplit='$Evidence=@($Evidence|ForEach-Object{$_-split'',''}|ForEach-Object{$_.Trim()}|Where-Object{$_})'
+            moveRetry='Start-Sleep -Seconds 2'
             continuityMismatch='if($differ.Count){Remove-Copy $stage;throw "SAVE_CONTINUITY_MISMATCH: $($differ-join'', '')"}'
             readOnlyCopy='$_.IsReadOnly=$false'
         }

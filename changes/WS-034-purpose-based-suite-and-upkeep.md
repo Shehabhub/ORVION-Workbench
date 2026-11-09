@@ -883,7 +883,7 @@ Apply the literal file steps with the accepted baseline lib/apply-draft-steps.ps
 
 ## Runtime Checkpoint
 
-Resume Step: 1
+Resume Step: DONE
 Blocker: None
 Recovery Attempt: 0
 
@@ -897,6 +897,7 @@ Owner Evidence SHA256: C0ACFDACFC48B4276DD7714F5039A2CBCDD75758A328C6AD8500A8990
 Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
 Sandbox Receipt: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench-temporary\sb\W34\runtime\sandbox\own-finish-receipt.json
 Sandbox Receipt SHA256: E37BC7030024F243883D08AF7AA539EACAAE8165EE5F5394B997AB54D1B49803
+Original exact declared outputs applied by accepted native Execute; fresh own Finish and Review/Complete remain required. Other protected roots unchanged. Controller: data/records/WS-034/controller copy of the baseline lifecycle with one line conditional (self-review F-1): the live evaluator is checked to its declared output blob e0bf56b, not to the accepted judge it replaces; the judge and native Workbench.ps1 keep every authority.
 
 ## Verification Notes
 

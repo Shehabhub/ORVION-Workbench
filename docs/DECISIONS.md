@@ -111,17 +111,21 @@ Why: one workstream that fixes the method and the layout before the Lift.
 Changed: 2026-10-31
 History: D83, D87, D88, D91, D94, D95, D97, D99, D101
 
-## DEC-07 WS-034 purpose-based local suite
+## DEC-07 Purpose-based local suite and the TEMP bound
 
-WS-034 changes the accepted evaluator once, through the full method: the local Finish runs the always-on checks plus
-the tests that own the changed files; the full suite still runs on GitHub before main moves; the Execution Context
-also bounds TEMP (at most 97 characters, with a Tests Root of at most 101; the evaluator does not check this today).
-Its release sets the new evaluator pin. Accepted cost: a break in another area shows first on GitHub.
+The local Finish runs the always-on tests (test-workbench-governance, test-markdown-consistency,
+test-workspace-layout) plus every test that owns a Write Scope path: the test is itself in scope, or its text names the
+path's file name. It runs the full schedule instead when a scoped script (.ps1, .psm1, .mjs, .js, .json) has no owning
+test or the scope holds a CONTROL path other than RESUME.md. The CI recipe always runs the full schedule, so GitHub runs
+every test before main moves, and the recipe digest covers the selected list, so a receipt binds what ran. The
+Execution Context keeps Temp Root at most 93 characters (TEMP at most 97) and Tests Root at most 101; the evaluator's
+CI fixture floors are 0.001 GB, as the owner removed every RAM minimum. Accepted cost: a break in another area shows
+first on GitHub.
 
-Scope: WS-034, deferred until after the Owner Lift.
+Scope: every Workbench Finish after the WS-034 release, which sets the new evaluator pin.
 Why: about 20 minutes saved per workstream, while GitHub keeps the full suite.
-Changed: 2026-11-07
-History: D95, D96, D123
+Changed: 2026-11-09
+History: D95, D96, D123, D128
 
 ## DEC-08 Two working folders and one backup copy
 
@@ -414,20 +418,20 @@ History: D21, D25, D30, D86, D127
 
 ## DEC-25 Release and promotion
 
-Workbench: one push per workstream, at its end, after its native checks, through the existing release procedure
-(lib/README "Explicit dual owner operations", ruleset 'Workbench Main Protection'). Each push is one ordinary non-force
-push of an exact candidate to an exact ref after fresh actor, destination, ref, ancestry and protection checks, under
-its own DELEGATED publication or promotion record, never an earlier one; main moves only after hosted success on that
-exact head; a failure stops, with no automatic retry. WS-033's release (step P6.2) carries the whole range WS-027,
-WS-028 and WS-033 from main 4173639; the 12 WS-027 and WS-028 commits wait on workbench-preflight (f06a2b1), where
-hosted acceptance failed on 2026-10-31. CRM and ORVION: the owner wrapper's interactive confirmation is never
-emulated; running their native publish and promote engines directly needs a one-time owner authorization naming the
-exact SPECs, with every gate kept.
+Workbench: one push per workstream, at its end, after its native checks, through the existing release procedure (lib/README "Explicit dual owner operations", ruleset 'Workbench Main Protection').
+Each push is one ordinary non-force push of an exact candidate to an exact ref after fresh actor, destination, ref, ancestry and protection checks, under its own DELEGATED publication or promotion
+record, never an earlier one; main moves only after hosted success on that exact head; a failure stops, with no automatic retry. WS-033's release (step P6.2) carries the whole range WS-027, WS-028
+and WS-033 from main 4173639; the 12 WS-027 and WS-028 commits wait on workbench-preflight (f06a2b1), where hosted acceptance failed on 2026-10-31. CRM and ORVION: the owner wrapper's interactive
+confirmation is never emulated; running their native publish and promote engines directly needs a one-time owner authorization naming the exact SPECs, with every gate kept. Batch 6 class (owner
+2026-11-08): a Batch 6 SPEC in CRM or ORVION may go through its product's native publish, promote and hosted-deploy engines without the owner's words for that SPEC when it passed every native gate
+(Approve, the readiness gate, a Finish with its own receipt), hosted parity is proved after the deploy, each run has its own DELEGATED record naming that exact SPEC, the wrapper's confirmation is
+not emulated and a failure stops with no automatic retry. Outside the class, each needing the owner's own words: a migration that drops a table or column or deletes or rewrites existing rows, and
+a SPEC whose product AGENTS or ADRs demand them (DEC-08).
 
 Scope: every push, publication and promotion.
 Why: each release is earned on its exact head and authorized on its own.
-Changed: 2026-10-31
-History: D15, D16, D29, D30, D45, D51, D52, D53, D59, D60, D90, D92, D93, D94
+Changed: 2026-11-09
+History: D15, D16, D29, D30, D45, D51, D52, D53, D59, D60, D90, D92, D93, D94, D128
 
 ## DEC-26 Save and compact
 
@@ -552,9 +556,9 @@ History: D99, D106
 9. Test before trust: real conditions, not proxies; a high-risk change also gets a check its author did not write.
 10. Evidence before claims: each claim names its source version, command and artifact; PROVEN, UNPROVEN or HYPOTHESIS.
 11. One home: define once, reference everywhere; the repository is the memory; save at each verified boundary.
-12. Nothing open is lost: a found error, gap or question is fixed now or recorded with its owner and trigger; finish before expanding.
+12. Fix, never skip: fix each error, gap or failed check at its root now; defer only out-of-scope, unsafe or owner fixes (owner, trigger); lesson each mistake, guard a repeat; finish before expanding.
 
 Scope: every agent and all work on ORVION and the Workbench; a rule adds care, never overrides a ratified contract, approval or native gate, and never reorders an approved workstream.
 Why: the owner asked for the rules examined and the best form adopted; 31 overlapped, and a rule no agent can hold in mind does not bind.
-Changed: 2026-11-02
-History: D112, D110
+Changed: 2026-11-09
+History: D112, D110, D128

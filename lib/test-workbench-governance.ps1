@@ -8,6 +8,8 @@ $testParent=if($env:WORKBENCH_TEST_ROOT){[IO.Path]::GetFullPath($env:WORKBENCH_T
 [void][IO.Directory]::CreateDirectory($testParent)
 $ownedRoot=Join-Path $testParent ('orvion-wb-governance-'+[guid]::NewGuid().ToString('N'))
 [void][IO.Directory]::CreateDirectory($ownedRoot)
+# The fixture Temp Root sits beside the owned root: under it, it would exceed the 93-character Temp Root bound.
+$fixtureTemp=Join-Path $testParent ('wbt'+$ownedRoot.Substring($ownedRoot.Length-8))
 $observations=[Collections.Generic.List[object]]::new()
 $failures=0
 $caseNumber=0
@@ -382,6 +384,7 @@ function Test-CICapability {
     $ciRuntime=Join-Path $testParent ('ci-'+[guid]::NewGuid().ToString('N').Substring(0,8))
     $ciRecipe=Get-WorkbenchCIRecipe $ciRoot $ciHead $ciRuntime
     Assert-Fixture 'CI recipe binds full candidate, ordered tests, runtime and evaluator inputs' ($ciRecipe.Material.candidate-ceq$ciHead-and$ciRecipe.Material.schedule.tests.Count-eq1-and@($ciRecipe.Material.schedule.inputs|Where-Object{$_.Path-ceq'lib/Test-WorkbenchChange.ps1'}).Count-eq1)
+    Assert-Fixture 'CI context keeps no RAM floor (owner 2026-11-07)' ($ciRecipe.Context['Minimum Physical GB']-ceq'0.001'-and$ciRecipe.Context['Minimum Commit GB']-ceq'0.001')
     Assert-CIRefusal 'CI refuses stale candidate SHA' {Get-WorkbenchCIRecipe $ciRoot ('0'*40) $ciRuntime} '^WB_CI_CANDIDATE_MISMATCH$'
     Assert-CIRefusal 'CI refuses overlapping runtime root' {Get-WorkbenchCIRecipe $ciRoot $ciHead $ciRoot} '^WB_CI_RUNTIME_OVERLAP$'
     Assert-CIRefusal 'CI refuses forged direct parent context' {Assert-WorkbenchCISuiteParent $ciRoot $ciHead $ciRuntime $ciRecipe.Digest $PID} '^WB_CI_SUITE_PARENT_REQUIRED$'
@@ -482,7 +485,7 @@ function Test-CICapability {
 if($CIOnly){
     try{Test-CICapability}catch{$failures++;"FAIL CI fixture: $($_.Exception.Message)"}
     if($env:WORKBENCH_TEST_EVIDENCE){Write-FixtureFile $env:WORKBENCH_TEST_EVIDENCE ($observations|ConvertTo-Json -Depth 7)}
-    if($failures-eq0){$null=Remove-OrvionOwnedTree $ownedRoot @($testParent)}else{"PRESERVED_FIXTURES: $ownedRoot"}
+    if($failures-eq0){$null=Remove-OrvionOwnedTree $ownedRoot @($testParent);$null=Remove-OrvionOwnedTree $fixtureTemp @($testParent)}else{"PRESERVED_FIXTURES: $ownedRoot $fixtureTemp"}
     "WORKBENCH CI OWNING CHECK: $failures failed";exit [int]($failures-gt0)
 }
 try {
@@ -549,7 +552,7 @@ Every other engineering path and all real roots.
 Original Root: $(Join-Path $testParent 'never-original')
 Sandbox Parent: $ownedRoot
 Tests Root: $(Join-Path $testParent 'child-tests')
-Temp Root: $(Join-Path $ownedRoot 'execution-temp')
+Temp Root: $fixtureTemp
 Runtime Root: $(Join-Path $ownedRoot 'execution-runtime')
 PowerShell Version: $($PSVersionTable.PSVersion.ToString())
 Git Version: $((Invoke-FixtureGit $seed @('--version')).Output[0])
@@ -591,6 +594,46 @@ Fixture only.
     Assert-Fixture 'actual hook admits a Draft allocation' ($draftCommit.Exit-eq0)
     $discoveryRecipe=Get-WorkbenchRecipe $draftRoot 'HEAD' (Get-WorkbenchFields $text)
     Assert-Fixture 'recipe retains the existing Windows uppercase-extension test discovery' (@($discoveryRecipe.Material.tests)-ccontains'lib/test-case-extension.PS1')
+    # DEC-07 selection (WS-034), in its own small repository so the always-on, owning and unowned cases are exact.
+    $selRoot=Join-Path $ownedRoot 'selection';[void][IO.Directory]::CreateDirectory($selRoot)
+    $null=Invoke-FixtureGit $selRoot @('init','--quiet')
+    foreach($setting in @(@('user.name','Fixture'),@('user.email','fixture@invalid.local'),@('core.hooksPath','.git/hooks'),@('core.autocrlf','true'))){$null=Invoke-FixtureGit $selRoot @('config','--local',$setting[0],$setting[1])}
+    foreach($relative in 'tests.ps1','lib/Workbench.ps1','lib/run_timed.ps1','lib/Events.ps1','lib/Hunt.ps1'){Write-FixtureFile (Join-Path $selRoot $relative) ('# fixture'+[char]10)}
+    foreach($pair in @(@('lib/test-workbench-governance.ps1','# always-on'),@('lib/test-save-state.ps1','# owns Save-State.ps1'),@('lib/test-other.ps1','# owns Other.ps1'))){Write-FixtureFile (Join-Path $selRoot $pair[0]) ($pair[1]+[char]10)}
+    $null=Invoke-FixtureGit $selRoot @('add','.')
+    $null=Invoke-FixtureGit $selRoot @('commit','--quiet','-m','Selection fixture')
+    $selHead=(Invoke-FixtureGit $selRoot @('rev-parse','HEAD')).Output[0]
+    $selContext=(Get-WorkbenchFields $text).Sections['Execution Context']
+    $selCIRuntime=Join-Path $testParent ('cs-'+[guid]::NewGuid().ToString('N').Substring(0,8))
+    $selFull='lib/test-other.ps1,lib/test-save-state.ps1,lib/test-workbench-governance.ps1'
+    $selectFor={param([string[]]$Scope)(@((Get-WorkbenchRecipe $selRoot $selHead ([pscustomobject]@{Sections=@{'Execution Context'=$selContext;'Write Scope'=(@($Scope|ForEach-Object{'- '+$_})-join[char]10)}})).Material.tests)-join',')}
+    $selectCI={(@((Get-WorkbenchCIRecipe $selRoot $selHead $selCIRuntime).Material.schedule.tests)-join',')}
+    Assert-Fixture 'selection runs the always-on tests plus the owner of a scoped path' ((& $selectFor @('RESUME.md','lib/Save-State.ps1','docs/notes.md'))-ceq'lib/test-save-state.ps1,lib/test-workbench-governance.ps1')
+    Assert-Fixture 'selection runs everything for a scoped script no test names' ((& $selectFor @('RESUME.md','lib/Unowned.ps1'))-ceq$selFull)
+    Assert-Fixture 'selection runs everything for a control path' ((& $selectFor @('lib/Save-State.ps1','tests.ps1'))-ceq$selFull)
+    Assert-Fixture 'CI runs the full schedule' ((& $selectCI)-ceq$selFull)
+    # Temp Root at most 93 (TEMP is Temp Root\tmp, at most 97); Tests Root at most 101 (the range probe). Both sides.
+    $drive=[IO.Path]::GetPathRoot($testParent)
+    $contextAt={param([int]$Tests,[int]$Temp)
+        $body=[regex]::Replace($selContext,'(?m)^Tests Root: [^\n]+$',('Tests Root: '+$drive+('t'*($Tests-$drive.Length))))
+        $body=[regex]::Replace($body,'(?m)^Temp Root: [^\n]+$',('Temp Root: '+$drive+('m'*($Temp-$drive.Length))))
+        try{$null=Get-WorkbenchContext ([pscustomobject]@{Sections=@{'Execution Context'=$body}});'ACCEPTED'}catch{'THREW '+$_.Exception.Message}}
+    $tooLong='THREW WB_CONTEXT_FIXTURE_PATH_TOO_LONG'
+    Assert-Fixture 'context accepts a 101-character Tests Root and a 93-character Temp Root' ((& $contextAt 101 93)-ceq'ACCEPTED')
+    Assert-Fixture 'context refuses a 102-character Tests Root' ((& $contextAt 102 93)-ceq$tooLong)
+    Assert-Fixture 'context refuses a 94-character Temp Root' ((& $contextAt 101 94)-ceq$tooLong)
+    # Mutants: each copy of the evaluator is dot-sourced into a child scope only, and the probe must see a different result.
+    $checkerSource=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Test-WorkbenchChange.ps1'))
+    $mutantPath=Join-Path $ownedRoot 'evaluator-mutant.ps1'
+    foreach($mutant in @(
+        @('selection without the fail-closed branch',"if(!`$owners.Count-and`$path-match'\.(ps1|psm1|mjs|js|json)`$'){return `$tests}",'',{& $selectFor @('RESUME.md','lib/Unowned.ps1')},$selFull),
+        @('CI without the full schedule','$record -FullSchedule','$record',$selectCI,$selFull),
+        @('Temp Root bound off by one','-gt93){','-gt94){',{& $contextAt 101 94},$tooLong))){
+        $observed=if(!$checkerSource.Contains($mutant[1])){'MUTANT_ANCHOR_MISSING'}else{
+            Write-FixtureFile $mutantPath $checkerSource.Replace($mutant[1],$mutant[2])
+            try{& {. $mutantPath;& $mutant[3]}}catch{'THREW '+$_.Exception.Message}}
+        Assert-Fixture ('mutant killed: '+$mutant[0]) ($observed-cne'MUTANT_ANCHOR_MISSING'-and$observed-cne$mutant[4]) $observed
+    }
     $core=Invoke-FixtureChecker $seed @('-Mode','Boot')
     Assert-Fixture 'CORE Boot has no product dependency or remote' ($core.Exit-eq0-and($core.Output-join' ')-match'MODE: PLAN') $core
 
@@ -731,7 +774,7 @@ Fixture only.
 }catch{$failures++;"FAIL fixture setup or execution: $($_.Exception.Message)"}
 finally{
     if($env:WORKBENCH_TEST_EVIDENCE){Write-FixtureFile $env:WORKBENCH_TEST_EVIDENCE ($observations|ConvertTo-Json -Depth 7)}
-    if($failures-eq0){$null=Remove-OrvionOwnedTree $ownedRoot @($testParent)}else{"PRESERVED_FIXTURES: $ownedRoot"}
+    if($failures-eq0){$null=Remove-OrvionOwnedTree $ownedRoot @($testParent);$null=Remove-OrvionOwnedTree $fixtureTemp @($testParent)}else{"PRESERVED_FIXTURES: $ownedRoot $fixtureTemp"}
 }
 "WORKBENCH GOVERNANCE CHECK: $failures failed"
 exit [int]($failures-gt0)

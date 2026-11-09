@@ -427,7 +427,7 @@ function Get-OrganizeBroken{
         if($file.Rel-cnotlike'lib/test-*'){
             if($sound){try{Assert-MarkdownCitations $file.Rel $text $sections}catch{"BROKEN_CITATION $at $($_.Exception.Message)"}}
             foreach($named in [regex]::Matches($text,$token)){
-                if(($prose-or$named.Groups[1].Value-cmatch'\.\w+$')-and!(Test-OrganizeNamedPath $named.Groups[1].Value)){"BROKEN_PATH $at $($named.Groups[1].Value.TrimEnd('.'))"}
+                if((($prose-and$at-cnotlike'data:claude-memory/*')-or$named.Groups[1].Value-cmatch'\.\w+$')-and!(Test-OrganizeNamedPath $named.Groups[1].Value)){"BROKEN_PATH $at $($named.Groups[1].Value.TrimEnd('.'))"}
             }
         }
     }

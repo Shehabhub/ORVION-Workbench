@@ -196,6 +196,13 @@ exit $LASTEXITCODE
         }finally{$env:PATH=$savedPath;Remove-Item -LiteralPath $probeRecord -Force -ErrorAction Ignore}
         $env:PATH=(@($env:PATH-split';'|Where-Object{$_-and!(Test-Path -LiteralPath (Join-Path $_ 'claude.cmd'))-and!(Test-Path -LiteralPath (Join-Path $_ 'claude.exe'))-and!(Test-Path -LiteralPath (Join-Path $_ 'claude.ps1'))-and!(Test-Path -LiteralPath (Join-Path $_ 'claude'))}))-join';'
         try{Assert-That 'G15 no client has nothing to probe' ((Invoke-RecordHunt).out-cnotmatch'guard-probe-stale')}finally{$env:PATH=$savedPath}
+        # An unreadable pwsh command line (an elevated archiver) is a GAP, a missing follower with readable lines stays a BUG.
+        $arch=Join-Path $t 'archiver-probe.ps1'
+        foreach($case in @(@('unreadable','$null','GAP archiver-unverifiable','BUG archiver-down'),@('readable','''pwsh other.ps1''','BUG archiver-down','GAP archiver-unverifiable'))){
+            [IO.File]::WriteAllText($arch,"param([string]`$Hunt,[string]`$Store)`nfunction Get-Process { [pscustomobject]@{Name='claude'} }`nfunction Get-CimInstance { [pscustomobject]@{CommandLine=$($case[1])} }`n& `$Hunt -Root `$Store -DataRoot `$Store -Quick -NoRecord`n")
+            $o=(@(& pwsh -NoProfile -File $arch -Hunt (Join-Path $PSScriptRoot 'Hunt.ps1') -Store $store 2>&1|ForEach-Object{"$_"})-join"`n")
+            Assert-That "archiver with an $($case[0]) command line reports $($case[2]) only" ($o-cmatch$case[2]-and$o-cnotmatch$case[3])
+        }
         if($RecordProbeOnly){if($fail){throw 'HUNT_RECORD_PROBE_FAILED'};'HUNT_RECORD_PROBE PASS';return}
     }
     if(!$RootProbeOnly-and!$EvidenceProbeOnly){

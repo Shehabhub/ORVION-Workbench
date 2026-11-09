@@ -51,6 +51,8 @@ function Get-WorkbenchContext($record) {
     }
     $rangeProbe=Join-Path $context['Tests Root'] ('orvion-wb-governance-'+('a'*32)+'/range-counterexample/'+('a'*40)+'..'+('b'*40))
     if($rangeProbe.Length-ge260){throw 'WB_CONTEXT_FIXTURE_PATH_TOO_LONG'}
+    # TEMP is Temp Root\tmp, and a TEMP over 97 characters breaks the backup round trip (event evaluator-temp-unbounded).
+    if($context['Temp Root'].Length-gt93){throw 'WB_CONTEXT_FIXTURE_PATH_TOO_LONG'}
     if($context['PowerShell Version']-cnotmatch'^[0-9]+\.[0-9]+\.[0-9]+$'-or$context['Git Version']-cnotmatch'^git version [0-9][A-Za-z0-9.()-]+$'){throw 'WB_CONTEXT_VERSION_INVALID'}
     foreach($name in 'Minimum Physical GB','Minimum Commit GB'){
         $number=0.0
@@ -91,13 +93,31 @@ function Assert-WorkbenchContextRuntime([string]$Checkout,$context,[switch]$Reso
     }
     $role
 }
-function Get-WorkbenchRecipe([string]$Checkout,[string]$tree,$record) {
+# DEC-07: a Finish runs the always-on tests plus every test that owns a scoped path (the test itself is scoped, or its
+# text names the path's leaf). A CONTROL path, or a scoped script that no test names, runs the whole schedule. RESUME.md
+# is in every scope, so it neither selects nor forces anything.
+function Select-WorkbenchTests([string]$Checkout,[string]$tree,$record,[string[]]$tests) {
+    $scope=@(Get-WorkbenchScope $record|Where-Object{$_-cne'RESUME.md'})
+    if((Get-WorkbenchProfiles $scope)-contains'CONTROL'){return $tests}
+    $alwaysOn='lib/test-workbench-governance.ps1','lib/test-markdown-consistency.ps1','lib/test-workspace-layout.ps1'
+    $chosen=[Collections.Generic.HashSet[string]]::new([string[]]@($tests|Where-Object{$_-cin$alwaysOn}))
+    $text=@{};foreach($test in $tests){$text[$test]=Get-WorkbenchText $Checkout $tree $test}
+    foreach($path in $scope){
+        $leaf=Split-Path $path -Leaf
+        $owners=@($tests|Where-Object{$_-ceq$path-or$text[$_].IndexOf($leaf,[StringComparison]::OrdinalIgnoreCase)-ge0})
+        if(!$owners.Count-and$path-match'\.(ps1|psm1|mjs|js|json)$'){return $tests}
+        foreach($owner in $owners){[void]$chosen.Add($owner)}
+    }
+    @($tests|Where-Object{$chosen.Contains($_)})
+}
+function Get-WorkbenchRecipe([string]$Checkout,[string]$tree,$record,[switch]$FullSchedule) {
     $context=Get-WorkbenchContext $record
     if(!$context){return $null}
     $files=@(Invoke-WorkbenchGit $Checkout @('ls-tree','-r','--name-only',$tree))
     $tests=@($files|Where-Object{$_-cmatch'^lib/test-[^/]+\.(?i:ps1)$'}|Sort-Object -CaseSensitive)
     $hazards=@($files|Where-Object{$_-match'\.ps1$'-and$_-notmatch'^(sessions|events|work|\.git)/'}|Sort-Object -CaseSensitive)
     if(!$tests.Count-or$files-cnotcontains'tests.ps1'){throw 'WB_RECIPE_TEST_SCHEDULE_MISSING'}
+    if(!$FullSchedule){$tests=@(Select-WorkbenchTests $Checkout $tree $record $tests)}
     $inputs=@(foreach($path in @('tests.ps1','lib/Workbench.ps1','lib/run_timed.ps1','lib/Events.ps1','lib/Hunt.ps1')+$hazards|Select-Object -Unique){
         [ordered]@{Path=$path;Blob=@(Invoke-WorkbenchGit $Checkout @('rev-parse',"${tree}:$path"))[0]}
     })
@@ -182,9 +202,10 @@ function Get-WorkbenchCIRecipe([string]$Checkout,[string]$Candidate,[string]$Run
         if([Environment]::GetEnvironmentVariable($key,'Process')){throw 'WB_CI_GIT_ENVIRONMENT_REFUSED'}
     }
     $context=[ordered]@{'Original Root'=$Checkout;'Sandbox Parent'=(Join-Path $runtime 'unused');'Tests Root'=(Join-Path $runtime 't');'Temp Root'=(Join-Path $runtime 'tmp');'Runtime Root'=(Join-Path $runtime 'logs');
-        'PowerShell Version'=$PSVersionTable.PSVersion.ToString();'Git Version'=@(Invoke-WorkbenchGit $Checkout @('--version'))[0];'Minimum Physical GB'='1.5';'Minimum Commit GB'='3'}
+        'PowerShell Version'=$PSVersionTable.PSVersion.ToString();'Git Version'=@(Invoke-WorkbenchGit $Checkout @('--version'))[0];'Minimum Physical GB'='0.001';'Minimum Commit GB'='0.001'}
     $record=[pscustomobject]@{Sections=@{'Execution Context'=(@($context.Keys|ForEach-Object{$_+': '+$context[$_]})-join[char]10)}}
-    $baseRecipe=Get-WorkbenchRecipe $Checkout $Candidate $record
+    # GitHub runs every test before main moves (DEC-07); the record has no Write Scope, so a missing switch throws.
+    $baseRecipe=Get-WorkbenchRecipe $Checkout $Candidate $record -FullSchedule
     $material=[ordered]@{schema=1;kind='CI_TEST_ONLY';candidate=$Candidate;root=$Checkout;runtime=$runtime;schedule=$baseRecipe.Material;grammar=(Get-WorkbenchCITool);policy=(Get-WorkbenchWorkflowPolicy)}
     [pscustomobject]@{Digest=(Get-WorkbenchDigest ($material|ConvertTo-Json -Depth 20 -Compress));Material=$material;Context=$context}
 }

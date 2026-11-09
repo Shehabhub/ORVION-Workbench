@@ -128,12 +128,18 @@ try{
     Assert-Stage 'actual create caller commits exact blob under normal counted hook; no missing HEAD-object assumption' ($ok.Exit-eq0-and$ok.FileExists-and@(Read-StageGit $positive.Root @('rev-parse','HEAD:new.txt'))[0]-ceq$positive.Blob-and@(Get-Content (Join-Path $positive.Root '.git/hook.calls')).Count-eq2)
     $messages=@(Read-StageGit $positive.Root @('log','--format=%B',"$($positive.Main)..HEAD",'--'))-join"`n"
     Assert-Stage 'no invented model/coauthor attribution enters actual commits' ($messages-notmatch'Claude|Anthropic|Co-Authored-By')
+    Assert-Stage 'implement entry has no hold sentence without HoldNote' (!([IO.File]::ReadAllText((Join-Path $positive.Root 'changes/SPEC-1-probe.md')).Contains('ON HOLD')))
     Set-StubReceipt $positive;$review=Invoke-StageFixture $positive 'Test-ContractReview.ps1'
     Assert-Stage 'valid measured diagnostics pass, own CR metadata is implicitly scoped, native Gate is called once' ($review.Exit-eq0-and$review.Output-match'failures=0 unproven=0'-and@(Get-Content (Join-Path $positive.Root '.git/native.calls')|Where-Object{$_-eq'gate'}).Count-eq1)
     foreach($evidence in 'PASS','NOT APPLICABLE'){
         $approval=New-ApprovalFixture ('approval-'+$evidence.Replace(' ','-')) $evidence
+        # HoldNote is optional: the PASS fixture has none and its entry ends at the transition sentence.
+        if($evidence-eq'NOT APPLICABLE'){[IO.File]::WriteAllText($approval.Config,[IO.File]::ReadAllText($approval.Config).Replace("ApprovalNote='synthetic only'}","ApprovalNote='synthetic only';HoldNote='Toy hold stays.'}"))}
         $approved=Invoke-StageFixture $approval -Stage approve
-        Assert-Stage "actual approval caller respects native applicability $evidence" ($approved.Exit-eq0-and[IO.File]::ReadAllText((Join-Path $approval.Root 'changes/SPEC-1-probe.md')).Contains('[x] Approved')) $approved.Output
+        $approvedText=[IO.File]::ReadAllText((Join-Path $approval.Root 'changes/SPEC-1-probe.md'))
+        Assert-Stage "actual approval caller respects native applicability $evidence" ($approved.Exit-eq0-and$approvedText.Contains('[x] Approved')) $approved.Output
+        $held=$approvedText.Contains('before this transition. Toy hold stays.')
+        Assert-Stage "approval entry carries the configured HoldNote only ($evidence)" ($approvedText.Contains('before this transition.')-and$held-eq($evidence-eq'NOT APPLICABLE')-and!$approvedText.Contains('ON HOLD'))
     }
     $missing=New-ApprovalFixture 'approval-missing' 'UNREADABLE';$blocked=Invoke-StageFixture $missing -Stage approve
     Assert-Stage 'unreadable native approval evidence is not treated as approval success' ($blocked.Exit-ne0-and$blocked.Output-match'NATIVE_APPROVAL_EVIDENCE_UNREADABLE') $blocked.Output

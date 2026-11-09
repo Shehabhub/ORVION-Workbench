@@ -217,7 +217,8 @@ function Get-ContinuityFile([string]$Directory,[string]$Prefix,[string[]]$Skip=@
 if($Check){
     $staleCount=0;$stampLine='^<p class="meta">Generated '
     foreach($item in @(Get-ChildItem -Path ([IO.Path]::Combine($Temporary,'sb','W*','status.html')) -File -ErrorAction Ignore)){
-        $source=Join-Path $item.DirectoryName 'PLAN.md'
+        $source=Join-Path $item.DirectoryName 'PLAN.md';$store=Join-Path $item.DirectoryName 'plan.txt'
+        if(!(Test-Path -LiteralPath $source)-and(Test-Path -LiteralPath $store)){$source=[IO.File]::ReadAllText($store).Trim()}
         $fresh=if(Test-Path -LiteralPath $source -PathType Leaf){((ConvertTo-StatusPage $source).Html-split"`n"|Where-Object{$_-cnotmatch$stampLine})-join"`n"}
         $stored=(([IO.File]::ReadAllText($item.FullName)-replace"`r`n","`n")-split"`n"|Where-Object{$_-cnotmatch$stampLine})-join"`n"
         if($fresh-cne$stored){"GENERATED STALE: $($item.FullName)";$staleCount++}
@@ -225,17 +226,31 @@ if($Check){
     exit $(if($staleCount){1}else{0})
 }
 $old=if(Test-Path -LiteralPath $nowPath){[IO.File]::ReadAllText($nowPath)-replace"`r`n","`n"}else{''}
-if(!$Workstream){if($old-cmatch '^# NOW (WS-\d{3})\n'){$Workstream=$Matches[1]}else{throw 'SAVE_WORKSTREAM_REQUIRED'}}
+$previousWorkstream=if($old-cmatch '^# NOW (WS-\d{3})\n'){$Matches[1]}else{''}
+if(!$Workstream){if($previousWorkstream){$Workstream=$previousWorkstream}else{throw 'SAVE_WORKSTREAM_REQUIRED'}}
 if($Workstream-cnotmatch '^WS-\d{3}$'){throw "SAVE_WORKSTREAM_FORMAT: $Workstream"}
-$folder=[IO.Path]::Combine($Temporary,'sb','W'+[int]$Workstream.Substring(3))
-if(!(Test-Path -LiteralPath $folder -PathType Container)){throw "SAVE_WORKSTREAM_FOLDER_MISSING: $folder"}
+function Get-WorkstreamFolder([string]$Id){[IO.Path]::Combine($Temporary,'sb','W'+[int]$Id.Substring(3))}
+$folder=Get-WorkstreamFolder $Workstream
+# A new workstream's folder is made only with an explicit -Plan and only after every check, so a mistyped name writes nothing.
+$newFolder=!(Test-Path -LiteralPath $folder -PathType Container)
+if($newFolder-and!$Plan){throw "SAVE_WORKSTREAM_FOLDER_MISSING: $folder; give -Plan to start it"}
+# One -Evidence string joined by commas is split (ceiling: a path with a comma in it cannot be given).
+$Evidence=@($Evidence|ForEach-Object{$_-split','}|ForEach-Object{$_.Trim()}|Where-Object{$_})
 foreach($path in $Evidence){
     $full=if([IO.Path]::IsPathFullyQualified($path)){$path}else{Join-Path $Checkout $path}
     if(!(Test-Path -LiteralPath $full)){throw "SAVE_EVIDENCE_MISSING: $path"}
 }
 if(!(Test-Path -LiteralPath $Vault -PathType Container)){throw "SAVE_VAULT_MISSING: $Vault"}
-if(!$Plan){$Plan=Join-Path $folder 'PLAN.md'}
+# A given -Plan is remembered in the folder's plan.txt. Without one: the folder's PLAN.md, its plan.txt, then the
+# previous workstream's plan.txt.
+$planGiven=[bool]$Plan
+if(!$Plan){
+    $Plan=Join-Path $folder 'PLAN.md'
+    $stores=@((Join-Path $folder 'plan.txt'))+@(if($previousWorkstream){Join-Path (Get-WorkstreamFolder $previousWorkstream) 'plan.txt'})
+    if(!(Test-Path -LiteralPath $Plan)){foreach($store in $stores){if(Test-Path -LiteralPath $store -PathType Leaf){$Plan=[IO.File]::ReadAllText($store).Trim();break}}}
+}
 if(!(Test-Path -LiteralPath $Plan -PathType Leaf)){throw "SAVE_PLAN_MISSING: $Plan"}
+$Plan=(Get-Item -LiteralPath $Plan).FullName
 if(!$PSBoundParameters.ContainsKey('Question')){$Question=Get-NowItems $old 4}
 if(!$PSBoundParameters.ContainsKey('Pointer')){$Pointer=Get-NowItems $old 7}
 $Question=@($Question|Where-Object{$_-and$_.Trim()});$Pointer=@($Pointer|Where-Object{$_-and$_.Trim()})
@@ -262,6 +277,8 @@ $guarded=Test-NowMarkdown $Checkout $text
 $page=ConvertTo-StatusPage $Plan
 
 [void][IO.Directory]::CreateDirectory((Split-Path $nowPath -Parent))
+if($newFolder){[void][IO.Directory]::CreateDirectory($folder)}
+if($planGiven){[IO.File]::WriteAllText((Join-Path $folder 'plan.txt'),$Plan,$utf8)}
 [IO.File]::WriteAllText("$nowPath.tmp",$text,$utf8);[IO.File]::Move("$nowPath.tmp",$nowPath,$true)
 $log=Join-Path $folder 'LOG.md';$stamp=$utc.ToString('yyyy-MM-ddTHH:mm:ssZ')
 if(!(Test-Path -LiteralPath $log)){[IO.File]::WriteAllText($log,"# LOG $Workstream`n`nOne line per save, appended by lib/Save-State.ps1 only.`n`n",$utf8)}
@@ -279,15 +296,23 @@ $events=Join-Path $DataRoot 'events';if(Test-Path -LiteralPath $events -PathType
 $copies+=@(Get-ContinuityFile $folder "sb/$(Split-Path $folder -Leaf)" 's','t','tmp')
 $continuity=Join-Path $Vault 'continuity';$stage="$continuity.new";$previous="$continuity.old"
 # A stop between the two moves below leaves continuity.old as the only whole copy: it is restored, never deleted (F1).
-if(!(Test-Path -LiteralPath $continuity)-and(Test-Path -LiteralPath $previous)){[IO.Directory]::Move($previous,$continuity)}
+# OneDrive can hold a vault file for a moment: each folder move is tried 5 times, 2 s apart, only on IOException or
+# UnauthorizedAccessException, then the error stands (DEC-33 rule 8: bounded, fail closed).
+function Move-Folder([string]$From,[string]$To){
+    for($attempt=1;;$attempt++){
+        try{[IO.Directory]::Move($From,$To);return}
+        catch [IO.IOException],[UnauthorizedAccessException]{if($attempt-ge5){throw};Start-Sleep -Seconds 2}
+    }
+}
+if(!(Test-Path -LiteralPath $continuity)-and(Test-Path -LiteralPath $previous)){Move-Folder $previous $continuity}
 # Git object files copied from nested clones are read-only, and Directory.Delete refuses them (2026-11-07).
 function Remove-Copy([string]$Path){Get-ChildItem -LiteralPath $Path -Recurse -Force -File|Where-Object IsReadOnly|ForEach-Object{$_.IsReadOnly=$false};[IO.Directory]::Delete($Path,$true)}
 foreach($path in $stage,$previous){if(Test-Path -LiteralPath $path){Remove-Copy $path}}
 foreach($copy in $copies){$target=Join-Path $stage $copy[0];[void][IO.Directory]::CreateDirectory((Split-Path $target -Parent));[IO.File]::Copy($copy[1],$target)}
 $differ=@(foreach($copy in $copies){if((Get-FileHash -LiteralPath $copy[1]).Hash-cne(Get-FileHash -LiteralPath (Join-Path $stage $copy[0])).Hash){$copy[0]}})
 if($differ.Count){Remove-Copy $stage;throw "SAVE_CONTINUITY_MISMATCH: $($differ-join', ')"}
-if(Test-Path -LiteralPath $continuity){[IO.Directory]::Move($continuity,$previous)}
-[IO.Directory]::Move($stage,$continuity)
+if(Test-Path -LiteralPath $continuity){Move-Folder $continuity $previous}
+Move-Folder $stage $continuity
 if(Test-Path -LiteralPath $previous){Remove-Copy $previous}
 
 $ask=if($Question.Count){' Open owner questions: '+(@($Question|ForEach-Object{Format-Clause $_})-join' ')}else{''}

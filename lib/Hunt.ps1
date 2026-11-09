@@ -120,8 +120,11 @@ if($orphan){Add-Finding GAP lesson-raw-missing "$($orphan.Count) session(s) behi
 
 # live
 $agents=[bool](Get-Process -Name claude,codex -ErrorAction SilentlyContinue)
-$follower=@(Get-CimInstance Win32_Process -Filter "Name='pwsh.exe'"|Where-Object{$_.CommandLine-match'Sync-Sessions\.ps1.*-Follow'})
-if($agents-and!$follower){Add-Finding BUG archiver-down 'agents are running but no Sync-Sessions -Follow process: sessions are not being preserved' 'archiver follower down sessions'}
+$pwshProcs=@(Get-CimInstance Win32_Process -Filter "Name='pwsh.exe'")
+$follower=@($pwshProcs|Where-Object{$_.CommandLine-match'Sync-Sessions\.ps1.*-Follow'})
+$unreadable=@($pwshProcs|Where-Object{!$_.CommandLine}).Count  # an elevated process hides its command line from an unelevated window
+if($agents-and!$follower-and$unreadable){Add-Finding GAP archiver-unverifiable "agents are running and $unreadable pwsh process(es) have an unreadable command line (elevated?): the Sync-Sessions -Follow archiver cannot be verified from this window" 'archiver follower unverifiable elevated'}
+elseif($agents-and!$follower){Add-Finding BUG archiver-down 'agents are running but no Sync-Sessions -Follow process: sessions are not being preserved' 'archiver follower down sessions'}
 $us=Join-Path $env:USERPROFILE '.claude\settings.json'
 if(Test-Path $us){foreach($m in [regex]::Matches([IO.File]::ReadAllText($us),'-File \\"([^\\"]+\.ps1)\\"')){if(!(Test-Path -LiteralPath $m.Groups[1].Value)){Add-Finding BUG hook-path "a Claude hook runs a script that does not exist: $($m.Groups[1].Value)" 'hook settings path missing'}}}
 $cx=Join-Path $env:USERPROFILE '.codex\AGENTS.md'

@@ -29,7 +29,7 @@ hooks nor the journals and receipts. The engineering entry is `pwsh -NoProfile -
   Unicode and space paths stay supported.
 - New allocations need the frozen Execution Context section of changes/TEMPLATE.md: one original root, an independent
   push-disabled sandbox parent, short external test, temp and runtime roots, exact PowerShell and Git versions and an
-  explicit minimum host headroom (the TEMP bound the evaluator does not check yet: DEC-07). Unknown fields, root
+  explicit minimum host headroom (Temp Root at most 93 characters: DEC-07). Unknown fields, root
   overlap or reparse paths, the observed unsafe Windows fixture-path length, injected Git environments and changed
   managed runtime variables refuse before heavy work. The sandbox needs its own common directory, no alternates and
   disabled push, and the declared original cannot take that role. Terminal history and schema1 evidence stay as they
@@ -191,8 +191,10 @@ pwsh -NoProfile -File lib/Save-State.ps1 -Operation '<operation>' -Done '<what f
 ~~~
 
 - The first save names the workstream; later saves take it from the NOW.md title. Its folder `sb/W<NN>/` in
-  temporary must exist, made when the workstream starts (refused: `SAVE_WORKSTREAM_FOLDER_MISSING`).
-- Every evidence path exists, absolute or relative to the checkout (refused: `SAVE_EVIDENCE_MISSING`).
+  temporary is made by a save that also gives `-Plan`, after every check; without `-Plan` a missing folder is refused
+  (`SAVE_WORKSTREAM_FOLDER_MISSING`), so a mistyped name writes nothing.
+- Every evidence path exists, absolute or relative to the checkout (refused: `SAVE_EVIDENCE_MISSING`); one string
+  joined by commas is split into paths.
 - Owner questions and pointers carry over from the previous NOW.md unless given, and `-Question @()` clears them.
   Running is stated at every save (None when omitted). Now defaults to the workstream and operation with "done";
   `-Blocker` adds "BLOCKED: <text>".
@@ -200,8 +202,9 @@ pwsh -NoProfile -File lib/Save-State.ps1 -Operation '<operation>' -Done '<what f
   folded into DECISIONS.md (DEC-01), and the contract that folds it removes the item.
 - Nothing is written until three checks pass. The Markdown guard's `Test-NowMarkdown` checks the text: the budget and
   line length of WORKSPACE-LAYOUT.md section 19, the sections of section 14.2, the pointers and the citations. The vault
-  exists (refused: `SAVE_VAULT_MISSING`). The status page renders from the plan file, `sb/W<NN>/PLAN.md` unless `-Plan`
-  names another (refused: `SAVE_PLAN_MISSING`, or the `SAVE_PLAN_*` rule the plan breaks: an unbalanced code span, a
+  exists (refused: `SAVE_VAULT_MISSING`). The status page renders from the plan file: `-Plan` when given (kept in
+  `sb/W<NN>/plan.txt`), else `sb/W<NN>/PLAN.md`, that folder's `plan.txt`, then the previous workstream's `plan.txt`
+  (refused: `SAVE_PLAN_MISSING`, or the `SAVE_PLAN_*` rule the plan breaks: an unbalanced code span, a
   table it cannot read or of uneven rows, a missing title, Status line or section 3, 6 or 7, a step table not headed
   Step, a step ID used twice, section 6 without its one Rank and Step table or naming no open step, section 7 without
   its one table of batches, a batch naming no open step, an open step in no batch, a batch's step without a Do, Run by

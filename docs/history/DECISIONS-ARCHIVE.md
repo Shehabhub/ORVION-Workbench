@@ -391,3 +391,49 @@ Replaced wording of DEC-24, verbatim:
 > History: D21, D25, D30, D86
 
 Now in: DEC-24
+
+## D128 2026-11-09 WS-034: purpose-based local suite, the Batch 6 release class and rule 12
+
+The owner's words of 2026-11-08, verbatim from data/decisions-inbox.md (~10:20, ~10:35 and ~21:10 Cairo):
+
+> I grant you the authorization in accordance with the rules and principles of the constitution: an option is to
+> authorize an entire class instead.
+
+> Any failure or mistake you make can serve as a learning opportunity, helping you ensure that it does not happen again
+> and that you never fall into the same error.
+
+> Make sure the constitution rules have some rule like 'don't skip but try to fix' and enhance this rule
+
+The first authorized the Batch 6 release class with the conditions Claude main wrote down before acting; DEC-25 now
+states them. The second and third merge into DEC-33 rule 12, so the rules stay twelve. WS-034 lands DEC-07 (the
+always-on and owning tests, fail closed, CI full) and the TEMP bound, and sets the evaluator's CI floors to 0.001
+under the owner's 2026-11-07 removal of every RAM minimum (D127).
+
+Replaced wording of DEC-07, verbatim:
+
+> ## DEC-07 WS-034 purpose-based local suite
+>
+> WS-034 changes the accepted evaluator once, through the full method: the local Finish runs the always-on checks plus
+> the tests that own the changed files; the full suite still runs on GitHub before main moves; the Execution Context
+> also bounds TEMP (at most 97 characters, with a Tests Root of at most 101; the evaluator does not check this today).
+> Its release sets the new evaluator pin. Accepted cost: a break in another area shows first on GitHub.
+>
+> Scope: WS-034, deferred until after the Owner Lift.
+> Why: about 20 minutes saved per workstream, while GitHub keeps the full suite.
+> Changed: 2026-11-07
+> History: D95, D96, D123
+
+Now in: DEC-07
+
+Replaced sentence of DEC-25, verbatim (the rest of the entry stands):
+
+> CRM and ORVION: the owner wrapper's interactive confirmation is never emulated; running their native publish and
+> promote engines directly needs a one-time owner authorization naming the exact SPECs, with every gate kept.
+
+Now in: DEC-25
+
+Replaced rule 12 of DEC-33, verbatim:
+
+> 12. Nothing open is lost: a found error, gap or question is fixed now or recorded with its owner and trigger; finish before expanding.
+
+Now in: DEC-33

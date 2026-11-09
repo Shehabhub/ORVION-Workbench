@@ -9,13 +9,15 @@
 #
 # Config (.psd1): Root, Main (full baseline SHA), Id, Slug, Draft (path), Sha (Draft SHA-256), Blob (Draft
 # Git blob), User, Suffix (commit suffix), ApprovalNote (one sentence naming the owner's approval),
-# Retired (optional paths the Draft deletes), Gh (owner/repo), GhUser (account for gh, optional).
+# Retired (optional paths the Draft deletes), Gh (owner/repo), GhUser (account for gh, optional), HoldNote (optional:
+# a sentence the approve and implement entries end with; absent means none).
 param([Parameter(Mandatory)][string]$Config,
       [Parameter(Mandatory)][ValidateSet('approve','implement','review','complete','bind')][string]$Stage,[string]$EntryFile)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'lifecycle.ps1')
 . (Join-Path $PSScriptRoot 'Invoke-DraftSteps.ps1')
 $cfg=Import-PowerShellDataFile $Config
+$holdNote=if($cfg.HoldNote){' '+$cfg.HoldNote}else{''}
 $r=$cfg.Root;$Id=$cfg.Id;$ContractRel="changes/$Id-$($cfg.Slug).md";$Retired=@($cfg.Retired|Where-Object{$_})
 $log=Join-Path (Split-Path $Config -Parent) "$Id-lifecycle.log"
 function Write-Say([string]$s){$l="[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] $s";Add-Content -LiteralPath $log -Value $l -Encoding utf8;$l}
@@ -117,7 +119,7 @@ switch($Stage){
     Save-Commit "${Id}: allocate exact frozen Draft ($($cfg.Suffix))"|Out-Null
     $alloc=Invoke-RepoGit @('rev-parse','HEAD');if((Invoke-RepoGit @('rev-parse',"HEAD:$ContractRel"))-ne$cfg.Blob){throw 'ALLOCATED_BLOB_MISMATCH'}
     $t=Read-RepoText $r $ContractRel;$nl=Get-Newline $t;$t=Set-Status $t 'Draft' 'Approved'
-    $t=Add-StageEntry $t 'Verification Notes' ("### $(Get-Date -Format yyyy-MM-dd) — Gate 1 approval recorded${nl}${nl}$($cfg.ApprovalNote) Immediately before allocation the hash, the Draft blob $($cfg.Blob), all $n source anchors, the baseline HEAD $($cfg.Main) against refreshed origin/main $om and a clean checkout were revalidated, and the pre-commit allocator admitted the identity; Draft allocated as $($alloc.Substring(0,7)). No implementation performed before this transition. Batch 6 remains ON HOLD; CTRL-19 remains OPEN.")
+    $t=Add-StageEntry $t 'Verification Notes' ("### $(Get-Date -Format yyyy-MM-dd) — Gate 1 approval recorded${nl}${nl}$($cfg.ApprovalNote) Immediately before allocation the hash, the Draft blob $($cfg.Blob), all $n source anchors, the baseline HEAD $($cfg.Main) against refreshed origin/main $om and a clean checkout were revalidated, and the pre-commit allocator admitted the identity; Draft allocated as $($alloc.Substring(0,7)). No implementation performed before this transition.$holdNote")
     Write-RepoText $r $ContractRel $t;Set-Manifest 'Active Change Request' "``$ContractRel``";Update-Projections $r
     $out=(Save-Commit "${Id}: Approve exact frozen contract ($($cfg.Suffix))")-join"`n"
     # The native engine derives applicability. A REPOSITORY-only scope legitimately reports NOT APPLICABLE.
@@ -141,7 +143,7 @@ switch($Stage){
     $t=Read-RepoText $r $ContractRel;$nl=Get-Newline $t;$t=Set-Status $t 'Approved' 'In Progress'
     $lines=@("- Step 1 Applied: native recorded Gate 1 evidence names this exact Draft's SHA-256; the baseline HEAD was $($cfg.Main) and every source anchor matched there; Draft allocated as $alloc and approved as $appr with APPROVAL_EVIDENCE: PASS.")
     $i=1;foreach($f in $files.Keys){$i++;$lines+="- Step $i Applied: ``$f`` edited exactly as the step states; blob $($files[$f]) ($($num[$f]))."}
-    $lines+="- Step $($i+1) Applied: generator rerun, ``generate-ai-map.ps1 -Check`` exit 0, the staged change names only Write Scope paths. Every edit was applied literally from this contract's steps and its Git blob checked before commit. Fresh timed and watched Finish, independent Review, Complete and candidate binding remain. Batch 6 remains ON HOLD; CTRL-19 remains OPEN."
+    $lines+="- Step $($i+1) Applied: generator rerun, ``generate-ai-map.ps1 -Check`` exit 0, the staged change names only Write Scope paths. Every edit was applied literally from this contract's steps and its Git blob checked before commit. Fresh timed and watched Finish, independent Review, Complete and candidate binding remain.$holdNote"
     $e="### $(Get-Date -Format yyyy-MM-dd) — Implementation checkpoint (governed automation)${nl}${nl}Outcome: Complete (implementation steps; final verification pending)${nl}${nl}"+($lines-join$nl)
     $t=Add-StageEntry $t 'Execution Log' $e;$t=Set-Once $t "Resume Step: 1$nl" "Resume Step: DONE$nl" 'checkpoint';Write-RepoText $r $ContractRel $t
     Save-Commit "${Id}: implement the approved contract; Runtime Checkpoint DONE before timed Finish ($($cfg.Suffix))"|Out-Null
