@@ -17,12 +17,12 @@ Rules: added only through lib/Organize.ps1 or by the tool named in Reader.
 | WS-030/ | records | Summary of WS-030 recovery diagnostics successor | agents, the owner | 2026-11-04 |
 | WS-031/ | records | Summary of WS-031 native feature preflight | agents, the owner | 2026-11-04 |
 | WS-032/ | records | Summary of WS-032 deferred proposal (no change file) | agents, the owner | 2026-11-04 |
+| WS-033/ | records | Summary of WS-033 compact folders method | agents, the owner | 2026-11-12 |
 <!-- /organize:contents -->
 
 <!-- organize:changes (last 10 rows of docs/history/LOG.tsv for this folder; generated) -->
 | UTC | Action | From | To | Reason |
 | --- | --- | --- | --- | --- |
-| 2026-11-04T17:40:36Z | new | - | records/WS-022 | T10 organizer |
 | 2026-11-04T17:40:37Z | new | - | records/WS-023 | T10 organizer |
 | 2026-11-04T17:40:38Z | new | - | records/WS-025 | T10 organizer |
 | 2026-11-04T17:40:39Z | new | - | records/WS-026 | T10 organizer |
@@ -32,6 +32,7 @@ Rules: added only through lib/Organize.ps1 or by the tool named in Reader.
 | 2026-11-04T17:40:41Z | new | - | records/WS-030 | T10 organizer |
 | 2026-11-04T17:40:42Z | new | - | records/WS-031 | T10 organizer |
 | 2026-11-04T17:40:43Z | new | - | records/WS-032 | T10 organizer |
+| 2026-11-12T11:29:40Z | new | - | records/WS-033 | WS-033 P9.1 summary |
 <!-- /organize:changes -->
 
 ## Reading a summary
@@ -53,3 +54,4 @@ reason. Not listed: test outputs of designed refusals, mutants, tools, start mar
 - [WS-030/README.md](WS-030/README.md)
 - [WS-031/README.md](WS-031/README.md)
 - [WS-032/README.md](WS-032/README.md)
+- [WS-033/README.md](WS-033/README.md)

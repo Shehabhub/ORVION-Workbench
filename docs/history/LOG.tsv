@@ -184,3 +184,4 @@ utc	action	place	from	to	workstream	reason	sha256
 2026-11-07T15:37:55Z	delete	temporary	scratch/fd299-v2/author-pass2/mutants/publish-false-done/V1/probe.log	-	WS-033	empty-log: P8.2 per the P8.1 list, owner 2026-11-07	E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855
 2026-11-07T15:37:55Z	delete	temporary	scratch/fd299-v2/author-pass2/mutants/publish-false-done/V2/probe.log	-	WS-033	empty-log: P8.2 per the P8.1 list, owner 2026-11-07	E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855
 2026-11-07T15:37:55Z	delete	temporary	scratch/ws029-v3/runtime-probe/stderr.log	-	WS-033	empty-log: P8.2 per the P8.1 list, owner 2026-11-07	E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855
+2026-11-12T11:29:40Z	new	workbench	-	records/WS-033	WS-041	WS-033 P9.1 summary	877BC7876200B0979876C6A65F97241D99D61F3A101906737E86DF8525684118

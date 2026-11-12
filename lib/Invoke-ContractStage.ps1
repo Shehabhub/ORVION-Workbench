@@ -23,6 +23,8 @@ $log=Join-Path (Split-Path $Config -Parent) "$Id-lifecycle.log"
 function Write-Say([string]$s){$l="[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] $s";Add-Content -LiteralPath $log -Value $l -Encoding utf8;$l}
 function Invoke-RepoGit([string[]]$GitArgs){$o=& git -C $r -c core.quotepath=false @GitArgs 2>$null;if($LASTEXITCODE){throw "git $($GitArgs-join' ') failed ($LASTEXITCODE)"};$o}
 function Get-Brief([string]$t){(($t-split"`r?`n")|Where-Object{$_-match'^(ORVION|MODE|CODE|SUBJECT|APPROVAL_EVIDENCE|CRITERIA|BLOCKER|PREPARE):'}|Select-Object -First 8)-join' | '}
+# The one named transient refusal class (Boot, fetch and the repository's own commit hook): one retry each (DEC-33 rule 8).
+$transient='(?m)^(SUBJECT: github:PUBLIC_READ:GIT_TIMEOUT|CODE: GIT_FETCH_FAILED)\r?$'
 function Save-Commit([string]$Message){
     Assert-StageScope
     $targets=@($allowedPaths|Where-Object{(Test-Path -LiteralPath (Get-DraftTargetPath $r $_))-or@(Invoke-RepoGit @('ls-files','--',$_)).Count})
@@ -31,7 +33,10 @@ function Save-Commit([string]$Message){
     Assert-StageScope
     # Git owns actual authorship. Only explicit operator text is retained; no invented model identity.
     $messageText=if($env:ORVION_COMMIT_TRAILER){"$Message`n`n$env:ORVION_COMMIT_TRAILER"}else{$Message}
+    $before=Invoke-RepoGit @('rev-parse','HEAD')
     $out=& git -C $r commit -q -m $messageText 2>&1|Out-String;$code=$LASTEXITCODE
+    # A hook refusal writes no commit: one retry of the named transient class, the index unchanged (BP-21).
+    if($code-and$out-match$transient-and(Invoke-RepoGit @('rev-parse','HEAD'))-ceq$before){Add-Content -LiteralPath $log -Value $out -Encoding utf8;Write-Say "COMMIT $($Matches[1]): one retry";$out=& git -C $r commit -q -m $messageText 2>&1|Out-String;$code=$LASTEXITCODE}
     Add-Content -LiteralPath $log -Value $out -Encoding utf8
     if($code){Write-Say "COMMIT REFUSED ($code): $Message :: $(Get-Brief $out)";throw 'COMMIT_REFUSED'}
     Write-Say ("COMMIT OK {0} {1} :: {2}" -f (Invoke-RepoGit @('rev-parse','HEAD')),$Message,(Get-Brief $out));$out
@@ -107,7 +112,7 @@ if(!(Test-Path -LiteralPath $native -PathType Leaf)){throw 'NATIVE_BOOT_UNAVAILA
 $boot=& pwsh -NoProfile -File $native -Root $r -Boot 2>&1|Out-String
 $bootCode=$LASTEXITCODE
 # The read-only Boot is retried once on the two named transient fetch refusals only (event native-boot-git-timeout-retry).
-if($bootCode-and$boot-match'(?m)^(SUBJECT: github:PUBLIC_READ:GIT_TIMEOUT|CODE: GIT_FETCH_FAILED)\r?$'){Write-Say "NATIVE BOOT $($Matches[1]): one retry";$boot=& pwsh -NoProfile -File $native -Root $r -Boot 2>&1|Out-String;$bootCode=$LASTEXITCODE}
+if($bootCode-and$boot-match$transient){Write-Say "NATIVE BOOT $($Matches[1]): one retry";$boot=& pwsh -NoProfile -File $native -Root $r -Boot 2>&1|Out-String;$bootCode=$LASTEXITCODE}
 # Even refusal must preserve the native ACTION/WRITE/context and named blocker.
 $boot
 Write-Say ("NATIVE BOOT exit=$bootCode : "+(Get-Brief $boot))

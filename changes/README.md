@@ -44,6 +44,7 @@ Rules: `WS-0NN-<slug>.md`, allocated and changed only through the native lifecyc
 | WS-037-a6-lift-record.md | contracts | Workbench Change Request - WS-037 | - | - |
 | WS-038-finish-floors-and-upkeep.md | contracts | Workbench Change Request - WS-038 | - | - |
 | WS-040-carried-cancel-retry-and-constitution.md | contracts | Workbench Change Request - WS-040 | - | - |
+| WS-041-commit-retry-and-ws033-summary.md | contracts | Workbench Change Request - WS-041 | - | - |
 <!-- /organize:contents -->
 
 <!-- organize:changes (last 10 rows of docs/history/LOG.tsv for this folder; generated) -->

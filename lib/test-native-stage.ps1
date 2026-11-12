@@ -17,7 +17,7 @@ function New-StageFixture([string]$Name,[switch]$Outside,[switch]$RefuseBoot,[st
     foreach($part in 'scripts','changes','.githooks'){[void][IO.Directory]::CreateDirectory((Join-Path $dir $part))}
     [IO.File]::WriteAllText((Join-Path $dir 'a.txt'),"baseline`n")
     [IO.File]::WriteAllText((Join-Path $dir '.gitignore'),".orvion-local-certification.json`n")
-    [IO.File]::WriteAllText((Join-Path $dir '.githooks/pre-commit'),"#!/bin/sh`nprintf '%s\n' hook >> .git/hook.calls`nexit 0`n")
+    [IO.File]::WriteAllText((Join-Path $dir '.githooks/pre-commit'),"#!/bin/sh`nprintf '%s\n' hook >> .git/hook.calls`nif [ -f .git/hook-fail ] && [ `$(cat .git/hook-fail) -gt 0 ]; then echo `$((`$(cat .git/hook-fail)-1)) > .git/hook-fail; printf '%s\n' 'ORVION: BLOCKED' `"`$(cat .git/hook-code)`" 'SUBJECT: origin'; exit 1; fi`nexit 0`n")
     $native=@'
 param([switch]$Boot,[switch]$Gate,[string]$Root,[string]$BaseRef,[string]$HeadRef)
 Add-Content (Join-Path $Root '.git/native.calls') $(if($Boot){'boot'}else{'gate'})
@@ -220,6 +220,15 @@ try{
     Assert-Stage 'any other Boot refusal is not retried' ($r5.Exit-ne0-and(Get-BootCalls $other)-eq1)
     $nofetch=New-PendingFixture 'fetch-fails';$null=Read-StageGit $nofetch.Root @('remote','set-url','origin',(Join-Path $tempRoot 'no-such-origin'));$r6=Invoke-StageFixture $nofetch -Stage approve
     Assert-Stage 'a failed approve fetch is retried once and then stops before any write' ($r6.Exit-ne0-and$r6.Output-match'FETCH failed: one retry'-and$r6.Head-ceq$nofetch.Head) $r6.Output
+    # BP-21: the repository's own commit hook refuses with a named transient code; the stage retries the commit once.
+    function Set-RetryHook($Fixture,[int]$Fail,[string]$Code){[IO.File]::WriteAllText((Join-Path $Fixture.Root '.git/hook-fail'),"$Fail`n");[IO.File]::WriteAllText((Join-Path $Fixture.Root '.git/hook-code'),"CODE: $Code`n")}
+    function Get-HookCalls($Fixture){@(Get-Content (Join-Path $Fixture.Root '.git/hook.calls')).Count-1}
+    $c1=New-StageFixture 'commit-once';Set-RetryHook $c1 1 'GIT_FETCH_FAILED';$r7=Invoke-StageFixture $c1
+    Assert-Stage 'one named transient commit-hook refusal gets exactly one retry, then the commit lands' ($r7.Exit-eq0-and$r7.Head-cne$c1.Head-and(Get-HookCalls $c1)-eq2-and@(Read-StageGit $c1.Root @('rev-parse','HEAD:new.txt'))[0]-ceq$c1.Blob) $r7.Output
+    $c2=New-StageFixture 'commit-twice';Set-RetryHook $c2 9 'GIT_FETCH_FAILED';$r8=Invoke-StageFixture $c2
+    Assert-Stage 'a second named commit refusal stands: no third attempt, HEAD unchanged' ($r8.Exit-ne0-and$r8.Output-match'COMMIT_REFUSED'-and$r8.Head-ceq$c2.Head-and(Get-HookCalls $c2)-eq2) $r8.Output
+    $c3=New-StageFixture 'commit-other';Set-RetryHook $c3 9 'REPOSITORY_CONSISTENCY_FAILED';$r9=Invoke-StageFixture $c3
+    Assert-Stage 'any other commit refusal is not retried' ($r9.Exit-ne0-and$r9.Head-ceq$c3.Head-and(Get-HookCalls $c3)-eq1) $r9.Output
     $mutantLib=Join-Path $tempRoot 'mutants';[void][IO.Directory]::CreateDirectory($mutantLib)
     foreach($file in 'Invoke-ContractStage.ps1','Test-ContractReview.ps1','lifecycle.ps1','Invoke-DraftSteps.ps1','apply-draft-steps.ps1'){[IO.File]::Copy((Join-Path $PSScriptRoot $file),(Join-Path $mutantLib $file))}
     $path=Join-Path $mutantLib 'Invoke-ContractStage.ps1';$body=[IO.File]::ReadAllText($path);$needle="if(`$file.File-notin`$scope){throw 'DRAFT_PLAN_OUT_OF_SCOPE'}";if(!$body.Contains($needle)){throw 'STAGE_SCOPE_MUTANT_ANCHOR'};[IO.File]::WriteAllText($path,$body.Replace($needle,''))
