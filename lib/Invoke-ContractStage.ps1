@@ -67,6 +67,25 @@ function Read-LiteralPlan{
     foreach($file in $plan.Files){$null=Get-DraftTargetPath $r $file.File;if($file.File-notin$scope){throw 'DRAFT_PLAN_OUT_OF_SCOPE'}}
     $plan
 }
+# The CR a pending top carries, or $null: walk first parents from $Head while each commit changes one change file X
+# (the same X throughout) plus only the manifest and ai-map, down to $Main or a bound record, at most 20 commits; X must
+# read [x] Cancelled at $Head and appear in the Draft's Supersedes section (CRM CANCELLED_SEGMENT_NOT_CARRIED).
+function Get-CarriedCancel([string]$Head,[string]$Main){
+    $x=$null;$c=$Head
+    for($n=0;$c-ne$Main-and!(Test-Path -LiteralPath (Join-Path $r ".orvion-certifications\$c.json"));$n++){
+        if($n-ge20){return $null}
+        $files=@(Invoke-RepoGit @('diff-tree','--no-commit-id','--name-only','-r','--no-renames',$c))
+        $own=@($files|Where-Object{$_-like'changes/*.md'})
+        if($own.Count-ne1-or($x-and$own[0]-cne$x)){return $null}
+        if(@($files|Where-Object{$_-cnotin@($own[0],'_ORVION_CANONICAL/manifest.md','ai-map.json')}).Count){return $null}
+        $x=$own[0];$c=Invoke-RepoGit @('rev-parse',"$c^")
+    }
+    if(!$x){return $null}
+    if((@(Invoke-RepoGit @('show',"${Head}:$x"))-join"`n")-notmatch'(?m)^\[x\] Cancelled\s*$'){return $null}
+    $sup=[regex]::Match(([IO.File]::ReadAllText($cfg.Draft)-replace"`r`n","`n"),'(?s)\n## Supersedes / Depends On\n(.*?)(?=\n## |\z)')
+    if(!$sup.Success-or!$sup.Groups[1].Value.Contains($x)){return $null}
+    $x
+}
 
 if(!(Test-Path -LiteralPath $r -PathType Container)-or!([IO.Path]::IsPathFullyQualified($r))){throw 'ROOT_MISMATCH'}
 if((Invoke-RepoGit @('rev-parse','--show-toplevel'))-ne($r-replace'\\','/')){throw 'ROOT_MISMATCH'}
@@ -87,6 +106,8 @@ $native=Join-Path $r 'scripts/check_agent_continuity.ps1'
 if(!(Test-Path -LiteralPath $native -PathType Leaf)){throw 'NATIVE_BOOT_UNAVAILABLE'}
 $boot=& pwsh -NoProfile -File $native -Root $r -Boot 2>&1|Out-String
 $bootCode=$LASTEXITCODE
+# The read-only Boot is retried once on the two named transient fetch refusals only (event native-boot-git-timeout-retry).
+if($bootCode-and$boot-match'(?m)^(SUBJECT: github:PUBLIC_READ:GIT_TIMEOUT|CODE: GIT_FETCH_FAILED)\r?$'){Write-Say "NATIVE BOOT $($Matches[1]): one retry";$boot=& pwsh -NoProfile -File $native -Root $r -Boot 2>&1|Out-String;$bootCode=$LASTEXITCODE}
 # Even refusal must preserve the native ACTION/WRITE/context and named blocker.
 $boot
 Write-Say ("NATIVE BOOT exit=$bootCode : "+(Get-Brief $boot))
@@ -99,15 +120,18 @@ switch($Stage){
     Write-Say "=== $Id approve stage start; draft $($cfg.Draft)"
     $h=(Get-FileHash -Algorithm SHA256 $cfg.Draft).Hash;if($h-ne$cfg.Sha){throw "DRAFT_SHA_MISMATCH $h"}
     if((Invoke-RepoGit @('hash-object',"--path=$ContractRel",'--',$cfg.Draft))-ne$cfg.Blob){throw 'DRAFT_BLOB_MISMATCH'}
-    Invoke-RepoGit @('fetch','-q','origin')|Out-Null
+    # The fetch is read-only for the checkout: one retry on a failed exit (event native-boot-git-timeout-retry).
+    try{Invoke-RepoGit @('fetch','-q','origin')|Out-Null}catch{Write-Say "FETCH failed: one retry ($_)";Invoke-RepoGit @('fetch','-q','origin')|Out-Null}
     $head=Invoke-RepoGit @('rev-parse','HEAD');$om=Invoke-RepoGit @('rev-parse','origin/main')
     if($head-ne$cfg.Main){throw "BASELINE_MOVED head=$head"}
     # SPEC-284 ordered pending candidates: a baseline not yet promoted is lawful only as a descendant of
-    # main with its own bound record in this original checkout.
+    # main with its own bound record in this original checkout, or (SPEC-273 carriage) when its unbound top is
+    # only one earlier CR's allocate/approve/cancel commits, that CR Cancelled and named in this Draft's Supersedes.
     if($om-ne$cfg.Main){
         & git -C $r merge-base --is-ancestor $om $head 2>$null;if($LASTEXITCODE){throw "BASELINE_NOT_DESCENDANT origin=$om"}
-        if(!(Test-Path -LiteralPath (Join-Path $r ".orvion-certifications\$head.json"))){throw "PENDING_BASELINE_UNBOUND $head"}
-        Write-Say "baseline $head is a pending candidate above main $om, bound record present"
+        if(Test-Path -LiteralPath (Join-Path $r ".orvion-certifications\$head.json")){Write-Say "baseline $head is a pending candidate above main $om, bound record present"}
+        else{$carried=Get-CarriedCancel $head $om;if(!$carried){throw "PENDING_BASELINE_UNBOUND $head"}
+            Write-Say "baseline $head carries Cancelled $carried (named in Supersedes) above $om or a bound record"}
     }
     if(Invoke-RepoGit @('status','--porcelain')){throw 'DIRTY_CHECKOUT'}
     if(Test-Path (Join-Path $r $ContractRel)){throw 'CONTRACT_EXISTS'}

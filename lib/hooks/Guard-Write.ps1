@@ -5,9 +5,13 @@
 # a read argument passes. It catches accidents and is no security boundary: a script that opens a file it does not name
 # passes, and a crashed or timed-out hook does not block; Organize -Check catches what it misses. It errs toward
 # refusal: a copy or move that only reads the file is refused too, so run that from the file's own tool.
-param([string]$Settings=(Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) '.claude\settings.json'))
+param([string]$Settings=(Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) '.claude\settings.json'),[string]$FinishLog='finish\.log')
 $ErrorActionPreference='Stop'
 $command="$(([Console]::In.ReadToEnd()|ConvertFrom-Json).tool_input.command)"
+# A Finish hashes the real journal from launch to END (event no-journal-write-during-finish): no Events -Add while one runs.
+# A Finish is a pwsh running lib/Pulse.ps1's timed-run test (run_timed.ps1) with its finish.log.
+if($command-match'Events\.ps1\b[^|;&\r\n]*\s-Add\b'){$run=@(Get-CimInstance Win32_Process -Filter "Name='pwsh.exe'"|Where-Object{$_.CommandLine-match'run_timed\.ps1'-and$_.CommandLine-match$FinishLog})
+    if($run.Count){[Console]::Error.WriteLine("GUARD_FINISH_JOURNAL: a Finish is running (pid $($run[0].ProcessId)); Events -Add changes the real journal it checks, so queue the lesson and add it after END");exit 2}}
 $rules=@(([IO.File]::ReadAllText($Settings)|ConvertFrom-Json).permissions.deny|Where-Object{$_-cmatch'^Edit\('})
 $names=@($rules|ForEach-Object{($_.TrimEnd(')')-split'/')[-1]}|Where-Object{$_-notmatch'\*'}|Select-Object -Unique)
 $writes='Set-Content|Add-Content|Clear-Content|Out-File|Tee-Object|Move-Item|Copy-Item|Remove-Item|Rename-Item|New-Item|\b(tee|mv|cp|rm|del|ren|sc|ac)\b|sed\s+-i|\[(System\.)?IO\.File\]::\s*(Write|Append|Move|Copy|Delete|Replace|Create|Open)|>'

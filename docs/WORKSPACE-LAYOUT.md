@@ -10,7 +10,7 @@ wins over it, and the agent records the conflict (section 22). Slice S1 of WS-03
 2. Nothing here is optional. If a case is not covered, follow section 22; never invent a private convention.
 3. Words in section 23 have exactly that meaning.
 
-## 1. The four tests (owner principles, DEC-03)
+## 1. The four tests (owner principles, DEC-33 rules 1-3)
 
 Every file, folder and section passes all four, or it is merged or deleted.
 

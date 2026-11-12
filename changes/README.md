@@ -38,10 +38,12 @@ Rules: `WS-0NN-<slug>.md`, allocated and changed only through the native lifecyc
 | WS-030-recovery-diagnostics-successor.md | contracts | Workbench Change Request - WS-030 | - | - |
 | WS-031-native-feature-preflight.md | contracts | Workbench Change Request - WS-031 | - | - |
 | WS-033-compact-folders-method.md | contracts | Workbench Change Request - WS-033 | - | - |
+| WS-034-purpose-based-suite-and-upkeep.md | contracts | Workbench Change Request - WS-034 | - | - |
 | WS-035-tracked-owner-files.md | contracts | Workbench Change Request - WS-035 | - | - |
 | WS-036-decision-record-and-save-state.md | contracts | Workbench Change Request - WS-036 | - | - |
 | WS-037-a6-lift-record.md | contracts | Workbench Change Request - WS-037 | - | - |
 | WS-038-finish-floors-and-upkeep.md | contracts | Workbench Change Request - WS-038 | - | - |
+| WS-040-carried-cancel-retry-and-constitution.md | contracts | Workbench Change Request - WS-040 | - | - |
 <!-- /organize:contents -->
 
 <!-- organize:changes (last 10 rows of docs/history/LOG.tsv for this folder; generated) -->

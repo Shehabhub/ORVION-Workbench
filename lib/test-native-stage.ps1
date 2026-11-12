@@ -10,7 +10,7 @@ $savedGitGlobal=$env:GIT_CONFIG_GLOBAL;$savedGitNoSystem=$env:GIT_CONFIG_NOSYSTE
 $env:GIT_CONFIG_GLOBAL=Join-Path $tempRoot 'fixture.gitconfig';$env:GIT_CONFIG_NOSYSTEM='1'
 $savedTrailer=$env:ORVION_COMMIT_TRAILER;$env:ORVION_COMMIT_TRAILER=$null
 function Read-StageGit([string]$dir,[string[]]$arguments){$o=@(& git -C $dir @arguments 2>$null);if($LASTEXITCODE){throw 'STAGE_FIXTURE_GIT_FAILED'};$o}
-function New-StageFixture([string]$Name,[switch]$Outside,[switch]$RefuseBoot,[string]$Clause=''){
+function New-StageFixture([string]$Name,[switch]$Outside,[switch]$RefuseBoot,[string]$Clause='',[string]$BootScript=''){
     $dir=Join-Path $tempRoot $Name;[void][IO.Directory]::CreateDirectory($dir)
     $null=Read-StageGit $dir @('init','--quiet')
     foreach($pair in @(@('user.name','Stage Fixture'),@('user.email','fixture@invalid.local'),@('core.autocrlf','true'))){$null=Read-StageGit $dir @('config','--local',$pair[0],$pair[1])}
@@ -23,7 +23,7 @@ param([switch]$Boot,[switch]$Gate,[string]$Root,[string]$BaseRef,[string]$HeadRe
 Add-Content (Join-Path $Root '.git/native.calls') $(if($Boot){'boot'}else{'gate'})
 __RESULT__
 '@
-    $answer=if($RefuseBoot){"'ORVION: BLOCKED';exit 1"}else{"'ORVION: READY';'MODE: EXECUTE';'CR: SPEC-1';'STATUS: Approved';exit 0"}
+    $answer=if($BootScript){$BootScript}elseif($RefuseBoot){"'ORVION: BLOCKED';exit 1"}else{"'ORVION: READY';'MODE: EXECUTE';'CR: SPEC-1';'STATUS: Approved';exit 0"}
     [IO.File]::WriteAllText((Join-Path $dir 'scripts/check_agent_continuity.ps1'),$native.Replace('__RESULT__',$answer))
     [IO.File]::WriteAllText((Join-Path $dir 'scripts/generate-ai-map.ps1'),"param([switch]`$Check)`nexit 0`n")
     $null=Read-StageGit $dir @('add','--','a.txt','.gitignore','.githooks/pre-commit','scripts')
@@ -114,6 +114,33 @@ function New-ApprovalFixture([string]$Name,[string]$ApprovalEvidence){
     [IO.File]::WriteAllText($createdFixture.Config,"@{Root='$($createdFixture.Root)';Main='$main';Id='SPEC-1';Slug='probe';Draft='$($createdFixture.Draft)';Sha='$((Get-FileHash -LiteralPath $createdFixture.Draft).Hash)';Blob='$blob';User='Stage Fixture';Suffix='toy only';ApprovalNote='synthetic only'}")
     $createdFixture
 }
+# An approval fixture whose baseline is an earlier CR's allocate/approve/cancel commits above origin/main (CRM SPEC-304
+# under SPEC-305, 2026-11-11). -Status is that CR's state at the top; -Extra adds a.txt to the top commit; -Name drops
+# or keeps the Supersedes line; -Bound writes the top's bound record; -Floor puts an unbound other commit below them.
+function New-PendingFixture([string]$Name,[string]$Status='Cancelled',[switch]$Extra,[switch]$Unnamed,[switch]$Bound,[switch]$Floor){
+    $f=New-ApprovalFixture $Name 'PASS';$root=$f.Root;$old='changes/SPEC-0-old.md'
+    if($Floor){[IO.File]::WriteAllText((Join-Path $root 'b.txt'),"floor
+");$null=Read-StageGit $root @('add','--','b.txt');$null=Read-StageGit $root @('commit','--quiet','-m','other: unbound floor')}
+    [IO.File]::AppendAllText((Join-Path $root '.git/info/exclude'),".orvion-certifications/`n")
+    $text="# SPEC-0 old`n`n## Status`n`n[x] Draft`n[ ] Approved`n[ ] Cancelled`n"
+    [IO.File]::WriteAllText((Join-Path $root $old),$text);$null=Read-StageGit $root @('add','--',$old);$null=Read-StageGit $root @('commit','--quiet','-m','SPEC-0: allocate')
+    $text=$text.Replace('[x] Draft','[ ] Draft').Replace('[ ] Approved','[x] Approved');[IO.File]::WriteAllText((Join-Path $root $old),$text)
+    [IO.File]::AppendAllText((Join-Path $root '_ORVION_CANONICAL/manifest.md'),"Approved: SPEC-0`n")
+    $null=Read-StageGit $root @('add','--',$old,'_ORVION_CANONICAL/manifest.md');$null=Read-StageGit $root @('commit','--quiet','-m','SPEC-0: Approve')
+    if($Status-eq'Cancelled'){$text=$text.Replace('[x] Approved','[ ] Approved').Replace('[ ] Cancelled','[x] Cancelled')}else{$text+="Note.`n"}
+    [IO.File]::WriteAllText((Join-Path $root $old),$text);$add=@($old)
+    if($Extra){[IO.File]::WriteAllText((Join-Path $root 'a.txt'),"smuggled`n");$add+='a.txt'}
+    $null=Read-StageGit $root (@('add','--')+$add);$null=Read-StageGit $root @('commit','--quiet','-m',"SPEC-0: $Status")
+    $top=@(Read-StageGit $root @('rev-parse','HEAD'))[0]
+    if($Bound){[void][IO.Directory]::CreateDirectory((Join-Path $root '.orvion-certifications'));[IO.File]::WriteAllText((Join-Path $root ".orvion-certifications/$top.json"),'{}')}
+    $sup=if($Unnamed){"- ``changes/SPEC-9-other.md`` (Cancelled)"}else{"- ``$old`` (Cancelled; this contract carries it)"}
+    [IO.File]::WriteAllText($f.Draft,[IO.File]::ReadAllText($f.Draft).Replace("## Write Scope","## Supersedes / Depends On`n`n$sup`n`n## Write Scope"))
+    $blob=@(Read-StageGit $root @('hash-object','--path=changes/SPEC-1-probe.md','--',$f.Draft))[0]
+    [IO.File]::WriteAllText($f.Config,"@{Root='$root';Main='$top';Id='SPEC-1';Slug='probe';Draft='$($f.Draft)';Sha='$((Get-FileHash -LiteralPath $f.Draft).Hash)';Blob='$blob';User='Stage Fixture';Suffix='toy only';ApprovalNote='synthetic only'}")
+    $f.Head=$top;$f
+}
+$retryNative="`$c=@(Get-Content (Join-Path `$Root '.git/native.calls')).Count;if(`$c-le__N__){'ORVION: BLOCKED';'CODE: __CODE__';'SUBJECT: origin';exit 1};'ORVION: READY';'MODE: EXECUTE';'CR: SPEC-1';'STATUS: Approved';exit 0"
+function Get-BootCalls($Fixture){@(Get-Content (Join-Path $Fixture.Root '.git/native.calls')|Where-Object{$_-eq'boot'}).Count}
 function Invoke-StageFixture($Fixture,[string]$Tool='Invoke-ContractStage.ps1',[string]$Library=$PSScriptRoot,[string]$Stage='implement',[string]$Entry=''){
     $arguments=@('-NoProfile','-File',(Join-Path $Library $Tool),'-Config',$Fixture.Config)
     if($Tool-eq'Invoke-ContractStage.ps1'){$arguments+=@('-Stage',$Stage);if($Entry){$arguments+=@('-EntryFile',$Entry)}}
@@ -177,6 +204,22 @@ try{
     $unknown=New-StageFixture unknown -Clause 'same a.txt __BASE__';$result=Invoke-StageFixture $unknown;if($result.Exit){throw 'STAGE_UNKNOWN_FIXTURE_NOT_VALID'};Set-StubReceipt $unknown
     $bad=Invoke-StageFixture $unknown 'Test-ContractReview.ps1'
     Assert-Stage 'unsupported diagnostic checks stay explicit UNPROVEN, not a duplicate native engine or false pass' ($bad.Exit-eq2-and$bad.Output-match'UNPROVEN: native checks outside')
+    $carried=New-PendingFixture 'pending-carried';$r1=Invoke-StageFixture $carried -Stage approve
+    Assert-Stage 'a Cancelled CR named in Supersedes carries an unbound pending baseline to approval' ($r1.Exit-eq0-and$r1.Output-match'carries Cancelled changes/SPEC-0-old.md'-and[IO.File]::ReadAllText((Join-Path $carried.Root 'changes/SPEC-1-probe.md')).Contains('[x] Approved')) $r1.Output
+    $bound=New-PendingFixture 'pending-bound' -Status Approved -Bound;$r2=Invoke-StageFixture $bound -Stage approve
+    Assert-Stage 'a bound pending baseline still approves (SPEC-284)' ($r2.Exit-eq0-and$r2.Output-match'bound record present') $r2.Output
+    foreach($case in @(@('pending-unnamed',@{Unnamed=$true},'a Cancelled CR the Draft does not name'),@('pending-extra',@{Extra=$true},'a pending commit that also changes another file'),@('pending-approved',@{Status='Approved'},'a pending CR that is not Cancelled'),@('pending-floor',@{Floor=$true},'a Cancelled CR above an unbound commit that is not main'))){
+        $p=$case[1];$fx=New-PendingFixture $case[0] @p;$rx=Invoke-StageFixture $fx -Stage approve
+        Assert-Stage "refused before any write: $($case[2])" ($rx.Exit-ne0-and$rx.Output-match'PENDING_BASELINE_UNBOUND'-and$rx.Head-ceq$fx.Head-and!(Test-Path (Join-Path $fx.Root 'changes/SPEC-1-probe.md'))) $rx.Output
+    }
+    $once=New-StageFixture 'boot-once' -BootScript $retryNative.Replace('__N__','1').Replace('__CODE__','GIT_FETCH_FAILED');$r3=Invoke-StageFixture $once
+    Assert-Stage 'one named transient Boot refusal gets exactly one retry, then the stage runs' ($r3.Exit-eq0-and$r3.FileExists-and(Get-BootCalls $once)-eq2) $r3.Output
+    $twice=New-StageFixture 'boot-twice' -BootScript $retryNative.Replace('__N__','9').Replace('__CODE__','GIT_FETCH_FAILED');$r4=Invoke-StageFixture $twice
+    Assert-Stage 'a second named refusal stands: no third Boot, no write' ($r4.Exit-ne0-and$r4.Output-match'NATIVE_BOOT_REFUSED'-and!$r4.FileExists-and(Get-BootCalls $twice)-eq2)
+    $other=New-StageFixture 'boot-other' -BootScript $retryNative.Replace('__N__','9').Replace('__CODE__','DIRTY_CHECKOUT');$r5=Invoke-StageFixture $other
+    Assert-Stage 'any other Boot refusal is not retried' ($r5.Exit-ne0-and(Get-BootCalls $other)-eq1)
+    $nofetch=New-PendingFixture 'fetch-fails';$null=Read-StageGit $nofetch.Root @('remote','set-url','origin',(Join-Path $tempRoot 'no-such-origin'));$r6=Invoke-StageFixture $nofetch -Stage approve
+    Assert-Stage 'a failed approve fetch is retried once and then stops before any write' ($r6.Exit-ne0-and$r6.Output-match'FETCH failed: one retry'-and$r6.Head-ceq$nofetch.Head) $r6.Output
     $mutantLib=Join-Path $tempRoot 'mutants';[void][IO.Directory]::CreateDirectory($mutantLib)
     foreach($file in 'Invoke-ContractStage.ps1','Test-ContractReview.ps1','lifecycle.ps1','Invoke-DraftSteps.ps1','apply-draft-steps.ps1'){[IO.File]::Copy((Join-Path $PSScriptRoot $file),(Join-Path $mutantLib $file))}
     $path=Join-Path $mutantLib 'Invoke-ContractStage.ps1';$body=[IO.File]::ReadAllText($path);$needle="if(`$file.File-notin`$scope){throw 'DRAFT_PLAN_OUT_OF_SCOPE'}";if(!$body.Contains($needle)){throw 'STAGE_SCOPE_MUTANT_ANCHOR'};[IO.File]::WriteAllText($path,$body.Replace($needle,''))
@@ -190,6 +233,14 @@ try{
     if(!$body.Contains($needle)){throw 'STAGE_ALLOCATION_MUTANT_ANCHOR'};[IO.File]::WriteAllText($path,$body.Replace($needle,''))
     $bad=Invoke-StageFixture $swapped -Library $mutantLib
     Assert-Stage 'causal removal of allocation binding allows the exact unallocated revision to execute' ($bad.Exit-eq0-and$bad.FileExists-and$bad.Head-cne$swapped.Head)
+    $body=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Invoke-ContractStage.ps1'));$needle='if(!$sup.Success-or!$sup.Groups[1].Value.Contains($x)){return $null}'
+    if(!$body.Contains($needle)){throw 'STAGE_SUPERSEDES_MUTANT_ANCHOR'};[IO.File]::WriteAllText($path,$body.Replace($needle,''))
+    $fx=New-PendingFixture 'mutant-unnamed' -Unnamed;$bad=Invoke-StageFixture $fx -Library $mutantLib -Stage approve
+    Assert-Stage 'causal removal of the Supersedes check lets an unnamed Cancelled CR carry the baseline' ($bad.Exit-eq0) $bad.Output
+    $needle="'(?m)^(SUBJECT: github:PUBLIC_READ:GIT_TIMEOUT|CODE: GIT_FETCH_FAILED)\r?`$'"
+    if(!$body.Contains($needle)){throw 'STAGE_RETRY_MUTANT_ANCHOR'};[IO.File]::WriteAllText($path,$body.Replace($needle,"'(?m)^CODE: '"))
+    $fx=New-StageFixture 'mutant-retry' -BootScript $retryNative.Replace('__N__','9').Replace('__CODE__','DIRTY_CHECKOUT');$null=Invoke-StageFixture $fx -Library $mutantLib
+    Assert-Stage 'causal widening of the retry to any code retries an unnamed refusal' ((Get-BootCalls $fx)-eq2)
 }finally{
     $env:GIT_CONFIG_GLOBAL=$savedGitGlobal;$env:GIT_CONFIG_NOSYSTEM=$savedGitNoSystem
     $env:ORVION_COMMIT_TRAILER=$savedTrailer

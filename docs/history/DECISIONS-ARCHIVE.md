@@ -437,3 +437,85 @@ Replaced rule 12 of DEC-33, verbatim:
 > 12. Nothing open is lost: a found error, gap or question is fixed now or recorded with its owner and trigger; finish before expanding.
 
 Now in: DEC-33
+
+## D129 2026-11-11 WS-040: the constitution amended from Batch 6; DEC-03 retired into DEC-33
+
+The owner's words of 2026-11-11, verbatim from data/decisions-inbox.md (~17:10, ~17:25, ~22:10 and ~22:35 Cairo, and
+decision 7 of ~19:50):
+
+> Do not adopt, create, modify, or delete any file, mechanism, or tool, except in accordance with the rules and principles of the constitution. Furthermore, continuously improve the constitutional rules whenever loopholes or gaps—not currently covered by the existing rules—are discovered.
+
+> Learn from your experiences in previous cycles and the insights you've gained regarding potential improvements.
+> Refine the "constitution," the cycles, and their schedules—as well as anything else you believe warrants adjustment—in line with the new constitutional rules.
+> The goal is to implement minor, cost-effective enhancements, rather than requiring dedicated cycles or specific "Business Requests" (BRs) for these changes.
+> Let's move forward with the "slices" by introducing clear improvements—whether in terms of time, cost, or the rules themselves.
+
+> I believe returning to the "Workbench contract" has become necessary.
+>
+> For now, please compile everything that needs to be finalized, added, modified, improved, or removed before we proceed with the completion of BT6. This must be done in accordance with the principles of our "constitution." I recall you mentioning that some of these principles—or rules—themselves require improvement; the only obstacle was that doing so would necessitate a new contract—well, here we are.
+
+> Do not ask me; let the Constitution provide the answer. I will only agree to your proposals if they are in accordance with the rules of the Constitution.
+
+> The existing 8 Waste and Safety Rules in PLAN.md remain the single operational rule set.
+
+Lessons of Batch 6 slices 1-7 and WS-034 (decisions inbox ~17:25, revised ~22:30) amend DEC-33 rules 2, 3, 6, 7, 8, 9
+and 12; rules 1 and 3 also take the parts of DEC-03 no rule held (the product governance and the weighing of sources;
+boring rather than clever; never raising a budget), so DEC-03 retires with nothing dropped (rule 3) and its D-numbers
+map to DEC-33. Rule 6's list moves to DEC-30, which gains ACI. DEC-01 writes down decision 7 (batch-scoped rules);
+DEC-28 moves a repeat's guard to its source. Dropped by the constitution: a Routine inbox-fold contract at each batch
+close (no dedicated cycles), the rule 10 and 11 additions (covered) and the Codex fallback (in force, D124).
+
+Replaced entry DEC-03, verbatim:
+
+> ## DEC-03 Engineering principles
+>
+> Every file, folder, section, tool and step passes four tests. Learn first: look before adding, reuse what exists and
+> rest on evidence; before proposing, learn from the CRM and ORVION governance, current standards and research, each
+> source weighed by its strength. Learn before making assumptions: verify every fact a step depends on (read the file, run
+> the check, read the current official source) before acting; keep proven fact, inference and hypothesis apart; never
+> guess; ask the owner what only the owner knows. Earn it and worth it: a file exists only while something actively reads
+> it (a tool, gate, decision, agent step or owner need); nothing is kept only as history; the Workbench's tools must
+> really work. Simplify without weakness: the shortest form that keeps every gate, test, rule, needed piece of evidence
+> and security boundary, boring rather than clever; small, closely related files are merged; a size budget is met by
+> moving text to its one home, never by dropping a rule or raising the budget. Prefer the minimal, demonstrably safe
+> solution, never one whose safety needs disproportionate complexity or fragile workarounds; where safety cannot be shown,
+> fail closed and keep the evidence. Never leave a found error or gap unfixed: fix it now when its rules allow, otherwise
+> schedule it with a named trigger. How each test is applied: WORKSPACE-LAYOUT.md section 1.
+>
+> Scope: every agent and every piece of work.
+> Why: the owner's principles, restated in most decisions since 2026-10-26; the fourth test was added on 2026-11-01.
+> Changed: 2026-11-01
+> History: D19, D21, D37, D48, D65, D88, D95, D103, D106
+
+Now in: DEC-33
+
+Replaced sentence of DEC-01, verbatim (the rest of the entry stands):
+
+> words wait in decisions-inbox.md and the NOW.md "Pending decisions" list; the archive is
+
+Now in: DEC-01
+
+Replaced sentence of DEC-28, verbatim:
+
+> A fixed defect class lands the guard that keeps it closed, or its record says why none.
+
+Now in: DEC-28
+
+Replaced sentence of DEC-30, verbatim:
+
+> CAG, SACI, PICF and CRGL mean only what their owning repository texts define, never what memory recalls.
+
+Now in: DEC-30
+
+Replaced rules of DEC-33, verbatim:
+
+> 1. Learn first: read the code, contracts, past failures and current official sources before acting; never guess.
+> 2. Earn it and worth it: measured need, value above cost; reuse first; automate wisely; real outcomes, no reports of reports.
+> 3. Simplify without weakening: the smallest tested change that keeps every gate, test, rule and boundary.
+> 6. Enforce, not instruct: a critical limit lives in a gate or tool; CAG, ACI, SACI, PICF are what their repositories define.
+> 7. Before the irreversible: prove completion is feasible, verify the target, hold recovery or explicit authorization.
+> 8. Bounded, fail closed: limits on attempts and resources; no retry without new evidence; unknown stops and escalates.
+> 9. Test before trust: real conditions, not proxies; a high-risk change also gets a check its author did not write.
+> 12. Fix, never skip: fix each error, gap or failed check at its root now; defer only out-of-scope, unsafe or owner fixes (owner, trigger); lesson each mistake, guard a repeat; finish before expanding.
+
+Now in: DEC-33

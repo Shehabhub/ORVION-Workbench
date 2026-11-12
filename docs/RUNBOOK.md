@@ -175,7 +175,7 @@ Ask only what cannot be derived (DEC-02, DEC-29, DEC-31), in this form:
 
 1. The retro of DEC-12: Claude main and Codex each name what does not satisfy them, every item with a remedy and a
    check.
-2. For every tool, rule and folder the workstream touched, ask once: does it still earn its place (DEC-03)? Merge or
+2. For every tool, rule and folder the workstream touched, ask once: does it still earn its place (DEC-33 rule 3)? Merge or
    delete what does not.
 3. Each defect class the workstream fixed names the guard that now keeps it closed, or why there is none (DEC-28).
 4. The summary, the cited files and the cleanup: WORKSPACE-LAYOUT.md section 12.

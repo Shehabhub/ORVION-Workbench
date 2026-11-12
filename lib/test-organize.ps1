@@ -103,6 +103,17 @@ try{
     foreach($read in "Get-Content $doc","cat $doc","git log -- $doc","git status 2>&1 | Select-String $doc","Get-Content $doc 2>`$null","cat $doc 2> /dev/null","`$x=`$a.b -> $doc","Set-Content NOW.md.bak x","Set-Content MY-NOW.md x","Set-Content free.txt x","Get-Content $doc > out.txt","Get-Content $doc | Set-Content copy.txt","@'`nnotes on $doc`n'@ | Set-Content notes.txt","Get-Content out\package\release\manifest.json","Get-Content out\package\release\a.txt > log.txt"){
         Assert-That "G02 passes: $read" ((Get-GuardExit $read)-eq0)
     }
+    # GUARD_FINISH_JOURNAL with a log name of its own, so the real Finish that runs this suite is not seen.
+    $finishName="finish-$([guid]::NewGuid().ToString('N')).log"
+    function Get-FinishGuardExit([string]$Command){@{tool_input=@{command=$Command}}|ConvertTo-Json -Compress|& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'hooks\Guard-Write.ps1') -FinishLog ([regex]::Escape($finishName)) 2>&1|Out-Null;$LASTEXITCODE}
+    $add='pwsh -NoProfile -File lib/Events.ps1 -Add -Pattern x -Summary y'
+    Assert-That 'G02 Events -Add passes with no Finish' ((Get-FinishGuardExit $add)-eq0)
+    $dummy=Start-Process pwsh -ArgumentList '-NoProfile','-Command',"Start-Sleep 120 # run_timed.ps1 -Log C:\x\$finishName" -WindowStyle Hidden -PassThru
+    try{
+        for($i=0;$i-lt50-and!@(Get-CimInstance Win32_Process -Filter "ProcessId=$($dummy.Id)"|Where-Object{$_.CommandLine-match[regex]::Escape($finishName)}).Count;$i++){Start-Sleep -Milliseconds 100}
+        Assert-That 'G02 refuses Events -Add while a Finish runs' ((Get-FinishGuardExit $add)-eq2)
+        Assert-That 'G02 passes Events -Find while a Finish runs' ((Get-FinishGuardExit 'pwsh -NoProfile -File lib/Events.ps1 -Find x')-eq0)
+    }finally{Stop-Process -Id $dummy.Id -Force -ErrorAction SilentlyContinue}
     if($GuardsOnly){if($fail){throw "ORGANIZE_GUARDS_FAILED $fail"};'ORGANIZE_GUARDS PASS';return}
     }
 
