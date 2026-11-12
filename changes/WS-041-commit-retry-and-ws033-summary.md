@@ -2,8 +2,8 @@
 
 ## Status
 
-[x] Draft
-[ ] Approved
+[ ] Draft
+[x] Approved
 [ ] In Progress
 [ ] Complete
 [ ] Cancelled
@@ -388,6 +388,13 @@ Recovery Attempt: 0
 ## Execution Log
 
 Append only. No approval, execution-root binding or receipt is claimed. At actual approval add exactly one Approved Draft, Approved SHA256, Owner Evidence, Owner Evidence SHA256 and Execution Root line using actual immutable identities. Owner evidence must name the approved digest and execution root. For original execution append exactly one Sandbox Receipt and Sandbox Receipt SHA256 for the matching successful schema2 sandbox artifact. A delegated decision needs actual live owner delegation and is labelled delegated. Never invent human confirmation or approval.
+Approved Draft: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench\data\records\WS-041\assurance\V3\DRAFT.md
+Approved SHA256: 3A705B2E74FDD46E2F57A81BC3B950EC6483A5FACE14007580640623A71E7271
+Owner Evidence: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench\data\records\WS-041\gate\GATE1-WS041-ORIGINAL-DELEGATED.md
+Owner Evidence SHA256: FDE135A1169BD2CA2A4215931DD47769D40FEB3ED4A70CCD0937CCAFDD98B06D
+Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
+Sandbox Receipt: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench-temporary\sb\W41\runtime\sandbox\own-finish-receipt.json
+Sandbox Receipt SHA256: B3870F694802C50654CB1E3EE7F05E4ED3EADD63BCCB85954DB73DB184519BE6
 
 ## Verification Notes
 
