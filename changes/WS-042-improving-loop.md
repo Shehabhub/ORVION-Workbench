@@ -770,7 +770,7 @@ Apply the literal file steps with the accepted baseline lib/apply-draft-steps.ps
 
 ## Runtime Checkpoint
 
-Resume Step: 1
+Resume Step: DONE
 Blocker: None
 Recovery Attempt: 0
 
@@ -784,6 +784,7 @@ Owner Evidence SHA256: 96F23F851C414875D5A993ED2071F904E3E8C5D2A9F1F11289FFA613A
 Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
 Sandbox Receipt: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench-temporary\sb\W42\runtime\sandbox\own-finish-receipt.json
 Sandbox Receipt SHA256: C5A62D1CC861D2149B6ACBD1B2FD9794ADB42EB60CA53AE32A1EA94B3C2079CD
+Original exact declared outputs applied by accepted native Execute; fresh own Finish and Review/Complete remain required. Other protected roots unchanged. Controller: the Original's own baseline lib/Invoke-ContractLifecycle.ps1 (SHA256 AD768116, the WS-043 predicted-tree controller released at fcf5649 and unchanged at dde2009 by WS-044, unchanged by this contract), checked by Run-Stage before each stage; the judge and native Workbench.ps1 keep every authority.
 
 ## Verification Notes
 

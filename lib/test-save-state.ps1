@@ -1,6 +1,6 @@
 # Self-check for Save-State.ps1 in a test root (WORKBENCH_TEST_ROOT, else TEMP): the four printed lines, NOW.md as the
 # Markdown guard accepts it, carry-over, pending decisions, the LOG line, the status page from a plan fixture, the vault
-# continuity copy, and each refusal leaving NOW.md, LOG.md, the page and the vault untouched; then one mutant per
+# continuity copy, the token ledger line from a stub Token-Ledger.ps1 (its failure never fails the save), and each refusal leaving NOW.md, LOG.md, the page and the vault untouched; then one mutant per
 # refusal, each of which a case must kill. The checkout is read for citations only.
 param([string]$SaveState=(Join-Path $PSScriptRoot 'Save-State.ps1'),[switch]$NoMutants,[string]$Case)
 $ErrorActionPreference='Stop'
@@ -57,6 +57,17 @@ function New-MismatchSave([string]$Name){
     Copy-Item -LiteralPath (Join-Path (Split-Path $SaveState -Parent) 'Test-MarkdownConsistency.ps1') -Destination $folder
     $injected=Join-Path $folder 'Save-State.ps1';[IO.File]::WriteAllText($injected,$source.Replace($anchor,$anchor+";[IO.File]::AppendAllText(`$target,'x')"),[Text.UTF8Encoding]::new($false))
     $injected
+}
+function New-LedgerSave([string]$Name,[string]$Body){
+    # A copy of the script under test beside a stub Token-Ledger.ps1, so no test reads a real transcript.
+    $folder=Join-Path $scratch $Name;[void][IO.Directory]::CreateDirectory($folder)
+    foreach($file in $SaveState,(Join-Path (Split-Path $SaveState -Parent) 'Test-MarkdownConsistency.ps1')){Copy-Item -LiteralPath $file -Destination $folder}
+    [IO.File]::WriteAllText((Join-Path $folder 'Token-Ledger.ps1'),"param([string]`$Checkout,[string]`$DataRoot,[int]`$Show)$nl$Body$nl")
+    Join-Path $folder (Split-Path $SaveState -Leaf)
+}
+function New-LedgerFixture([string]$Name){
+    $f=New-SaveFixture $Name;$tsv=[IO.Path]::Combine($f.Data,'records','token-ledger.tsv')
+    [void][IO.Directory]::CreateDirectory((Split-Path $tsv -Parent));[IO.File]::WriteAllText($tsv,"Session$nl");$f
 }
 function Test-PlanRefusal([string]$Name,[scriptblock]$Edit){
     # A good save first, then the plan file is broken as $Edit says and the next save must refuse without writing.
@@ -130,6 +141,13 @@ $cases=[ordered]@{
         $null=Invoke-Save $f @{Workstream='WS-033';Done=$long;Question=@($long)};$null=Invoke-Save $f;$now=Get-SaveText $f 'NOW'
         Assert-Save (!@($now.Split($nl)|Where-Object{$_.Length-gt120}).Count) 'wrapped at 120'
         Assert-Save (($now-replace "$nl  ",' ').Contains("- $long$nl")) 'long question carried whole'})
+    # The ledger line comes first and only where records\token-ledger.tsv exists (positive asserts four lines without it).
+    ledger=@('',{$f=New-LedgerFixture 'ledger';$out=Invoke-Save $f $first (New-LedgerSave 'ledgerStub' '"row $Show $DataRoot $Checkout"')
+        Assert-Save ($out.Count-eq5-and$out[0]-ceq"tokens: row 1 $($f.Data) $checkout"-and$out[1]-clike'STATUS_PAGE *') "ledger line: $($out-join' | ')"})
+    ledgerFailure=@('',{$f=New-LedgerFixture 'ledgerFail';$out=Invoke-Save $f $first (New-LedgerSave 'ledgerThrows' "throw 'STUB FAIL'")
+        Assert-Save ($out.Count-eq5-and$out[0]-ceq'TOKEN_LEDGER_SKIPPED: STUB FAIL'-and$out[2]-clike'SAVED *continuity copy verified') "skipped line: $($out-join' | ')"
+        $now=Get-SaveText $f 'NOW';Assert-Save ($now.Contains("WS-033 P1.5 S2 part 1 done.")) 'NOW.md written'
+        Assert-Save ([IO.File]::ReadAllText((Join-Path $f.Vault 'continuity/data/work/NOW.md'))-ceq$now) 'continuity whole'})
     workstreamRequired=@('SAVE_WORKSTREAM_REQUIRED',{$f=New-SaveFixture 'required';Assert-Unchanged $f {Invoke-Save $f}})
     workstreamFormat=@('SAVE_WORKSTREAM_FORMAT',{$f=New-SaveFixture 'format';Assert-Unchanged $f {Invoke-Save $f @{Workstream='WS-33'}}})
     folderMissing=@('SAVE_WORKSTREAM_FOLDER_MISSING',{$f=New-SaveFixture 'folder';Assert-Unchanged $f {Invoke-Save $f @{Workstream='WS-034'}}})
@@ -215,6 +233,7 @@ try{
             moveRetry='Start-Sleep -Seconds 2'
             continuityMismatch='if($differ.Count){Remove-Copy $stage;throw "SAVE_CONTINUITY_MISMATCH: $($differ-join'', '')"}'
             readOnlyCopy='$_.IsReadOnly=$false'
+            ledger='"tokens: $($tokens[-1])"';ledgerFailure='"TOKEN_LEDGER_SKIPPED: $($_.Exception.Message)"'
         }
         $folder=Join-Path $scratch 'mutants';[void][IO.Directory]::CreateDirectory($folder)
         Copy-Item -LiteralPath (Join-Path (Split-Path $SaveState -Parent) 'Test-MarkdownConsistency.ps1') -Destination $folder

@@ -1,5 +1,5 @@
 # Claude Code reporting adapter: Workbench context is opt-in; native product entry stays independent.
-#   SessionStart          -> prints NOW.md, the tool index (lib\README.md, "Always" section) and Pulse (after compact: short)
+#   SessionStart          -> prints NOW.md and Pulse (after compact: short); Load-Constitution.ps1 prints the rules and tools
 #   PostToolUse Agent     -> a background agent was launched: the exact Watch-Subagents command for this session
 #   PostToolUse PowerShell|Bash running scripts/run_timed.ps1 -> the exact watch_run and Watch-Host commands
 # Reads the hook event from stdin; only ever adds context, never blocks, and exits 0 on any error.
@@ -52,8 +52,6 @@ try{
         Start-Process pwsh -ArgumentList "-NoProfile -File `"$lib\Sync-Sessions.ps1`" $mode -Root `"$dataRoot`"" -WindowStyle Hidden
         if($hookEvent-eq'SessionEnd'){exit 0}
         if(!$workbenchEntry){exit 0} # archival preserves knowledge; it never enrolls a native session in Workbench
-        $md=[IO.File]::ReadAllText((Join-Path $lib 'README.md'))
-        $always=[regex]::Match($md,'(?ms)^## (?:\d+\. )?Always\b.*?(?=\n## |\z)').Value  # found by title, with or without its ID (DEC-32)
         # File redirection avoids a full pipe blocking Pulse before its deadline. Only this child tree is owned here.
         $pulseTemp=Join-Path ([IO.Path]::GetTempPath()) ('orvion-pulse-'+[guid]::NewGuid().ToString('N'))
         $pulseOut=$pulseTemp+'.out';$pulseErr=$pulseTemp+'.err';$pulseChild=$null
@@ -76,8 +74,8 @@ try{
             if($pulseChild){$pulseChild.Dispose()}
             foreach($pulseFile in $pulseOut,$pulseErr){try{if(Test-Path -LiteralPath $pulseFile){Remove-Item -LiteralPath $pulseFile -Force}}catch{$null=$_}}
         }
-        # The tool index and the full Pulse only in a new context (startup, /clear, or a client that sends no source); after
-        # compact, resume or fork a pointer and the short Pulse. The hook's own UNREADABLE messages are never shortened.
+        # The full Pulse only in a new context (startup, /clear, or a client that sends no source); after compact, resume or
+        # fork the short Pulse. The hook's own UNREADABLE messages are never shortened.
         $fullStart=!$e.source-or$e.source-in'startup','clear'
         $shortPulse=if($events.StartsWith('ORVION PULSE')){@($events-split"`n"|Where-Object{$_-match'^(ORVION PULSE|state|waiting|running)\s'})-join"`n"}else{$events}
         if(!$fullStart){$events=$shortPulse}
@@ -89,12 +87,8 @@ try{
                 if([Text.Encoding]::UTF8.GetByteCount($nowText)-gt6144){"NOW.md UNREADABLE: over its 6144-byte budget; read $nowPath."}else{$nowText}}
         $contextPrefix="ORVION AGENT TOOLS exist at $lib (index: README.md). Use them; never hand-write an alarm loop.`n"
         $contextSuffix="`nBefore a task: pwsh -NoProfile -File `"$lib\Events.ps1`" -Find '<task in a few words>'. Record a failure, discovery or decision worth keeping with Events.ps1 -Add. Past sessions (task, size, tools, errors, SPECs, raw path): $dataRoot\sessions\INDEX.md."
-        $guidance=if($fullStart){$always.Replace('<lib>',$lib)}else{"Tool guidance abbreviated; see $lib\README.md."}
         $contextLimit=8192-[Environment]::NewLine.Length
-        if($contextPrefix.Length+$now.Length+1+$guidance.Length+1+$events.Length+$contextSuffix.Length-gt$contextLimit){
-            $guidance="Tool guidance abbreviated; see $lib\README.md."
-        }
-        $context=$contextPrefix+$now+"`n"+$guidance+"`n"+$events+$contextSuffix
+        $context=$contextPrefix+$now+"`n"+$events+$contextSuffix
         if($context.Length-gt$contextLimit){$context="ORVION AGENT TOOLS: see lib\README.md.`n$now`n$shortPulse`nPast sessions: sessions\INDEX.md under the selected data root."}
         # ponytail: a 6 KB NOW.md with four 1 KB short-Pulse lines can still exceed the limit; the cut falls in the Pulse,
         # after NOW.md. Drop lines instead if it ever does.

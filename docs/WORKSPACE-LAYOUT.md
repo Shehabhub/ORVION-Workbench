@@ -351,8 +351,8 @@ All tools stay in `ORVION-Workbench/lib/`, flat, each beside its test. `lib/READ
 | find and know | Spider, Map-Repos, Events, Pulse, Hunt, Coordinator |
 | order and checks | Organize (new), Test-MarkdownConsistency, Test-ScriptHazards, remove-owned |
 | work method | Workbench, Test-WorkbenchChange (never changed), Invoke-ContractStage, apply-draft-steps, Invoke-DraftSteps, Delegate, Invoke-ContractLifecycle |
-| save and recover | Save-State (new), Sync-Sessions, Backup-Workspace, Restore-Workspace, Restore-ORVION |
-| watch long runs | run_timed, watch_run, Watch-Host, Watch-Subagents, hooks/Watch-Reminder |
+| save and recover | Save-State (new), Token-Ledger, Sync-Sessions, Backup-Workspace, Restore-Workspace, Restore-ORVION |
+| watch long runs | run_timed, watch_run, Watch-Host, Watch-Subagents, hooks/Watch-Reminder, hooks/Load-Constitution |
 | owner operations | Owner-PublishDual, Owner-PromoteDual, Invoke-OwnerDual, Test-OwnerDualAdmission |
 
 Data paths after WS-033:
@@ -372,6 +372,11 @@ Spider searches: the repository (tracked files), `data/` (with the raw transcrip
 hit carries its source label (repo, data, temporary); a Markdown hit also carries `path:line section N` (signposting.md
 SP06). An unreadable source is reported UNAVAILABLE, never as zero hits. The evidence of a finished workstream is found
 through its `records/WS-<NN>/README.md`.
+
+The Supabase MCP servers are named by project and access: `supabase-primary` (CRM, Primary vrvtsxexkiiiivlkdxzp) and
+`supabase-secondary` (ORVION, Secondary brplkqmbzffpxqgkkdzo) are read-only; writes go through `supabase-primary-write`
+and `supabase-secondary-write`, whose `execute_sql` and `apply_migration` ask the owner. The claude.ai Supabase
+connector reaches the Secondary account only. An MCP server added during a session loads only in a new session.
 
 ## 14. The method (every agent, every task)
 

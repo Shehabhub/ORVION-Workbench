@@ -155,6 +155,10 @@ list. `lib/Test-ScriptHazards.ps1` flags some of them: run it on every new `.ps1
 - In a product repository, never write an unallocated SPEC id in a tracked file (it reserves the number), and never
   commit a blocked checkpoint. Read old code's top level before running a causal negative: it may install real tools.
   A host-killed heavy run restarts only as DEC-23 allows.
+- An array never crosses `pwsh -File`: it arrives as one string. Lifecycle Run-Stage stages exited 1 that way in
+  WS-037 and WS-038 (event run-stage-array-via-file): pass one stage per call, or use `-Command` with a real array.
+- Call Save-State in-process (`& .\lib\Save-State.ps1`): through `-File` its `-Evidence` and `-Question` arrays fail
+  ("positional parameter cannot be found", 2026-11-14).
 
 ## 8. Before saying nothing is running
 
@@ -171,6 +175,16 @@ Ask only what cannot be derived (DEC-02, DEC-29, DEC-31), in this form:
 4. The recommendation and its reason.
 5. Reversibility: what undoing each option would cost.
 
+Before asking, use what the owner already settled:
+
+- Session usage is not readable from VS Code (the status line does not run there): ask the owner for it.
+- GitHub has two gh accounts, PlatPlusHub (CRM and Workbench) and Shehabhub (ORVION). Check one with
+  `GH_TOKEN=$(gh auth token --user <account>) gh api user -q .login`; an authentication refusal most likely means an
+  expired token, so the owner regenerates it.
+- Docker (owner 2026-11-14): start or stop only the project-owned stack an already approved operation needs, by that
+  product's own commands (DEC-08), leaving unrelated containers and services as they are. Never prune, delete
+  volumes, reset destructively or touch another project; nothing here is a standing privilege beyond that.
+
 ## 10. Workstream end
 
 1. The retro of DEC-12: Claude main and Codex each name what does not satisfy them, every item with a remedy and a
@@ -185,7 +199,7 @@ Ask only what cannot be derived (DEC-02, DEC-29, DEC-31), in this form:
 One call saves every operation (DEC-26).
 
 ~~~powershell
-pwsh -NoProfile -File lib/Save-State.ps1 -Operation '<operation>' -Done '<what finished>' -Evidence '<path>','<path>' `
+& .\lib\Save-State.ps1 -Operation '<operation>' -Done '<what finished>' -Evidence '<path>','<path>' `
     -Next '<exact next step>' -RunBy '<who: model, effort>' [-Blocker '<text>'] [-Question '<question>','<question>'] `
     [-Running '<process or operation.json>'] [-Pointer '<path>'] [-Now '<one line>'] [-Workstream WS-0NN] [-Plan '<path>']
 ~~~
@@ -214,7 +228,9 @@ pwsh -NoProfile -File lib/Save-State.ps1 -Operation '<operation>' -Done '<what f
   every file's SHA256 matches its source; on a mismatch (refused: `SAVE_CONTINUITY_MISMATCH`, a file written to during
   the copy) NOW.md, LOG.md and the page are saved, the previous copy stays whole, and the save is run again.
 - It prints the four lines of WORKSPACE-LAYOUT.md section 14.2: the agent publishes the page the first names (DEC-29),
-  and the other three go to the owner unchanged, carrying the first sentence of Next. The data root is `ORVION_DATA_ROOT`, else the checkout's `data/`;
+  and the other three go to the owner unchanged, carrying the first sentence of Next. One line comes before them when
+  the data root holds `records/token-ledger.tsv`: `tokens:` from `lib/Token-Ledger.ps1`, or `TOKEN_LEDGER_SKIPPED`,
+  which never changes the save. The data root is `ORVION_DATA_ROOT`, else the checkout's `data/`;
   temporary is the checkout's sibling `ORVION-Workbench-temporary`; the vault is `ORVION-Recovery` in OneDrive; tests
   pass `-Checkout`, `-DataRoot`, `-Temporary` and `-Vault`.
 

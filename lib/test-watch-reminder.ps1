@@ -1,4 +1,5 @@
 # Real hook callers in a disposable workspace; bounded followers read only fixture transcripts, with Pulse stubbed.
+# Also the second SessionStart hook, hooks\Load-Constitution.ps1, over the real docs\DECISIONS.md, and that the two never overlap.
 param([switch]$RootProbeOnly,[switch]$FailureProbeOnly,[switch]$DeadlineProbeOnly,[string]$BaselineHook)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'remove-owned.ps1')
@@ -96,13 +97,61 @@ if($mode-eq'long'){'ORVION PULSE 2026-11-01 18:00 UTC';'repo     '+('R'*990);'st
                 Assert-That 'healthy SessionStart context is identical to the supplied baseline' ($baseline.Exit-eq0-and$healthy.Text-ceq$baseline.Text)
             }
             "LATENCY SessionStartMs=$($healthyTimes-join',') BaselineMs=$($baselineTimes-join',')"
-            [IO.File]::WriteAllText((Join-Path $deadlineLib 'README.md'),"# Tools`n`n## 3. Index`n`nPREVIOUS-SECTION`n`n## 4. Always, numbered`nNUMBERED-TOOLS`n")
-            $numbered=Invoke-DeadlineEvent
-            Assert-That 'a numbered Always heading in the last section is injected' ($numbered.Exit-eq0-and$numbered.Text.Contains('NUMBERED-TOOLS')-and!$numbered.Text.Contains('PREVIOUS-SECTION'))
+            # The second SessionStart hook, Load-Constitution.ps1, over the real docs/DECISIONS.md and lib/README.md: DEC-30
+            # and DEC-33 whole and every other decision title on every source, the Always section only in a new context, the
+            # 9500 bound, the retrieve line when a rule is missing, silence elsewhere; then four mutants, each must be caught.
             $realReadme=Join-Path $PSScriptRoot 'README.md';$alwaysHeadings=@([IO.File]::ReadAllLines($realReadme)|Where-Object{$_.StartsWith('## ')-and$_.Contains('Always')})
             Copy-Item -LiteralPath $realReadme -Destination (Join-Path $deadlineLib 'README.md') -Force
-            $real=Invoke-DeadlineEvent
-            Assert-That 'the real lib/README.md has one Always section and SessionStart injects it' ($alwaysHeadings.Count-eq1-and$real.Exit-eq0-and$real.Text.Contains($alwaysHeadings[0]))
+            $realDecisions=Join-Path (Split-Path $PSScriptRoot -Parent) 'docs\DECISIONS.md';$decisionText=[IO.File]::ReadAllText($realDecisions)-replace'\r?\n',"`n"
+            $decisionLines=$decisionText-split"`n";$fixtureDecisions=Join-Path $deadlineCheckout 'docs\DECISIONS.md';[void][IO.Directory]::CreateDirectory((Split-Path $fixtureDecisions))
+            function Get-DecisionSection([string]$Id){$at=[array]::FindIndex($decisionLines,[Predicate[string]]{param($l)$l.StartsWith("## $Id ")});$to=[array]::FindIndex($decisionLines,$at+1,[Predicate[string]]{param($l)$l.StartsWith('## ')});if($to-lt0){$to=$decisionLines.Count};@($decisionLines[$at..($to-1)]|Where-Object{$_.Trim()})}
+            $ruleLines=@(Get-DecisionSection 'DEC-30')+@(Get-DecisionSection 'DEC-33');$titles=@($decisionLines|Where-Object{$_-match'^## DEC-\d+ '}|ForEach-Object{$_.Substring(3)})
+            $constitutionHook=Join-Path $deadlineLib 'hooks\Load-Constitution.ps1';$constitutionSource=Join-Path $PSScriptRoot 'hooks\Load-Constitution.ps1'
+            function Get-ConstitutionFault{
+                $faults=[Collections.Generic.List[string]]::new();[IO.File]::WriteAllText($fixtureDecisions,$decisionText)
+                $savedProjectDir=$env:CLAUDE_PROJECT_DIR;$env:CLAUDE_PROJECT_DIR=$null
+                try{
+                foreach($source in 'startup','clear','resume','compact',''){
+                    $r=Invoke-DeadlineEvent $constitutionHook 'SessionStart' $deadlineCheckout $source;$o=$r.Text
+                    $full=$source-in'startup','clear',''
+                    if($r.Exit-ne0-or$r.Error-or$o.Length-gt9500-or@($ruleLines+$titles|Where-Object{!$o.Contains($_)}).Count-or$o.Contains('FIXTURE-PULSE')){$faults.Add("rules on '$source'")}
+                    if($o.Contains($alwaysHeadings[0])-ne$full-or(!$full-and!$o.Contains('Tool guidance abbreviated; see'))){$faults.Add("tool index on '$source'")}
+                    if($source-eq'startup'){$script:constitutionStartup=$o}elseif($source-eq'resume'){$script:constitutionResume=$o}
+                }
+                if((Invoke-DeadlineEvent $constitutionHook 'SessionStart' (Join-Path $t 'unrelated') 'startup').Text){$faults.Add('unrelated cwd')}
+                # The project directory Claude Code names wins over the event's cwd: a session whose shell moved still loads.
+                $env:CLAUDE_PROJECT_DIR=$deadlineCheckout;$o=(Invoke-DeadlineEvent $constitutionHook 'SessionStart' (Join-Path $t 'unrelated') 'compact').Text
+                if(@($ruleLines+$titles|Where-Object{!$o.Contains($_)}).Count){$faults.Add('moved cwd inside the project')}
+                $env:CLAUDE_PROJECT_DIR=Join-Path $t 'unrelated'
+                if((Invoke-DeadlineEvent $constitutionHook 'SessionStart' $deadlineCheckout 'startup').Text){$faults.Add('other project')}
+                $env:CLAUDE_PROJECT_DIR=$null
+                foreach($case in @(@('12. ','DEC-33 rule 12'),@('## DEC-30 ','DEC-30'))){
+                    [IO.File]::WriteAllText($fixtureDecisions,$decisionText.Replace("`n$($case[0])","`nX$($case[0])"))
+                    $r=Invoke-DeadlineEvent $constitutionHook 'SessionStart' $deadlineCheckout 'resume'
+                    if($r.Exit-ne0-or!$r.Text.StartsWith('CONSTITUTION NOT LOADED: read ')-or!$r.Text.Contains("not found: $($case[1])")){$faults.Add("retrieve line for $($case[1])")}
+                }
+                [IO.File]::WriteAllText($fixtureDecisions,$decisionText.Replace("`n1. ","`n1. $('R'*9500) "))
+                if(!(Invoke-DeadlineEvent $constitutionHook 'SessionStart' $deadlineCheckout 'startup').Text.Contains('over the 9500-character bound')){$faults.Add('constitution bound')}
+                [IO.File]::WriteAllText($fixtureDecisions,$decisionText);[IO.File]::WriteAllText((Join-Path $deadlineLib 'README.md'),"## 4. Always`n"+('GUIDANCE'*1000)+"`n")
+                $r=Invoke-DeadlineEvent $constitutionHook 'SessionStart' $deadlineCheckout 'startup'
+                if($r.Text.Length-gt9500-or$r.Text.Contains('GUIDANCE')-or!$r.Text.Contains('Tool guidance abbreviated; see')-or@($ruleLines|Where-Object{!$r.Text.Contains($_)}).Count){$faults.Add('guidance gives way first')}
+                Copy-Item -LiteralPath $realReadme -Destination (Join-Path $deadlineLib 'README.md') -Force
+                }finally{$env:CLAUDE_PROJECT_DIR=$savedProjectDir}
+                $faults
+            }
+            Copy-Item -LiteralPath $constitutionSource -Destination $constitutionHook
+            $faults=@(Get-ConstitutionFault)
+            Assert-That "Load-Constitution.ps1 loads the constitution on every source, bounded and fail-loud (faults: $($faults-join', '))" (!$faults.Count)
+            "BYTES Load-Constitution startup=$($constitutionStartup.Length) resume=$($constitutionResume.Length) characters"
+            $original=[IO.File]::ReadAllText($constitutionSource)
+            $mutants=[ordered]@{source="if(`$true){";retrieve='if($false){"$retrieve (not found:';bound='-gt99999){$guidance=$pointer}';scope="TrimEnd('\')){}";project='$cwd=if($false){'}
+            $mutated=[ordered]@{source="if(!`$e.source-or`$e.source-in'startup','clear'){";retrieve='if($missing){"$retrieve (not found:';bound='-gt9500){$guidance=$pointer}';scope="TrimEnd('\')){exit 0}";project='$cwd=if($env:CLAUDE_PROJECT_DIR){'}
+            foreach($name in $mutants.Keys){
+                if(!$original.Contains($mutated[$name])){Assert-That "constitution mutant $name applies" $false;continue}
+                [IO.File]::WriteAllText($constitutionHook,$original.Replace($mutated[$name],$mutants[$name]))
+                Assert-That "constitution mutant $name is caught" (@(Get-ConstitutionFault).Count-gt0)
+            }
+            Copy-Item -LiteralPath $constitutionSource -Destination $constitutionHook -Force
             # S3: NOW.md at every start, the full Pulse only at startup; a NOW.md about the size of a real save (3 KB).
             $nowFile=Join-Path $deadlineStore 'work\NOW.md';[void][IO.Directory]::CreateDirectory((Split-Path $nowFile))
             $nowText="# NOW WS-099`n`n## 1. Now`n`nFIXTURE-NOW-HEAD`n`n"+(('fixture state line '*10+"`n")*15)+'FIXTURE-NOW-TAIL'
@@ -111,9 +160,11 @@ if($mode-eq'long'){'ORVION PULSE 2026-11-01 18:00 UTC';'repo     '+('R'*990);'st
             $compact=Invoke-DeadlineEvent $deadlineHook 'SessionStart' $deadlineCheckout 'compact'
             $legacy=Invoke-DeadlineEvent
             $cleared=Invoke-DeadlineEvent $deadlineHook 'SessionStart' $deadlineCheckout 'clear'
-            Assert-That 'startup injects NOW.md whole and the full Pulse' ($startup.Exit-eq0-and$startup.Text.Contains($nowText)-and$startup.Text.Contains('repo     CRM')-and$startup.Text.Contains('LAST-LINE')-and$startup.Text.Contains('TOOLS-LINE')-and$startup.Text.Contains($alwaysHeadings[0]))
-            Assert-That 'after /clear, a new context, the tool index and the full Pulse' ($cleared.Exit-eq0-and$cleared.Text.Contains($nowText)-and$cleared.Text.Contains('repo     CRM')-and$cleared.Text.Contains($alwaysHeadings[0]))
-            Assert-That 'compact injects NOW.md whole and only the short Pulse' ($compact.Exit-eq0-and$compact.Text.Contains($nowText)-and!$compact.Text.Contains($alwaysHeadings[0])-and$compact.Text.Contains('Tool guidance abbreviated; see')-and$compact.Text.Contains('ORVION PULSE')-and$compact.Text.Contains('running  archiver')-and$compact.Text.Contains('waiting  on the owner: 1')-and!$compact.Text.Contains('repo     CRM')-and!$compact.Text.Contains('OWNER-ITEM')-and!$compact.Text.Contains('LAST-LINE')-and!$compact.Text.Contains('QUEUE-LINE')-and!$compact.Text.Contains('TOOLS-LINE'))
+            Assert-That 'startup injects NOW.md whole and the full Pulse' ($startup.Exit-eq0-and$startup.Text.Contains($nowText)-and$startup.Text.Contains('repo     CRM')-and$startup.Text.Contains('LAST-LINE')-and$startup.Text.Contains('TOOLS-LINE'))
+            Assert-That 'after /clear, a new context, the full Pulse' ($cleared.Exit-eq0-and$cleared.Text.Contains($nowText)-and$cleared.Text.Contains('repo     CRM'))
+            $duplicated=@(foreach($r in $startup,$cleared,$compact){@($ruleLines+$alwaysHeadings+'Tool guidance abbreviated'|Where-Object{$r.Text.Contains($_)})})
+            Assert-That "Watch-Reminder never repeats Load-Constitution's rules or tool guidance (found: $($duplicated-join' | '))" (!$duplicated.Count)
+            Assert-That 'compact injects NOW.md whole and only the short Pulse' ($compact.Exit-eq0-and$compact.Text.Contains($nowText)-and$compact.Text.Contains('ORVION PULSE')-and$compact.Text.Contains('running  archiver')-and$compact.Text.Contains('waiting  on the owner: 1')-and!$compact.Text.Contains('repo     CRM')-and!$compact.Text.Contains('OWNER-ITEM')-and!$compact.Text.Contains('LAST-LINE')-and!$compact.Text.Contains('QUEUE-LINE')-and!$compact.Text.Contains('TOOLS-LINE'))
             Assert-That 'an event without source (an older client) gets the full Pulse' ($legacy.Exit-eq0-and$legacy.Text.Contains($nowText)-and$legacy.Text.Contains('repo     CRM'))
             "BYTES SessionStart startup=$([Text.Encoding]::UTF8.GetByteCount($startup.Text)) compact=$([Text.Encoding]::UTF8.GetByteCount($compact.Text)) NowMd=$([Text.Encoding]::UTF8.GetByteCount($nowText))"
             [IO.File]::WriteAllText((Join-Path $deadlineStore 'mode'),'nonzero')
@@ -146,7 +197,7 @@ if($mode-eq'long'){'ORVION PULSE 2026-11-01 18:00 UTC';'repo     '+('R'*990);'st
             [IO.File]::WriteAllText((Join-Path $deadlineLib 'README.md'),("## Always`n"+('GUIDANCE'*3000)+"`n## Next`n"))
             [IO.File]::WriteAllText((Join-Path $deadlineStore 'mode'),'nonzero')
             $bounded=Invoke-DeadlineEvent
-            Assert-That 'complete SessionStart bounds README guidance while preserving Pulse diagnostics and index pointer' ($bounded.Exit-eq0-and$bounded.Text.Length-le8192-and$bounded.Text-match'Pulse UNREADABLE fixture'-and$bounded.Text.Contains("$deadlineStore\sessions\INDEX.md")-and$bounded.Text-match'README.md')
+            Assert-That 'SessionStart never reads README guidance and keeps Pulse diagnostics and the index pointers' ($bounded.Exit-eq0-and$bounded.Text.Length-le8192-and!$bounded.Text.Contains('GUIDANCE')-and$bounded.Text-match'Pulse UNREADABLE fixture'-and$bounded.Text.Contains("$deadlineStore\sessions\INDEX.md")-and$bounded.Text-match'README.md')
             $end=Invoke-DeadlineEvent $deadlineHook 'SessionEnd'
             $unrelated=Invoke-DeadlineEvent $deadlineHook 'SessionStart' (Join-Path $t 'unrelated')
             Assert-That 'deadline leaves silent SessionEnd and unrelated branches silent with exit 0' ($end.Exit-eq0-and$unrelated.Exit-eq0-and!$end.Text-and!$end.Error-and!$unrelated.Text-and!$unrelated.Error)
@@ -249,7 +300,7 @@ if($Library){Add-Content (Join-Path $checkout 'library.calls') $Root;. (Join-Pat
     $nativeCommand="pwsh -NoProfile -File `"$t\repo\scripts\run_timed.ps1`" -Log `"C:\logs\a.log`" -Command native"
     Assert-That 'native timed commands stay under native tools without Workbench reminders' (!(Invoke-Hook $nativeCommand $native))
     $workbenchStart=@(Invoke-Event @{hook_event_name='SessionStart';cwd=$ws;session_id='workbench-session'})-join' ';$rows=@(Wait-Archive 2)
-    Assert-That 'Workbench SessionStart receives one index/Pulse with separate archival' ($workbenchStart-match'STUB-TOOLS'-and$workbenchStart-match'STUB-PULSE'-and@(Get-Content (Join-Path $ws 'pulse.calls')).Count-eq1-and$rows.Count-eq2)
+    Assert-That 'Workbench SessionStart receives one Pulse, no tool guidance, with separate archival' ($workbenchStart-notmatch'STUB-TOOLS'-and$workbenchStart-match'STUB-PULSE'-and@(Get-Content (Join-Path $ws 'pulse.calls')).Count-eq1-and$rows.Count-eq2)
     $explicit="pwsh -NoProfile -File `"$lib\run_timed.ps1`" -Log `"C:\logs\b.log`" -Command native"
     $c=Invoke-Hook $explicit $native
     Assert-That 'an explicit existing Owner-Tools File command opts in for that event' ($c.Contains("$lib\watch_run.ps1")-and$c-match'one shared host observer')

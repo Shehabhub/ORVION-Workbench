@@ -2,7 +2,8 @@
 # template (WORKSPACE-LAYOUT.md section 14.2), has the Markdown guard's Test-NowMarkdown check it and renders the status
 # page from the workstream's plan file (DEC-29), so a refused save writes nothing; then overwrites NOW.md, appends one
 # line to the workstream's LOG.md, writes the page beside it, replaces the vault's continuity copy (WORKSPACE-LAYOUT.md
-# section 3.3) once every copied file's SHA256 matches its source, and prints the page line, the SAVED line, the
+# section 3.3) once every copied file's SHA256 matches its source, then, where records\token-ledger.tsv exists, prints
+# lib\Token-Ledger.ps1's latest row (a failure is one TOKEN_LEDGER_SKIPPED line), and prints the page line, the SAVED line, the
 # /compact line and the resume message. Owner questions, pointers and the workstream carry over from the previous
 # NOW.md unless given; pending decisions are the ## headings of decisions-inbox.md in the data root; Running is stated at every
 # save. It reads none of the legacy folders (MIGRATION-MAP.tsv L05, X01). -Check compares each sb\W*\status.html with a
@@ -314,6 +315,13 @@ if($differ.Count){Remove-Copy $stage;throw "SAVE_CONTINUITY_MISMATCH: $($differ-
 if(Test-Path -LiteralPath $continuity){Move-Folder $continuity $previous}
 Move-Folder $stage $continuity
 if(Test-Path -LiteralPath $previous){Remove-Copy $previous}
+# The token ledger (DEC-18) runs only after NOW.md and the continuity copy are whole and only where its table exists;
+# a failure is one line and never fails the save.
+$ledger=[IO.Path]::Combine($DataRoot,'records','token-ledger.tsv')
+if(Test-Path -LiteralPath $ledger -PathType Leaf){
+    try{$tokens=@(& (Join-Path $PSScriptRoot 'Token-Ledger.ps1') -Checkout $Checkout -DataRoot $DataRoot -Show 1);"tokens: $($tokens[-1])"}
+    catch{"TOKEN_LEDGER_SKIPPED: $($_.Exception.Message)"}
+}
 
 $ask=if($Question.Count){' Open owner questions: '+(@($Question|ForEach-Object{Format-Clause $_})-join' ')}else{''}
 # The two pasted lines carry only the first sentence of Next; NOW.md holds the whole step. Ceiling: an abbreviation such

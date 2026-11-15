@@ -519,3 +519,32 @@ Replaced rules of DEC-33, verbatim:
 > 12. Fix, never skip: fix each error, gap or failed check at its root now; defer only out-of-scope, unsafe or owner fixes (owner, trigger); lesson each mistake, guard a repeat; finish before expanding.
 
 Now in: DEC-33
+
+## D130 2026-11-14 WS-042: the decisions inbox folded; DEC-31 takes the ready-script line
+
+The owner's words of 2026-11-14, verbatim from data/decisions-inbox.md (~12:00 Cairo):
+
+> you said "I'll record this as a lesson, so a future agent blocked like this hands you a ready script."
+> make sure you record it in repo memory for other agants as well not only yours. dont build another memory for repo but search where repo memory set and update it
+
+The owner's approval of the fold, 2026-11-14 ~22:04 Cairo, verbatim:
+
+> - **G3:** Archive the 16 verified settled entries, fold #18 into DEC-31, and preserve the eight pending entries. Follow DEC-01 exactly, including owner wording, historical evidence, and checks.
+
+The lesson becomes a line of DEC-31, which every agent reads. The 16 settled entries change no entry and leave the
+inbox as WS-040 left its executed approvals: 2026-11-11 ~18:20 (rule 5 conditions, in DEC-33 rule 8), ~19:27, ~19:40
+(verify before adding, DEC-33 rules 1 and 11), ~21:25 and ~23:35; 2026-11-12 ~08:00, ~08:45 (fix first and move on,
+DEC-33 rule 12), ~08:50, ~12:20, ~13:27, ~17:02 and 18:38-19:07; 2026-11-14 after 10:14 (fix flaws found, DEC-33 rule
+12), ~11:30 and ~11:45 (status pages, DEC-29) and ~12:30 (no rotation, batch6 PLAN section 10). They and the ~12:00
+entry above are verbatim in data/records/WS-042/owner-words/decisions-inbox-20261114T2210.md (SHA256 617EE95E...).
+
+Replaced wording of DEC-31, verbatim (the rest of the entry stands):
+
+> it never re-describes what the owner already knows.
+>
+> Scope: every message to the owner, from every agent.
+> Why: the owner's instructions of 2026-10-26 and 2026-10-31, and the constitution's "no reports that produce reports".
+> Changed: 2026-11-01
+> History: D106
+
+Now in: DEC-31

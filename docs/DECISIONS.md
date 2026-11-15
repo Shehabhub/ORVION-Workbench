@@ -499,12 +499,13 @@ History: D106, D129
 Replies, reports and questions to the owner are in English only, even when the owner writes in Arabic; repository text
 is English. Every time stated to the owner is Cairo local time, labelled Cairo where it could be misread; UTC appears
 only inside quoted evidence, and records keep their UTC stamps. A reply is short and leads to a decision or an action;
-it never re-describes what the owner already knows.
+it never re-describes what the owner already knows. The owner is never asked to open a terminal or follow GUI steps: an
+agent blocked on the owner's machine hands over a ready script and one line saying what it does.
 
 Scope: every message to the owner, from every agent.
-Why: the owner's instructions of 2026-10-26 and 2026-10-31, and the constitution's "no reports that produce reports".
-Changed: 2026-11-01
-History: D106
+Why: the owner's instructions of 2026-10-26, 2026-10-31 and 2026-11-14, and the constitution's "no reports that produce reports".
+Changed: 2026-11-14
+History: D106, D130
 
 ## DEC-32 Sections and citations
 
