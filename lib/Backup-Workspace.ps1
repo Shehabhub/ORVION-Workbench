@@ -47,7 +47,9 @@ function Write-BackupStatus($Value){
     # Same-directory replacement; the pending write does not truncate the previous record.
     # Local failure preservation is tested; cloud/remote atomicity and durability are unproven.
     [IO.File]::WriteAllText($pending,($Value|ConvertTo-Json -Depth 8),[Text.UTF8Encoding]::new($false))
-    [IO.File]::Move($pending,$statusFile,$true)
+    # A reader holding latest.json open (a status poll, an indexer, antivirus) makes Windows refuse the replace:
+    # retry for about 2 s, then fail as before (WS-044, after WS-042 Original Finish attempt 1).
+    for($try=1;;$try++){try{[IO.File]::Move($pending,$statusFile,$true);return}catch [UnauthorizedAccessException]{if($try-ge80){throw};Start-Sleep -Milliseconds 25}}
 }
 function Get-BackupTaskIdentity {
     $identity=[Security.Principal.WindowsIdentity]::GetCurrent().Name

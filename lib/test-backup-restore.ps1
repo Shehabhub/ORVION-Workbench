@@ -272,6 +272,23 @@ try{
     $heldStatus=[IO.File]::Open($statusPath,'Open','Read','Read')
     try{$writeFailed=Invoke-FocusedProcess 'action-status-write-failure' $actionArguments}finally{$heldStatus.Dispose()}
     Assert-Focused 'atomic status replacement failure preserves previous record and verified pointer' ($writeFailed.code-ne0-and$writeFailed.text.Contains('BACKUP_STATUS_WRITE_FAILED')-and[Convert]::ToBase64String($statusBefore)-ceq[Convert]::ToBase64String([IO.File]::ReadAllBytes($statusPath)))
+    # WS-044: a reader that closes latest.json within the retry bound must not fail the replace (WS-042 Original a1).
+    $writerFunction=$normalAst.Find({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]-and$n.Name-eq'Write-BackupStatus'},$false).Extent.Text
+    $writerMutant=$writerFunction-replace'for\(\$try=1;;\$try\+\+\)\{try\{(\[IO\.File\]::Move\(\$pending,\$statusFile,\$true\));return\}catch[^\n]*','$1'
+    if($writerMutant-ceq$writerFunction){throw 'WRITER_MUTANT_STALE'}
+    $statusRoot=Join-Path $fixture 'reader-status';[void][IO.Directory]::CreateDirectory($statusRoot);$statusFile=Join-Path $statusRoot 'latest.json'
+    function Test-ReaderRelease([string]$Definition){
+        . ([scriptblock]::Create($Definition))
+        Get-ChildItem -LiteralPath $statusRoot -Filter 'pending-*.json'|Remove-Item
+        [IO.File]::WriteAllText($statusFile,'{"result":"OLD"}')
+        $reader=[IO.File]::Open($statusFile,'Open','Read','Read');$release=[Threading.CancellationTokenSource]::new(300);$null=$release.Token.Register([Action]$reader.Dispose)
+        $written=$true;try{Write-BackupStatus ([ordered]@{result='NEW'})}catch{$written=$false}finally{$release.Dispose();$reader.Dispose()}
+        [pscustomobject]@{written=$written;result=([IO.File]::ReadAllText($statusFile)|ConvertFrom-Json).result;pending=@(Get-ChildItem -LiteralPath $statusRoot -Filter 'pending-*.json').Count}
+    }
+    $readerMutant=Test-ReaderRelease $writerMutant
+    Assert-Focused 'MUTANT killed: without the retry a reader open at the replace fails the status write' (!$readerMutant.written-and$readerMutant.result-eq'OLD')
+    $readerReal=Test-ReaderRelease $writerFunction
+    Assert-Focused 'a reader closing within the retry bound does not fail the status replace' ($readerReal.written-and$readerReal.result-eq'NEW'-and$readerReal.pending-eq0)
     $launcher=Join-Path $destination 'Restore-ORVION.ps1';$launcherHash=(Get-FileHash -LiteralPath $launcher).Hash
     $heldLauncher=[IO.File]::Open($launcher,'Open','Read','Read')
     try{$publication=Invoke-FocusedProcess 'action-launcher-failure' $actionArguments}finally{$heldLauncher.Dispose()}

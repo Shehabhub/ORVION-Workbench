@@ -46,6 +46,7 @@ Rules: `WS-0NN-<slug>.md`, allocated and changed only through the native lifecyc
 | WS-040-carried-cancel-retry-and-constitution.md | contracts | Workbench Change Request - WS-040 | - | - |
 | WS-041-commit-retry-and-ws033-summary.md | contracts | Workbench Change Request - WS-041 | - | - |
 | WS-043-lifecycle-new-scripts.md | contracts | Workbench Change Request - WS-043 | - | - |
+| WS-044-backup-status-reader-retry.md | contracts | Workbench Change Request - WS-044 | - | - |
 <!-- /organize:contents -->
 
 <!-- organize:changes (last 10 rows of docs/history/LOG.tsv for this folder; generated) -->
