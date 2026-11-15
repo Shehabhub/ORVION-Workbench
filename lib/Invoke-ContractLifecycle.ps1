@@ -172,20 +172,28 @@ function Assert-SandboxBinding{
     if($binding.Root-cne$executionRoot-or$binding.DraftSHA256-cne$m.DraftSHA256-or$binding.ApprovalSHA256-cne(Get-FileHash -LiteralPath $approval).Hash-or$binding.ProofSHA256-cne(Get-FileHash -LiteralPath $binding.Proof).Hash-or$qualified.Status-cne'Complete'-or$qualified.IndependentWholeRange-cne'READY'-or$qualified.ReceiptExportSHA256-cne$binding.ProofSHA256){throw 'LIFECYCLE_SANDBOX_BINDING_CHANGED'}
 }
 function Get-OriginalPrediction([string]$Tree,$Record){
-    $recipe=Get-WorkbenchRecipe $executionRoot $Tree $Record
-    foreach($row in $recipe.Material.inputs){$replacement=@($m.Outputs|Where-Object Path -CEQ $row.Path);if($replacement.Count-eq1){$row.Blob=$replacement[0].Blob}}
-    $predictedRecipe=Get-WorkbenchDigest ($recipe.Material|ConvertTo-Json -Depth 8 -Compress)
-    $rows=[Collections.Generic.SortedDictionary[string,string]]::new([StringComparer]::Ordinal)
-    foreach($row in @(Invoke-RootGit @('ls-tree','-r',$Tree))){
-        if($row-cnotmatch'^(?<mode>[0-9]+) blob (?<blob>[0-9a-f]{40})\t(?<path>.+)$'){throw 'LIFECYCLE_UNSUPPORTED_TREE_ENTRY'}
-        $pathValue=$Matches.path;$modeValue=$Matches.mode;$blobValue=$Matches.blob
-        $replacement=@($m.Outputs|Where-Object Path -CEQ $pathValue);if($replacement.Count-eq1){$blobValue=$replacement[0].Blob}
-        if($pathValue-ceq'RESUME.md'){$blobValue=Get-WorkbenchResumeDigest (Get-WorkbenchText $executionRoot $Tree $pathValue)}
-        $rows[$pathValue]="$modeValue $blobValue $pathValue"
-    }
-    foreach($output in $m.Outputs){if(!$rows.ContainsKey($output.Path)){$rows[$output.Path]='100644 '+$output.Blob+' '+$output.Path}}
-    $rows[$m.Contract]='100644 '+(Get-WorkbenchDigest (Get-WorkbenchFrozen $Record))+' '+$m.Contract
-    @{Recipe=$predictedRecipe;Fingerprint=(Get-WorkbenchDigest (@($rows.Values)-join[char]10))}
+    # The tree the Original will carry: the baseline plus the declared outputs, built in a throwaway index and object store,
+    # so an added script or test enters the schedule exactly as the judge reads it; the roots' objects are read, never written.
+    $objects=foreach($repo in $executionRoot,$m.Sandbox){$lines=@(& git --no-optional-locks -C $repo rev-parse --path-format=absolute --git-path objects 2>$null);if($LASTEXITCODE-or$lines.Count-ne1){throw 'LIFECYCLE_PREDICTION_OBJECTS_UNREADABLE'};[IO.Path]::GetFullPath($lines[0])}
+    $scratch=Join-Path ([IO.Path]::GetTempPath()) ('olp'+[guid]::NewGuid().ToString('N').Substring(0,8))
+    $saved=@{};foreach($name in 'GIT_INDEX_FILE','GIT_OBJECT_DIRECTORY','GIT_ALTERNATE_OBJECT_DIRECTORIES'){$saved[$name]=[Environment]::GetEnvironmentVariable($name)}
+    try{
+        [void][IO.Directory]::CreateDirectory((Join-Path $scratch 'objects'))
+        $env:GIT_INDEX_FILE=Join-Path $scratch 'index';$env:GIT_OBJECT_DIRECTORY=Join-Path $scratch 'objects';$env:GIT_ALTERNATE_OBJECT_DIRECTORIES=$objects-join[IO.Path]::PathSeparator
+        $null=Invoke-RootGit @('read-tree',$Tree)
+        foreach($output in $m.Outputs){$row=@(Invoke-RootGit @('ls-tree',$Tree,'--',$output.Path));$mode=if($row.Count){($row[0]-split' ')[0]}else{'100644'};$null=Invoke-RootGit @('update-index','--add','--cacheinfo',"$mode,$($output.Blob),$($output.Path)")}
+        $predicted=@(Invoke-RootGit @('write-tree','--missing-ok'))[0]
+        $recipe=Get-WorkbenchRecipe $executionRoot $predicted $Record
+        $rows=[Collections.Generic.SortedDictionary[string,string]]::new([StringComparer]::Ordinal)
+        foreach($row in @(Invoke-RootGit @('ls-tree','-r',$predicted))){
+            if($row-cnotmatch'^(?<mode>[0-9]+) blob (?<blob>[0-9a-f]{40})\t(?<path>.+)$'){throw 'LIFECYCLE_UNSUPPORTED_TREE_ENTRY'}
+            $pathValue=$Matches.path;$modeValue=$Matches.mode;$blobValue=$Matches.blob
+            if($pathValue-ceq'RESUME.md'){$blobValue=Get-WorkbenchResumeDigest (Get-WorkbenchText $executionRoot $predicted $pathValue)}
+            $rows[$pathValue]="$modeValue $blobValue $pathValue"
+        }
+        $rows[$m.Contract]='100644 '+(Get-WorkbenchDigest (Get-WorkbenchFrozen $Record))+' '+$m.Contract
+        @{Recipe=$recipe.Digest;Fingerprint=(Get-WorkbenchDigest (@($rows.Values)-join[char]10))}
+    }finally{foreach($name in $saved.Keys){if($null-eq$saved[$name]){Remove-Item -LiteralPath "Env:$name" -ErrorAction Ignore}else{Set-Item -LiteralPath "Env:$name" -Value $saved[$name]}};if(Test-Path -LiteralPath $scratch){Remove-Item -LiteralPath $scratch -Recurse -Force}}
 }
 function Get-OriginalApprovalText($Qualified,$Proof,[string]$ProofPath){
     Expand-Template $m.OriginalApprovalTemplate @{Draft=$m.Draft;DraftSHA256=$m.DraftSHA256;Root=$executionRoot;Baseline=$m.Baseline;Sandbox=$m.Sandbox;SandboxHead=$Qualified.Head;Receipt=$Proof.digest;Proof=$ProofPath;ProofSHA256=$Qualified.ReceiptExportSHA256;Fingerprint=$Proof.fingerprint;Recipe=$Proof.recipe;Evaluator=$Proof.evaluator}
@@ -198,8 +206,8 @@ function Assert-FinishEvidence($Receipt,[string]$Tree,[switch]$Live){
     if(!$run.RealJournalUnchanged-or$run.Root-cne$executionRoot-or$run.DraftSHA256-cne$m.DraftSHA256){throw 'LIFECYCLE_RUN_SUBJECT_MISMATCH'}
     $record=Get-WorkbenchFields (Get-WorkbenchText $executionRoot $Tree $m.Contract)
     if($record.Status-cne'In Progress'-or$record.Checkpoint['Resume Step']-cne'DONE'){throw 'LIFECYCLE_NOT_DONE_IN_PROGRESS'}
-    $recipe=Get-WorkbenchRecipe $executionRoot $Tree $record;$priorRecipe=Get-WorkbenchRecipe $executionRoot $m.Baseline $record
-    if(($recipe.Material.tests-join'|')-cne($priorRecipe.Material.tests-join'|')-or($recipe.Material.hazards-join'|')-cne($priorRecipe.Material.hazards-join'|')){throw 'LIFECYCLE_SCHEDULE_CHANGED'}
+    # The schedule is the tree's own: the receipt binds this recipe and fingerprint, the range binds the exact paths and blobs.
+    $recipe=Get-WorkbenchRecipe $executionRoot $Tree $record
     if($Receipt.schema-ne2-or$Receipt.role-cne$Role.ToUpperInvariant()-or$Receipt.root-cne$executionRoot-or$Receipt.draftSHA256-cne$m.DraftSHA256-or$Receipt.recipe-cne$recipe.Digest-or$Receipt.fingerprint-cne(Get-WorkbenchFingerprint $executionRoot $Tree $m.Contract)-or$Receipt.evaluator-cne@(Invoke-WorkbenchGit $executionRoot @('rev-parse',"${Tree}:lib/Test-WorkbenchChange.ps1"))[0]){throw 'LIFECYCLE_RECEIPT_SUBJECT_MISMATCH'}
     # RESUME.md is the pointer; dedupe keeps exact set equality.
     $allowed=@(@('RESUME.md',$m.Contract)+@($m.Outputs.Path)|Sort-Object -Unique)

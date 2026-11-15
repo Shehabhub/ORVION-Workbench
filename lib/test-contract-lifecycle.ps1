@@ -75,7 +75,7 @@ if($Actionlint-and!(Test-Path -LiteralPath $Actionlint)){exit 10}
 $resume=Join-Path $Root 'RESUME.md';$routing=[IO.File]::ReadAllText($resume);$contract=Get-WorkbenchPointer $routing
 $path=Join-Path $Root $contract;$text=[IO.File]::ReadAllText($path);$record=Get-WorkbenchFields $text
 switch($verb){
-'Execute'{if($record.Checkpoint['Resume Step']-cne'DONE'){[void][IO.Directory]::CreateDirectory((Join-Path $Root 'docs'));[IO.File]::WriteAllText((Join-Path $Root 'lib\tool.ps1'),"# tool v2`r`n");[IO.File]::WriteAllText((Join-Path $Root 'docs\new.txt'),"new`n")}elseif($env:LIFECYCLE_FIXTURE_REFUSE-ceq'ExecuteDone'){exit 9}}
+'Execute'{if($record.Checkpoint['Resume Step']-cne'DONE'){[void][IO.Directory]::CreateDirectory((Join-Path $Root 'docs'));[IO.File]::WriteAllText((Join-Path $Root 'lib\tool.ps1'),"# tool v2`r`n");[IO.File]::WriteAllText((Join-Path $Root 'docs\new.txt'),"new`n");[IO.File]::WriteAllText((Join-Path $Root 'lib\test-new.ps1'),"# new test`r`n")}elseif($env:LIFECYCLE_FIXTURE_REFUSE-ceq'ExecuteDone'){exit 9}}
 'Finish'{
     $context=Get-WorkbenchContext $record;$role=Get-WorkbenchExecutionRole $Root $context;$recipe=Get-WorkbenchRecipe $Root 'HEAD' $record
     $proof=if($role-ceq'ORIGINAL'){(Assert-WorkbenchSandboxProof $Root $record $context $recipe -Implementation).digest}else{$null}
@@ -84,7 +84,7 @@ switch($verb){
     $receipt=$material|ConvertTo-Json -Depth 5
     [IO.File]::WriteAllText((Join-Path $Root '.workbench-local-certification.json'),$receipt)
     [void][IO.Directory]::CreateDirectory((Join-Path $Root '.workbench-certifications'));[IO.File]::WriteAllText((Join-Path $Root ".workbench-certifications\$digest.json"),$receipt)
-    'PASS test-x.ps1';'TESTS: all passed in 0 s';'PASS the real journal is untouched by the checks'
+    foreach($test in $recipe.Material.tests){'PASS '+[IO.Path]::GetFileName($test)};'TESTS: all passed in 0 s';'PASS the real journal is untouched by the checks'
 }
 'Review'{'WORKBENCH_REVIEW: READY'}
 'Complete'{
@@ -116,7 +116,7 @@ param([string]$Draft,[string]$Root,[switch]$Preview)
 if($env:LIFECYCLE_FIXTURE_REFUSE-ceq'Preview'){exit 4}
 $sha=if($env:LIFECYCLE_FIXTURE_REFUSE-ceq'PreviewWrong'){'0'*64}else{(Get-FileHash -LiteralPath $Draft).Hash}
 $blob=if($env:LIFECYCLE_FIXTURE_REFUSE-ceq'PreviewBlob'){'0'*40}else{'__TOOLBLOB__'}
-[ordered]@{DraftSHA256=$sha;Files=@([ordered]@{File='lib/tool.ps1';Blob=$blob;Skip=$false},[ordered]@{File='docs/new.txt';Blob='__NEWBLOB__';Skip=$false})}|ConvertTo-Json -Depth 4
+[ordered]@{DraftSHA256=$sha;Files=@([ordered]@{File='lib/tool.ps1';Blob=$blob;Skip=$false},[ordered]@{File='docs/new.txt';Blob='__NEWBLOB__';Skip=$false},[ordered]@{File='lib/test-new.ps1';Blob='__TESTNEWBLOB__';Skip=$false})}|ConvertTo-Json -Depth 4
 '@
 
 try{
@@ -129,15 +129,15 @@ try{
     $evaluator=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Test-WorkbenchChange.ps1'))
     $return="if(`$MyInvocation.InvocationName-eq'.'){return}";$cut=$evaluator.IndexOf($return);if($cut-lt0){throw 'FIXTURE_EVALUATOR_RETURN_MISSING'}
     $judgeText=$evaluator.Substring(0,$cut)+"function Get-WorkbenchCITool{[ordered]@{SHA256='$((Get-FileHash -LiteralPath $actionlint).Hash)'}}`n$return`nif(`$env:LIFECYCLE_FIXTURE_REFUSE-ceq`$Mode){exit 7}`nif(`$ExpectedEvaluatorSha256-and(Get-FileHash -LiteralPath `$PSCommandPath).Hash-cne`$ExpectedEvaluatorSha256){exit 8}`n'WB_FIXTURE: admitted'`nexit 0`n"
-    $toolPayload=Join-Path $root 'tool-v2.ps1';$newPayload=Join-Path $root 'new.txt';Write-Crlf $toolPayload "# tool v2`n";Write-Crlf $newPayload "new`n"
-    $toolBlob=@(FixGit $original hash-object --path=lib/tool.ps1 -- $toolPayload)[0];$newBlob=@(FixGit $original hash-object --path=docs/new.txt -- $newPayload)[0]
-    $outputs=@([pscustomobject]@{Path='lib/tool.ps1';Blob=$toolBlob},[pscustomobject]@{Path='docs/new.txt';Blob=$newBlob})
+    $toolPayload=Join-Path $root 'tool-v2.ps1';$newPayload=Join-Path $root 'new.txt';Write-Crlf $toolPayload "# tool v2`n";Write-Crlf $newPayload "new`n";$testNewPayload=Join-Path $root 'test-new.ps1';Write-Crlf $testNewPayload "# new test`n"
+    $toolBlob=@(FixGit $original hash-object --path=lib/tool.ps1 -- $toolPayload)[0];$newBlob=@(FixGit $original hash-object --path=docs/new.txt -- $newPayload)[0];$testNewBlob=@(FixGit $original hash-object --path=lib/test-new.ps1 -- $testNewPayload)[0]
+    $outputs=@([pscustomobject]@{Path='lib/tool.ps1';Blob=$toolBlob},[pscustomobject]@{Path='docs/new.txt';Blob=$newBlob},[pscustomobject]@{Path='lib/test-new.ps1';Blob=$testNewBlob})
     Write-Crlf (Join-Path $original 'lib\Test-WorkbenchChange.ps1') $judgeText
     Write-Crlf (Join-Path $original 'lib\Workbench.ps1') $workbenchStub
     Write-Crlf (Join-Path $original 'lib\run_timed.ps1') $runTimedStub
     Write-Crlf (Join-Path $original 'lib\watch_run.ps1') $watchStub
     Write-Crlf (Join-Path $original 'lib\Watch-Host.ps1') "param([string]`$WatchPid,[switch]`$ExitWhenPidsGone)`nexit 0`n"
-    Write-Crlf (Join-Path $original 'lib\apply-draft-steps.ps1') $previewStub.Replace('__TOOLBLOB__',$toolBlob).Replace('__NEWBLOB__',$newBlob)
+    Write-Crlf (Join-Path $original 'lib\apply-draft-steps.ps1') $previewStub.Replace('__TOOLBLOB__',$toolBlob).Replace('__NEWBLOB__',$newBlob).Replace('__TESTNEWBLOB__',$testNewBlob)
     foreach($name in 'lib\Events.ps1','lib\Hunt.ps1','lib\test-x.ps1','tests.ps1','changes\README.md'){Write-Crlf (Join-Path $original $name) "# fixture`n"}
     Write-Crlf (Join-Path $original 'lib\tool.ps1') "# tool v1`n"
     Write-Crlf (Join-Path $original 'RESUME.md') "# Resume`nActive Workbench Contract: None`n"
@@ -170,6 +170,7 @@ $baseline
 - RESUME.md
 - lib/tool.ps1
 - docs/new.txt
+- lib/test-new.ps1
 
 ## Out of Scope
 Everything else.
@@ -181,7 +182,7 @@ V3: c | $today | $draft | SELECTED
 Selected Version: V3
 
 ## Implementation Steps
-1. Native Execute writes the two outputs.
+1. Native Execute writes the three outputs.
 
 ## Acceptance Criteria
 - [ ] criterion one
@@ -318,7 +319,7 @@ Minimum Commit GB: 0.001
     Test-Refused 'a failed child exit is refused' Sandbox inspect 'LIFECYCLE_FINISH_CHILD_FAILED' -Path (Join-Path $sandboxRuntime 'finish-runner.exit') -Edit {[IO.File]::WriteAllText((Join-Path $sandboxRuntime 'finish-runner.exit'),'1')}
     Test-Refused 'a run of another subject is refused' Sandbox inspect 'LIFECYCLE_RUN_SUBJECT_MISMATCH' -Path $runResult -Edit {Set-Field $runResult 'RealJournalUnchanged' $false}
     Test-Refused 'a contract no longer done is refused' Sandbox inspect 'LIFECYCLE_NOT_DONE_IN_PROGRESS' -Edit {$file=Join-Path $sandbox 'changes\WS-999-fixture.md';[IO.File]::WriteAllText($file,[IO.File]::ReadAllText($file).Replace('Resume Step: DONE','Resume Step: 1'));$null=FixGit $sandbox add -A;$null=FixGit $sandbox commit --quiet -m 'undone'}
-    Test-Refused 'a changed test schedule is refused' Sandbox inspect 'LIFECYCLE_SCHEDULE_CHANGED' -Edit {Write-Crlf (Join-Path $sandbox 'lib\test-y.ps1') "# y`n";$null=FixGit $sandbox add -A;$null=FixGit $sandbox commit --quiet -m 'schedule'}
+    Test-Refused 'an undeclared added script is refused' Sandbox inspect 'LIFECYCLE_RECEIPT_SUBJECT_MISMATCH' -Edit {Write-Crlf (Join-Path $sandbox 'lib\test-y.ps1') "# y`n";$null=FixGit $sandbox add -A;$null=FixGit $sandbox commit --quiet -m 'schedule'}
     Test-Refused 'a receipt of another tree is refused' Sandbox inspect 'LIFECYCLE_RECEIPT_SUBJECT_MISMATCH' -Edit {Write-Crlf (Join-Path $sandbox 'docs\extra.txt') "x`n";$null=FixGit $sandbox add -A;$null=FixGit $sandbox commit --quiet -m 'extra'}
     Test-Refused 'a carrying range beyond the outputs is refused' Sandbox inspect 'LIFECYCLE_CARRYING_SCOPE_DIFFERS' -With (New-Variant {param($v)$v.Outputs=@($v.Outputs[0])})
     Test-Refused 'a committed output other than declared is refused' Sandbox inspect 'LIFECYCLE_COMMITTED_OUTPUT_DIFFERS' -With (New-Variant {param($v)$v.Outputs[1].Blob='0'*40})
@@ -381,9 +382,9 @@ Minimum Commit GB: 0.001
     Clear-Approval
     Test-Refused 'an unfilled Approval template is refused' Original prepare 'LIFECYCLE_TEMPLATE_UNFILLED' -With (New-Variant {param($v)$v.OriginalApprovalTemplate='{{Nothing}}'})
     Clear-Approval
-    Test-Refused 'a recipe the sandbox did not prove is refused' Original prepare 'LIFECYCLE_PREDICTED_RECIPE_MISMATCH' -With (New-OutputVariant 'lib/tool.ps1' 'lib/tool.ps1' ('0'*40))
+    Test-Refused 'a recipe the sandbox did not prove is refused' Original prepare 'LIFECYCLE_PREDICTED_RECIPE_MISMATCH' -With (New-OutputVariant 'lib/tool.ps1' 'lib/tool.ps1' ('1'*40))
     Clear-Approval
-    Test-Refused 'a fingerprint the sandbox did not prove is refused' Original prepare 'LIFECYCLE_PREDICTED_FINGERPRINT_MISMATCH' -With (New-OutputVariant 'docs/new.txt' 'docs/new.txt' ('0'*40))
+    Test-Refused 'a fingerprint the sandbox did not prove is refused' Original prepare 'LIFECYCLE_PREDICTED_FINGERPRINT_MISMATCH' -With (New-OutputVariant 'docs/new.txt' 'docs/new.txt' ('1'*40))
     Clear-Approval
     Test-Refused 'a refused literal plan stops' Original prepare 'LIFECYCLE_LITERAL_PLAN_REFUSED' -Inject 'Preview'
     Clear-Approval
