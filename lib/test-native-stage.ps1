@@ -6,6 +6,12 @@ $ErrorActionPreference='Stop';$fail=0
 function Assert-Stage([string]$Name,[bool]$Condition,[string]$Detail=''){if($Condition){"PASS $Name"}else{$script:fail++;"FAIL $Name";if($Detail){$Detail}}}
 $tempRoot=Join-Path ([IO.Path]::GetTempPath()) ('orvion-stage-'+[guid]::NewGuid().ToString('N').Substring(0,6))
 [void][IO.Directory]::CreateDirectory($tempRoot)
+# Native repository-consistency logs: RECOVER-1 alone (lawful in a sandbox for an undeployed target), and RECOVER-1 whose
+# sub-count equals the total while STALE-1 is a second issue (SPEC-323 r2 and SPEC-327 were approved over such a log).
+$ledger="  Primary ledger evidence is ABSENT, STALE or DISAGREES -- see above."
+$cleanLog=Join-Path $tempRoot 'consistency-clean.log';[IO.File]::WriteAllText($cleanLog,"RECOVER-1: FAILED (2 issue(s))`r`n$ledger`r`nREPOSITORY CONSISTENCY: 1 issue(s) found`r`n")
+$staleLine='STALE FRESHNESS METADATA: plan.md declares 2026-11-21 but line 9 carries 2026-11-22'
+$staleLog=Join-Path $tempRoot 'consistency-stale.log';[IO.File]::WriteAllText($staleLog,"RECOVER-1: FAILED (2 issue(s))`r`n$ledger`r`n$staleLine`r`nREPOSITORY CONSISTENCY: 2 issue(s) found`r`n")
 $savedGitGlobal=$env:GIT_CONFIG_GLOBAL;$savedGitNoSystem=$env:GIT_CONFIG_NOSYSTEM
 $env:GIT_CONFIG_GLOBAL=Join-Path $tempRoot 'fixture.gitconfig';$env:GIT_CONFIG_NOSYSTEM='1'
 $savedTrailer=$env:ORVION_COMMIT_TRAILER;$env:ORVION_COMMIT_TRAILER=$null
@@ -111,7 +117,7 @@ function New-ApprovalFixture([string]$Name,[string]$ApprovalEvidence){
     $draftText=$draftText.Replace('- `new.txt`','- `new.txt`'+"`n"+'- `_ORVION_CANONICAL/manifest.md`')
     [IO.File]::WriteAllText($createdFixture.Draft,$draftText)
     $blob=@(Read-StageGit $createdFixture.Root @('hash-object',"--path=$rel",'--',$createdFixture.Draft))[0]
-    [IO.File]::WriteAllText($createdFixture.Config,"@{Root='$($createdFixture.Root)';Main='$main';Id='SPEC-1';Slug='probe';Draft='$($createdFixture.Draft)';Sha='$((Get-FileHash -LiteralPath $createdFixture.Draft).Hash)';Blob='$blob';User='Stage Fixture';Suffix='toy only';ApprovalNote='synthetic only'}")
+    [IO.File]::WriteAllText($createdFixture.Config,"@{Root='$($createdFixture.Root)';Main='$main';Id='SPEC-1';Slug='probe';Draft='$($createdFixture.Draft)';Sha='$((Get-FileHash -LiteralPath $createdFixture.Draft).Hash)';Blob='$blob';User='Stage Fixture';Suffix='toy only';ApprovalNote='synthetic only';SandboxConsistency='$cleanLog'}")
     $createdFixture
 }
 # An approval fixture whose baseline is an earlier CR's allocate/approve/cancel commits above origin/main (CRM SPEC-304
@@ -136,7 +142,7 @@ function New-PendingFixture([string]$Name,[string]$Status='Cancelled',[switch]$E
     $sup=if($Unnamed){"- ``changes/SPEC-9-other.md`` (Cancelled)"}else{"- ``$old`` (Cancelled; this contract carries it)"}
     [IO.File]::WriteAllText($f.Draft,[IO.File]::ReadAllText($f.Draft).Replace("## Write Scope","## Supersedes / Depends On`n`n$sup`n`n## Write Scope"))
     $blob=@(Read-StageGit $root @('hash-object','--path=changes/SPEC-1-probe.md','--',$f.Draft))[0]
-    [IO.File]::WriteAllText($f.Config,"@{Root='$root';Main='$top';Id='SPEC-1';Slug='probe';Draft='$($f.Draft)';Sha='$((Get-FileHash -LiteralPath $f.Draft).Hash)';Blob='$blob';User='Stage Fixture';Suffix='toy only';ApprovalNote='synthetic only'}")
+    [IO.File]::WriteAllText($f.Config,"@{Root='$root';Main='$top';Id='SPEC-1';Slug='probe';Draft='$($f.Draft)';Sha='$((Get-FileHash -LiteralPath $f.Draft).Hash)';Blob='$blob';User='Stage Fixture';Suffix='toy only';ApprovalNote='synthetic only';SandboxConsistency='$cleanLog'}")
     $f.Head=$top;$f
 }
 $retryNative="`$c=@(Get-Content (Join-Path `$Root '.git/native.calls')).Count;if(`$c-le__N__){'ORVION: BLOCKED';'CODE: __CODE__';'SUBJECT: origin';exit 1};'ORVION: READY';'MODE: EXECUTE';'CR: SPEC-1';'STATUS: Approved';exit 0"
@@ -161,13 +167,22 @@ try{
     foreach($evidence in 'PASS','NOT APPLICABLE'){
         $approval=New-ApprovalFixture ('approval-'+$evidence.Replace(' ','-')) $evidence
         # HoldNote is optional: the PASS fixture has none and its entry ends at the transition sentence.
-        if($evidence-eq'NOT APPLICABLE'){[IO.File]::WriteAllText($approval.Config,[IO.File]::ReadAllText($approval.Config).Replace("ApprovalNote='synthetic only'}","ApprovalNote='synthetic only';HoldNote='Toy hold stays.'}"))}
+        if($evidence-eq'NOT APPLICABLE'){[IO.File]::WriteAllText($approval.Config,[IO.File]::ReadAllText($approval.Config).Replace("ApprovalNote='synthetic only';","ApprovalNote='synthetic only';HoldNote='Toy hold stays.';"))}
         $approved=Invoke-StageFixture $approval -Stage approve
         $approvedText=[IO.File]::ReadAllText((Join-Path $approval.Root 'changes/SPEC-1-probe.md'))
         Assert-Stage "actual approval caller respects native applicability $evidence" ($approved.Exit-eq0-and$approvedText.Contains('[x] Approved')) $approved.Output
         $held=$approvedText.Contains('before this transition. Toy hold stays.')
         Assert-Stage "approval entry carries the configured HoldNote only ($evidence)" ($approvedText.Contains('before this transition.')-and$held-eq($evidence-eq'NOT APPLICABLE')-and!$approvedText.Contains('ON HOLD'))
     }
+    function Set-ConsistencyKey($Fixture,[string]$Value){[IO.File]::WriteAllText($Fixture.Config,[IO.File]::ReadAllText($Fixture.Config).Replace("SandboxConsistency='$cleanLog'",$Value));$Fixture.Head=@(Read-StageGit $Fixture.Root @('rev-parse','HEAD'))[0]}
+    $staleFixture=New-ApprovalFixture 'approval-stale' 'PASS';Set-ConsistencyKey $staleFixture "SandboxConsistency='$staleLog'";$blocked=Invoke-StageFixture $staleFixture -Stage approve
+    Assert-Stage 'a sandbox consistency issue beyond RECOVER-1 refuses approval before allocation' ($blocked.Exit-ne0-and$blocked.Output-match'SANDBOX_CONSISTENCY_NOT_CLEAN extra=1'-and$blocked.Head-ceq$staleFixture.Head-and!(Test-Path (Join-Path $staleFixture.Root 'changes/SPEC-1-probe.md'))) $blocked.Output
+    $noLog=New-ApprovalFixture 'approval-nolog' 'PASS';Set-ConsistencyKey $noLog '';$blocked=Invoke-StageFixture $noLog -Stage approve
+    Assert-Stage 'approval without a sandbox consistency log refuses before allocation' ($blocked.Exit-ne0-and$blocked.Output-match'SANDBOX_CONSISTENCY_LOG_REQUIRED'-and$blocked.Head-ceq$noLog.Head) $blocked.Output
+    $named=New-ApprovalFixture 'approval-named' 'PASS';Set-ConsistencyKey $named "SandboxConsistency='$staleLog';ConsistencyAccepted=@('$staleLine')";$accepted=Invoke-StageFixture $named -Stage approve
+    Assert-Stage 'an issue line the Draft names verbatim is accepted' ($accepted.Exit-eq0-and$accepted.Output-match'1 named line') $accepted.Output
+    $absent=New-ApprovalFixture 'approval-absent-line' 'PASS';Set-ConsistencyKey $absent "SandboxConsistency='$staleLog';ConsistencyAccepted=@('STALE FRESHNESS METADATA: other.md')";$blocked=Invoke-StageFixture $absent -Stage approve
+    Assert-Stage 'a named line absent from the log refuses' ($blocked.Exit-ne0-and$blocked.Output-match'CONSISTENCY_ACCEPTED_LINE_ABSENT'-and$blocked.Head-ceq$absent.Head) $blocked.Output
     $missing=New-ApprovalFixture 'approval-missing' 'UNREADABLE';$blocked=Invoke-StageFixture $missing -Stage approve
     Assert-Stage 'unreadable native approval evidence is not treated as approval success' ($blocked.Exit-ne0-and$blocked.Output-match'NATIVE_APPROVAL_EVIDENCE_UNREADABLE') $blocked.Output
     $reviewEntry=Join-Path $tempRoot 'review-entry.txt';[IO.File]::WriteAllText($reviewEntry,'Verdict: Confirmed Complete; counted stub fixture only')
@@ -187,7 +202,7 @@ try{
     $swapped=New-StageFixture swapped;[IO.File]::AppendAllText($swapped.Draft,"`nUnallocated external revision.`n")
     $swappedConfig=Import-PowerShellDataFile $swapped.Config
     $swappedBlob=@(Read-StageGit $swapped.Root @('hash-object','--path=changes/SPEC-1-probe.md','--',$swapped.Draft))[0]
-    [IO.File]::WriteAllText($swapped.Config,"@{Root='$($swapped.Root)';Main='$($swappedConfig.Main)';Id='SPEC-1';Slug='probe';Draft='$($swapped.Draft)';Sha='$((Get-FileHash -LiteralPath $swapped.Draft).Hash)';Blob='$swappedBlob';User='Stage Fixture';Suffix='toy only';ApprovalNote='synthetic only'}")
+    [IO.File]::WriteAllText($swapped.Config,"@{Root='$($swapped.Root)';Main='$($swappedConfig.Main)';Id='SPEC-1';Slug='probe';Draft='$($swapped.Draft)';Sha='$((Get-FileHash -LiteralPath $swapped.Draft).Hash)';Blob='$swappedBlob';User='Stage Fixture';Suffix='toy only';ApprovalNote='synthetic only';SandboxConsistency='$cleanLog'}")
     $blocked=Invoke-StageFixture $swapped
     Assert-Stage 'consistent replacement config cannot substitute an unallocated selected Draft before native child or writes' ($blocked.Exit-ne0-and$blocked.Output-match'SELECTED_DRAFT_NOT_ALLOCATED'-and!$blocked.FileExists-and$blocked.Head-ceq$swapped.Head-and!(Test-Path (Join-Path $swapped.Root '.git/native.calls')))
     $refusal=New-StageFixture refusal -RefuseBoot;$blocked=Invoke-StageFixture $refusal
@@ -242,6 +257,10 @@ try{
     if(!$body.Contains($needle)){throw 'STAGE_ALLOCATION_MUTANT_ANCHOR'};[IO.File]::WriteAllText($path,$body.Replace($needle,''))
     $bad=Invoke-StageFixture $swapped -Library $mutantLib
     Assert-Stage 'causal removal of allocation binding allows the exact unallocated revision to execute' ($bad.Exit-eq0-and$bad.FileExists-and$bad.Head-cne$swapped.Head)
+    $body=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Invoke-ContractStage.ps1'));$needle='if($extra-gt0){throw "SANDBOX_CONSISTENCY_NOT_CLEAN extra=$extra"}'
+    if(!$body.Contains($needle)){throw 'STAGE_CONSISTENCY_MUTANT_ANCHOR'};[IO.File]::WriteAllText($path,$body.Replace($needle,''))
+    $mutantStale=New-ApprovalFixture 'approval-stale-mutant' 'PASS';Set-ConsistencyKey $mutantStale "SandboxConsistency='$staleLog'";$bad=Invoke-StageFixture $mutantStale -Library $mutantLib -Stage approve
+    Assert-Stage 'causal removal of the consistency guard approves over a missed STALE-1 (the SPEC-327 repeat)' ($bad.Exit-eq0-and$bad.Head-cne$mutantStale.Head) $bad.Output
     $body=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Invoke-ContractStage.ps1'));$needle='if(!$sup.Success-or!$sup.Groups[1].Value.Contains($x)){return $null}'
     if(!$body.Contains($needle)){throw 'STAGE_SUPERSEDES_MUTANT_ANCHOR'};[IO.File]::WriteAllText($path,$body.Replace($needle,''))
     $fx=New-PendingFixture 'mutant-unnamed' -Unnamed;$bad=Invoke-StageFixture $fx -Library $mutantLib -Stage approve

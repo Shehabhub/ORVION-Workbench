@@ -49,6 +49,7 @@ Rules: `WS-0NN-<slug>.md`, allocated and changed only through the native lifecyc
 | WS-043-lifecycle-new-scripts.md | contracts | Workbench Change Request - WS-043 | - | - |
 | WS-044-backup-status-reader-retry.md | contracts | Workbench Change Request - WS-044 | - | - |
 | WS-045-constitution-revision-3.md | contracts | Workbench Change Request - WS-045 | - | - |
+| WS-046-approve-sandbox-consistency-guard.md | contracts | Workbench Change Request - WS-046 | - | - |
 <!-- /organize:contents -->
 
 <!-- organize:changes (last 10 rows of docs/history/LOG.tsv for this folder; generated) -->

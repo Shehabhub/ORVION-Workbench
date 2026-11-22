@@ -10,7 +10,8 @@
 # Config (.psd1): Root, Main (full baseline SHA), Id, Slug, Draft (path), Sha (Draft SHA-256), Blob (Draft
 # Git blob), User, Suffix (commit suffix), ApprovalNote (one sentence naming the owner's approval),
 # Retired (optional paths the Draft deletes), Gh (owner/repo), GhUser (account for gh, optional), HoldNote (optional:
-# a sentence the approve and implement entries end with; absent means none).
+# a sentence the approve and implement entries end with; absent means none), SandboxConsistency (approve: the sandbox's
+# native repository-consistency log on the Draft's final tree), ConsistencyAccepted (optional exact log lines the Draft names).
 param([Parameter(Mandatory)][string]$Config,
       [Parameter(Mandatory)][ValidateSet('approve','implement','review','complete','bind')][string]$Stage,[string]$EntryFile)
 $ErrorActionPreference='Stop'
@@ -125,6 +126,11 @@ switch($Stage){
     Write-Say "=== $Id approve stage start; draft $($cfg.Draft)"
     $h=(Get-FileHash -Algorithm SHA256 $cfg.Draft).Hash;if($h-ne$cfg.Sha){throw "DRAFT_SHA_MISMATCH $h"}
     if((Invoke-RepoGit @('hash-object',"--path=$ContractRel",'--',$cfg.Draft))-ne$cfg.Blob){throw 'DRAFT_BLOB_MISMATCH'}
+    # The sandbox's full native consistency run on the Draft's final tree: nothing beyond RECOVER-1 and the lines the
+    # Draft names may fail (SPEC-323 r2 and SPEC-327 were approved over a missed STALE-1; event draft-pins-blob-of-file-later-step-edits).
+    if(!$cfg.SandboxConsistency-or!(Test-Path -LiteralPath $cfg.SandboxConsistency -PathType Leaf)){throw 'SANDBOX_CONSISTENCY_LOG_REQUIRED'}
+    $extra=Get-ConsistencyExtra $cfg.SandboxConsistency @($cfg.ConsistencyAccepted);if($extra-gt0){throw "SANDBOX_CONSISTENCY_NOT_CLEAN extra=$extra"}
+    Write-Say "sandbox consistency: no issue beyond RECOVER-1 and $(@($cfg.ConsistencyAccepted|Where-Object{$_}).Count) named line(s); sha256 $((Get-FileHash -LiteralPath $cfg.SandboxConsistency).Hash)"
     # The fetch is read-only for the checkout: one retry on a failed exit (event native-boot-git-timeout-retry).
     try{Invoke-RepoGit @('fetch','-q','origin')|Out-Null}catch{Write-Say "FETCH failed: one retry ($_)";Invoke-RepoGit @('fetch','-q','origin')|Out-Null}
     $head=Invoke-RepoGit @('rev-parse','HEAD');$om=Invoke-RepoGit @('rev-parse','origin/main')

@@ -26,6 +26,19 @@ function Set-ManifestLine([string]$Root,[string]$Key,[string]$Value){
     if($m.Count-ne1){throw "MANIFEST_LINE_COUNT:$Key"}
     Write-RepoText $Root $manifestRel ($t.Remove($m[0].Index,$m[0].Length).Insert($m[0].Index,"${Key}: $Value"))
 }
+# Issues in a native repository-consistency log beyond those a sandbox may lawfully show. The total comes from the log's
+# own final line (bare, or with the Run-Timed prefix); an undeployed target fails Check 19 (RECOVER-1), which the native script counts as exactly one issue
+# however many ledger lines it prints; each $Accepted line must appear verbatim and accepts one more. SPEC-323 r2 and
+# SPEC-327 were approved over a log whose RECOVER-1 sub-count (2) equalled the total while STALE-1 was a second issue:
+# never compare sub-counts, compare the total. Returns the extra count; throws when the log has no final verdict.
+function Get-ConsistencyExtra([string]$Path,[string[]]$Accepted=@()){
+    $t=[IO.File]::ReadAllText($Path);$v=[regex]::Matches($t,'(?m)^(?:\[\+ *[\d.]+ min\] )?REPOSITORY CONSISTENCY: (CLEAN|(\d+) issue\(s\) found)\r?$')
+    if(!$v.Count){throw "CONSISTENCY_LOG_UNREADABLE $Path"}
+    $total=if($v[$v.Count-1].Groups[2].Success){[int]$v[$v.Count-1].Groups[2].Value}else{0}
+    $allowed=[int]($t-match'(?m)^(?:\[\+ *[\d.]+ min\] )?  Primary ledger evidence is ABSENT, STALE or DISAGREES')
+    foreach($a in @($Accepted|Where-Object{$_})){if(!$t.Contains($a)){throw "CONSISTENCY_ACCEPTED_LINE_ABSENT $a"};$allowed++}
+    $total-$allowed
+}
 function Update-Projections([string]$Root){
     & pwsh -NoProfile -WorkingDirectory $Root -File (Join-Path $Root 'scripts/generate-ai-map.ps1')|Out-Null
     if($LASTEXITCODE){throw 'GENERATOR_FAILED'}
