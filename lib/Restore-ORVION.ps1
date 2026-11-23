@@ -94,6 +94,8 @@ function Write-RecoveryPluginChecklist([string]$Settings,[string[]]$Installed){
             $source=$null
             if($settingsObject.extraKnownMarketplaces){$property=$settingsObject.extraKnownMarketplaces.PSObject.Properties[$market];if($property){$source=$property.Value.source;if($source-is[string]){$source=$property.Value}}}
             if($source-and$source.source-eq'github'-and$source.repo){Write-Host "ACTION: claude plugin marketplace add $($source.repo)"}
+            # WS-047: Restore-Workspace puts the local marketplace (the usage meter) back into ClaudeHome\local-marketplace.
+            elseif($source-and$source.source-eq'directory'-and$source.path-and(Split-Path $source.path -Leaf)-eq'local-marketplace'){Write-Host "ACTION: claude plugin marketplace add `"$(Join-Path (Split-Path $Settings -Parent) 'local-marketplace')`""}
             elseif($source-and$source.source-eq'directory'){Write-Host "ACTION: $market directory marketplace: install GitKraken CLI, then its own hook installer"}
             else{Write-Host "ACTION: recover marketplace source for $market from settings before installing"}
         }

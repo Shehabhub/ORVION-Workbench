@@ -502,6 +502,31 @@ try{
         Assert-That "existing Codex config untouched, restored copy written once (round $round)" ($LASTEXITCODE-eq0-and[IO.File]::ReadAllText("$codexHome\config.toml")-ceq'owner configuration'-and$(if($round-eq1){(Get-FileHash "$codexHome\config.toml.restored").Hash-ceq(Get-FileHash $maskedFile).Hash}else{[IO.File]::ReadAllText("$codexHome\config.toml.restored")-ceq'preserve earlier recovery'})) $configRestore
         [IO.File]::WriteAllText("$codexHome\config.toml.restored",'preserve earlier recovery')
     }
+    # WS-047: the owner's Claude configuration survives a new machine; credentials, cloud-synced skills and caches never leave it.
+    $claudeFixture=Join-Path $env:USERPROFILE '.claude'
+    $kept=[ordered]@{'settings.json'='{"fixture":"settings"}';'keybindings.json'='{"fixture":"keys"}';'hooks\hook.json'='fixture hook'
+        'skills\mode\SKILL.md'='fixture mode skill';'local-marketplace\.claude-plugin\marketplace.json'='{"name":"local-mods"}'
+        'local-marketplace\usage-meter\hooks\register.ts'='fixture meter'}
+    $never=[ordered]@{'.credentials.json'='{"claudeAiOauth":"fixture-credential-never-copied"}';'skills\synced\cloud\SKILL.md'='fixture synced skill'
+        'skills\.trash\old\SKILL.md'='fixture trashed skill';'local-marketplace\usage-meter\.claude-plugin\types\x.d.ts'='fixture generated'
+        'local-marketplace\usage-meter\node_modules\m\index.js'='fixture module';'plugins\cache\big.bin'='fixture cache';'projects\p\x.jsonl'='fixture transcript'
+        'plugins\known_marketplaces.json'='{"fixture":"plugin list"}';'plugins\installed_plugins.json'='{"fixture":"plugin list"}'}
+    foreach($pair in @($kept.GetEnumerator())+@($never.GetEnumerator())){$file=Join-Path $claudeFixture $pair.Key;[void][IO.Directory]::CreateDirectory((Split-Path $file -Parent));[IO.File]::WriteAllText($file,$pair.Value)}
+    $claudeOut=@(& pwsh -NoProfile -File "$lib\Backup-Workspace.ps1" -Destination (Join-Path $t 'usb-claude') -AllowUnencrypted 2>&1)
+    if($LASTEXITCODE-ne0){throw ('CLAUDE_BACKUP_FIXTURE_FAILED: '+($claudeOut-join' '))}
+    $claudeBackup=@(Get-ChildItem (Join-Path $t 'usb-claude') -Directory)[0].FullName;$claudeSums=[IO.File]::ReadAllText("$claudeBackup\SHA256SUMS.txt")
+    Assert-That 'Claude settings, keybindings, hooks, own skills, local marketplace are backed up byte-identically and hashed' (@($kept.Keys|Where-Object{!(Test-Path -LiteralPath "$claudeBackup\claude\$_")-or[IO.File]::ReadAllText("$claudeBackup\claude\$_")-cne$kept[$_]-or!$claudeSums.Contains((Get-FileHash -LiteralPath "$claudeBackup\claude\$_").Hash+"  claude\$_")}).Count-eq0) $claudeOut
+    Assert-That 'credentials, synced and trashed skills, generated types, node_modules, plugin cache, plugin lists and transcripts are never backed up' (@($never.Keys|Where-Object{Test-Path -LiteralPath "$claudeBackup\claude\$_"}).Count-eq0-and!(Get-ChildItem -LiteralPath $claudeBackup -Recurse -File|Where-Object{[IO.File]::ReadAllText($_.FullName).Contains('fixture-credential-never-copied')}))
+    $claudeHome=Join-Path $t 'ch-config'
+    $claudeRestore=@(& pwsh -NoProfile -File "$lib\Restore-Workspace.ps1" -From $claudeBackup -Target (Join-Path $t 'claude-target-0') -ClaudeHome $claudeHome -LegacyTarget (Join-Path $t 'claude-docs-0') -CodexHome (Join-Path $t 'claude-codex-0') 2>&1)
+    Assert-That 'absent Claude configuration restored byte-identically; no plugins folder is written' ($LASTEXITCODE-eq0-and@($kept.Keys|Where-Object{(!(Test-Path -LiteralPath "$claudeHome\$_")-or[IO.File]::ReadAllText("$claudeHome\$_")-cne$kept[$_])}).Count-eq0-and!(Test-Path -LiteralPath "$claudeHome\plugins")) $claudeRestore
+    [IO.File]::WriteAllText("$claudeHome\hooks\hook.json",'owner hook')
+    foreach($round in 1,2){
+        $again=@(& pwsh -NoProfile -File "$lib\Restore-Workspace.ps1" -From $claudeBackup -Target (Join-Path $t "claude-target-$round") -ClaudeHome $claudeHome -LegacyTarget (Join-Path $t "claude-docs-$round") -CodexHome (Join-Path $t "claude-codex-$round") 2>&1)
+        Assert-That "an existing Claude file is kept, a differing backup copy written once, an identical one none (round $round)" ($LASTEXITCODE-eq0-and[IO.File]::ReadAllText("$claudeHome\hooks\hook.json")-ceq'owner hook'-and!(Test-Path -LiteralPath "$claudeHome\skills\mode\SKILL.md.restored")-and$(if($round-eq1){[IO.File]::ReadAllText("$claudeHome\hooks\hook.json.restored")-ceq'fixture hook'}else{[IO.File]::ReadAllText("$claudeHome\hooks\hook.json.restored")-ceq'preserve earlier hook recovery'})) $again
+        [IO.File]::WriteAllText("$claudeHome\hooks\hook.json.restored",'preserve earlier hook recovery')
+    }
+    [IO.Directory]::Delete($claudeFixture,$true)
     $rc="$res\CRM"
     Assert-That 'restored at the exact HEAD with identical refs' (($r-join' ')-match'RESTORED CRM main@'-and(& git -C $rc rev-parse HEAD)-eq(& git -C $crm rev-parse HEAD))
     Assert-That 'the DISABLED push URL is kept' ((& git -C $rc config --get remote.origin.pushurl)-eq'DISABLED')

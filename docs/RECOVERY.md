@@ -22,8 +22,8 @@ not into this folder. Never put the package or its scan in a Git repository.
 | Every ref of CRM, ORVION, both trusted clones, ORVION-Workbench and its trusted clone (bundles), their ignored receipts and safe local git config | Credential stores and logins (re-login, below) |
 | One private data root resolved as documented in [lib/README.md](../lib/README.md): records, sessions, events and protected working evidence | Disposable temporary tree: rebuild clones, fixtures, scratch and tools |
 | Explicit reviewed recovery-input files with approved hashes; no automatic inclusion of former legacy directories | node_modules (reinstalled from lockfiles), former legacy directories unless explicitly inventoried |
-| Required evidence retained in the data root or declared as recovery inputs | Disposable nested clones, their ignored/uncommitted files and unique refs not preserved elsewhere; Claude/Codex program files and plugins |
-| Claude settings, statusline and ORVION project memory; Codex config.toml (URL passwords masked); declared recovery inputs (owner approvals, sealed proofs) | Everything outside the folders listed on the left |
+| Required evidence retained in the data root or declared as recovery inputs | Disposable nested clones, their ignored/uncommitted files and unique refs not preserved elsewhere; Claude/Codex program files; marketplace plugins (the checklist prints their reinstall commands) |
+| Claude settings, statusline, keybindings, hooks, own skills (not the cloud-synced ones), the local plugin marketplace (the usage meter) and ORVION project memory; Codex config.toml (URL passwords masked); declared recovery inputs (owner approvals, sealed proofs) | Everything outside the folders listed on the left |
 
 The package refuses (no archive) rather than lose state a bundle cannot carry: uncommitted work, more than one stash or
 a linked worktree in a main repository, or files under the one data root's `work\sandboxes`. Commit or remove them only under their owning authority first. Protected records, runtime and required unique evidence remain package inputs; disposable temporary trees are excluded.

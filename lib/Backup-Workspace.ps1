@@ -3,7 +3,9 @@
 #   repos\<name>\         ignored receipts (.orvion-local-certification.json, .orvion-certifications\), .claude\settings*.json,
 #                         local git config (identity, remote, per-account credential pin: commands only, never tokens), HEAD
 #   owner-tools\          the data root, ORVION-Workbench\data (sessions archive, events journal, work) minus work\sandboxes
-#   claude\               user settings only; memory lives in owner-tools\claude-memory (records\claude-memory before WS-033)
+#   claude\               user settings, statusline, keybindings, hooks\, own skills\ (not the cloud-synced skills\synced), the
+#                         local-marketplace\ plugins (the usage meter; no generated types or node_modules) (WS-047);
+#                         never .credentials.json. Memory lives in owner-tools\claude-memory (records\ before WS-033)
 # Session transcripts are sensitive, so the destination must be BitLocker-protected unless -AllowUnencrypted is passed.
 # -Package writes one compressed, UNENCRYPTED 7z instead (owner decision 2026-10-26: recoverability over secrecy), staged under
 # TEMP and removed. gitleaks (when installed) scans the staging first and writes <archive>.secret-scan.txt next to it: rule,
@@ -302,6 +304,13 @@ if($Package-and@(Get-ChildItem -LiteralPath (Join-Path $ownerTools 'work\sandbox
 Copy-Tree $ownerTools (Join-Path $out 'owner-tools') {param($rel)$rel-like'work\sandboxes\*'}
 Copy-Tree "$env:USERPROFILE\.claude\settings.json" (Join-Path $out 'claude')
 Copy-Tree "$env:USERPROFILE\.claude\statusline.ps1" (Join-Path $out 'claude')
+# WS-047: the owner's own Claude configuration. Restore copies only what is absent; Restore-ORVION
+# prints the plugin reinstall steps from settings.json.
+$claudeRoot=Join-Path $env:USERPROFILE '.claude'
+Copy-Tree (Join-Path $claudeRoot 'keybindings.json') (Join-Path $out 'claude')
+Copy-Tree (Join-Path $claudeRoot 'hooks') (Join-Path $out 'claude\hooks')
+Copy-Tree (Join-Path $claudeRoot 'skills') (Join-Path $out 'claude\skills') {param($rel)$rel-match'^(synced|\.trash)\\'}
+Copy-Tree (Join-Path $claudeRoot 'local-marketplace') (Join-Path $out 'claude\local-marketplace') {param($rel)$rel-match'(^|\\)(node_modules|\.claude-plugin\\types)\\'}
 # Recovery settings only: retain MCP names/trust, mask URL passwords before the manifest hashes these bytes.
 $codexConfig=Join-Path $env:USERPROFILE '.codex\config.toml'
 if(Test-Path -LiteralPath $codexConfig -PathType Leaf){

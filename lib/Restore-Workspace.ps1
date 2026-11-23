@@ -1,7 +1,8 @@
 # Restores a Backup-Workspace.ps1 folder onto a fresh machine. Never overwrites: every destination must be absent.
 # Verifies SHA256SUMS.txt first; rebuilds each repository from its bundle with identical refs, HEAD, local config
 # (identity, remote, credential pin, hooks path, branch upstreams: Boot refuses GIT_UPSTREAM_MISSING without them) and ignored receipts; then the data root
-# (the package's owner-tools\, into ORVION-Workbench\data), Claude memory and legacy folders.
+# (the package's owner-tools\, into ORVION-Workbench\data), Claude memory and configuration (WS-047: settings, hooks, skills,
+# the local plugin marketplace) and legacy folders.
 # Afterwards (manual, credentials are never backed up): gh auth login for PlatPlusHub and Shehabhub, then
 # `pwsh -NoProfile -File <repo>\scripts\check_agent_continuity.ps1 -Boot` in each repository.
 # Selective package v1: -Package <file.7z> extracts a Backup-Workspace -Package archive into TEMP first (removed afterwards).
@@ -149,9 +150,20 @@ foreach($key in $memorySources.Keys){
     if($link.LinkType-cne'Junction'-or[IO.Path]::GetFullPath(@($link.Target)[0]).TrimEnd('\')-ine[IO.Path]::GetFullPath($memoryTarget).TrimEnd('\')){throw 'RESTORE_MEMORY_JUNCTION_INVALID'}
     "RESTORED claude memory junction $key"
 }
-foreach($f in 'settings.json','statusline.ps1'){
+foreach($f in 'settings.json','statusline.ps1','keybindings.json'){
     $s=Join-Path $From "claude\$f";if(!(Test-Path $s)){continue};$d=Join-Path $ClaudeHome $f
     if(Test-Path $d){if(Test-Path "$d.restored"){"KEPT existing $d and $f.restored (nothing copied)"}else{Copy-Item $s "$d.restored";"KEPT existing $d (backup copy: $f.restored, merge by hand)"}}else{New-Item -ItemType Directory $ClaudeHome -Force|Out-Null;Copy-Item $s $d;"RESTORED $d"}
+}
+# WS-047: hooks, own skills and the local plugin marketplace, file by file; an existing file is kept and a differing backup
+# copy is written once beside it as .restored. Restore-ORVION prints the plugin reinstall steps from settings.json.
+foreach($tree in 'hooks','skills','local-marketplace'){
+    $src=Join-Path $From "claude\$tree";if(!(Test-Path -LiteralPath $src -PathType Container)){continue};$copied=0;$kept=0
+    foreach($file in Get-ChildItem -LiteralPath $src -Recurse -File -Force){
+        $d=Join-Path $ClaudeHome ("$tree\"+$file.FullName.Substring($src.Length+1))
+        if(Test-Path -LiteralPath $d){$kept++;if(!(Test-Path -LiteralPath "$d.restored")-and(Get-FileHash -LiteralPath $d).Hash-cne(Get-FileHash -LiteralPath $file.FullName).Hash){Copy-Item -LiteralPath $file.FullName -Destination "$d.restored"}}
+        else{[void][IO.Directory]::CreateDirectory((Split-Path $d -Parent));Copy-Item -LiteralPath $file.FullName -Destination $d;$copied++}
+    }
+    "RESTORED claude $tree ($copied copied, $kept existing kept; a differing backup copy sits beside it as .restored)"
 }
 $s=Join-Path $From 'codex\config.toml';$d=Join-Path $CodexHome 'config.toml'
 if(Test-Path -LiteralPath $s -PathType Leaf){

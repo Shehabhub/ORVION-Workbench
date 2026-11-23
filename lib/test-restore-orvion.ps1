@@ -253,6 +253,15 @@ try{
     Assert-That 'plugin list fixture filters installed/disabled; builtin needs no add; directory uses own installer; GitHub commands exact' ($plugins.Contains('install GitKraken CLI, then its own hook installer')-and$plugins.Contains('claude plugin marketplace add Yeachan-Heo/oh-my-claudecode')-and$plugins.Contains('claude plugin install oh-my-claudecode@omc --scope user')-and$plugins.Contains('claude plugin install project-artifact@claude-plugins-official --scope user')-and$plugins.Contains('claude plugin install claude-md-management@claude-plugins-official --scope user')-and$plugins-notmatch'install (ponytail|session-report|disabled)@'-and$plugins-notmatch'marketplace add .*claude-plugins-official')
     $plugins=@(Write-RecoveryPluginChecklist $settings @() *>&1)-join"`n"
     Assert-That 'absent claude/list shows all enabled plugins including exact ponytail marketplace command' ($plugins.Contains('claude plugin marketplace add DietrichGebert/ponytail')-and@($plugins-split"`n"|Where-Object{$_-like'*claude plugin install *'}).Count-eq6)
+    # WS-047: the local marketplace (the usage meter) is re-added from the restored ClaudeHome copy, never via GitKraken.
+    $localHome=Join-Path $t 'local-home';[void][IO.Directory]::CreateDirectory($localHome);$localSettings=Join-Path $localHome 'settings.json'
+    [IO.File]::WriteAllText($localSettings,(@{enabledPlugins=@{'usage@local-mods'=$true};extraKnownMarketplaces=@{'local-mods'=@{source=@{source='directory';path='C:\Users\Elsewhere\.claude\local-marketplace'}}}}|ConvertTo-Json -Depth 8))
+    $plugins=@(Write-RecoveryPluginChecklist $localSettings @() *>&1)-join"`n"
+    Assert-That 'local marketplace is re-added from the restored ClaudeHome copy, then the usage plugin installed; no GitKraken step' ($plugins.Contains("ACTION: claude plugin marketplace add `"$localHome\local-marketplace`"")-and$plugins.Contains('ACTION: claude plugin install usage@local-mods --scope user')-and$plugins-notmatch'GitKraken'-and$plugins-notmatch'Elsewhere')
+    Import-RecoveryFunctions ($source.Replace("-and(Split-Path `$source.path -Leaf)-eq'local-marketplace'){",'-and$false){'))
+    $plugins=@(Write-RecoveryPluginChecklist $localSettings @() *>&1)-join"`n"
+    Assert-That 'MUTANT killed: local marketplace branch removed' (!$plugins.Contains('claude plugin marketplace add')-and$plugins.Contains('GitKraken'))
+    Import-RecoveryFunctions $source
     # Removing each new guard must kill its focused observation (including the clear refusal diagnosis).
     foreach($caseName in $refusals.Keys){
         $token=$refusals[$caseName]
