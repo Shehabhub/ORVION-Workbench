@@ -122,17 +122,20 @@ function New-ApprovalFixture([string]$Name,[string]$ApprovalEvidence){
 }
 # An approval fixture whose baseline is an earlier CR's allocate/approve/cancel commits above origin/main (CRM SPEC-304
 # under SPEC-305, 2026-11-11). -Status is that CR's state at the top; -Extra adds a.txt to the top commit; -Name drops
-# or keeps the Supersedes line; -Bound writes the top's bound record; -Floor puts an unbound other commit below them.
-function New-PendingFixture([string]$Name,[string]$Status='Cancelled',[switch]$Extra,[switch]$Unnamed,[switch]$Bound,[switch]$Floor){
+# or keeps the Supersedes line; -Bound writes the top's bound record; -Floor puts an unbound other commit below them;
+# -Scoped gives the CR a Write Scope naming w.txt and an implement commit writing it (WS-048).
+function New-PendingFixture([string]$Name,[string]$Status='Cancelled',[switch]$Extra,[switch]$Unnamed,[switch]$Bound,[switch]$Floor,[switch]$Scoped){
     $f=New-ApprovalFixture $Name 'PASS';$root=$f.Root;$old='changes/SPEC-0-old.md'
     if($Floor){[IO.File]::WriteAllText((Join-Path $root 'b.txt'),"floor
 ");$null=Read-StageGit $root @('add','--','b.txt');$null=Read-StageGit $root @('commit','--quiet','-m','other: unbound floor')}
     [IO.File]::AppendAllText((Join-Path $root '.git/info/exclude'),".orvion-certifications/`n")
     $text="# SPEC-0 old`n`n## Status`n`n[x] Draft`n[ ] Approved`n[ ] Cancelled`n"
+    if($Scoped){$text+="`n## Write Scope`n`n- ``$old```n- ``w.txt```n"}
     [IO.File]::WriteAllText((Join-Path $root $old),$text);$null=Read-StageGit $root @('add','--',$old);$null=Read-StageGit $root @('commit','--quiet','-m','SPEC-0: allocate')
     $text=$text.Replace('[x] Draft','[ ] Draft').Replace('[ ] Approved','[x] Approved');[IO.File]::WriteAllText((Join-Path $root $old),$text)
     [IO.File]::AppendAllText((Join-Path $root '_ORVION_CANONICAL/manifest.md'),"Approved: SPEC-0`n")
     $null=Read-StageGit $root @('add','--',$old,'_ORVION_CANONICAL/manifest.md');$null=Read-StageGit $root @('commit','--quiet','-m','SPEC-0: Approve')
+    if($Scoped){[IO.File]::WriteAllText((Join-Path $root 'w.txt'),"in scope`n");$text+="Implemented.`n";[IO.File]::WriteAllText((Join-Path $root $old),$text);$null=Read-StageGit $root @('add','--',$old,'w.txt');$null=Read-StageGit $root @('commit','--quiet','-m','SPEC-0: implement')}
     if($Status-eq'Cancelled'){$text=$text.Replace('[x] Approved','[ ] Approved').Replace('[ ] Cancelled','[x] Cancelled')}else{$text+="Note.`n"}
     [IO.File]::WriteAllText((Join-Path $root $old),$text);$add=@($old)
     if($Extra){[IO.File]::WriteAllText((Join-Path $root 'a.txt'),"smuggled`n");$add+='a.txt'}
@@ -221,9 +224,11 @@ try{
     Assert-Stage 'unsupported diagnostic checks stay explicit UNPROVEN, not a duplicate native engine or false pass' ($bad.Exit-eq2-and$bad.Output-match'UNPROVEN: native checks outside')
     $carried=New-PendingFixture 'pending-carried';$r1=Invoke-StageFixture $carried -Stage approve
     Assert-Stage 'a Cancelled CR named in Supersedes carries an unbound pending baseline to approval' ($r1.Exit-eq0-and$r1.Output-match'carries Cancelled changes/SPEC-0-old.md'-and[IO.File]::ReadAllText((Join-Path $carried.Root 'changes/SPEC-1-probe.md')).Contains('[x] Approved')) $r1.Output
+    $scoped=New-PendingFixture 'pending-scoped' -Scoped;$rs=Invoke-StageFixture $scoped -Stage approve
+    Assert-Stage 'a Cancelled CR whose own implement commit writes only its Write Scope carries the baseline (WS-048, SPEC-335)' ($rs.Exit-eq0-and$rs.Output-match'carries Cancelled changes/SPEC-0-old.md'-and[IO.File]::ReadAllText((Join-Path $scoped.Root 'changes/SPEC-1-probe.md')).Contains('[x] Approved')) $rs.Output
     $bound=New-PendingFixture 'pending-bound' -Status Approved -Bound;$r2=Invoke-StageFixture $bound -Stage approve
     Assert-Stage 'a bound pending baseline still approves (SPEC-284)' ($r2.Exit-eq0-and$r2.Output-match'bound record present') $r2.Output
-    foreach($case in @(@('pending-unnamed',@{Unnamed=$true},'a Cancelled CR the Draft does not name'),@('pending-extra',@{Extra=$true},'a pending commit that also changes another file'),@('pending-approved',@{Status='Approved'},'a pending CR that is not Cancelled'),@('pending-floor',@{Floor=$true},'a Cancelled CR above an unbound commit that is not main'))){
+    foreach($case in @(@('pending-unnamed',@{Unnamed=$true},'a Cancelled CR the Draft does not name'),@('pending-extra',@{Extra=$true},'a pending commit that also changes another file'),@('pending-approved',@{Status='Approved'},'a pending CR that is not Cancelled'),@('pending-floor',@{Floor=$true},'a Cancelled CR above an unbound commit that is not main'),@('pending-scoped-extra',@{Scoped=$true;Extra=$true},'a scoped Cancelled CR whose commit also changes a file outside its Write Scope'))){
         $p=$case[1];$fx=New-PendingFixture $case[0] @p;$rx=Invoke-StageFixture $fx -Stage approve
         Assert-Stage "refused before any write: $($case[2])" ($rx.Exit-ne0-and$rx.Output-match'PENDING_BASELINE_UNBOUND'-and$rx.Head-ceq$fx.Head-and!(Test-Path (Join-Path $fx.Root 'changes/SPEC-1-probe.md'))) $rx.Output
     }
@@ -265,6 +270,10 @@ try{
     if(!$body.Contains($needle)){throw 'STAGE_SUPERSEDES_MUTANT_ANCHOR'};[IO.File]::WriteAllText($path,$body.Replace($needle,''))
     $fx=New-PendingFixture 'mutant-unnamed' -Unnamed;$bad=Invoke-StageFixture $fx -Library $mutantLib -Stage approve
     Assert-Stage 'causal removal of the Supersedes check lets an unnamed Cancelled CR carry the baseline' ($bad.Exit-eq0) $bad.Output
+    $body2=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Invoke-ContractStage.ps1'));$needle2='if(@($other|Where-Object{$_-cnotin$scope}).Count){return $null}'
+    if(!$body2.Contains($needle2)){throw 'STAGE_WRITE_SCOPE_MUTANT_ANCHOR'};[IO.File]::WriteAllText($path,$body2.Replace($needle2,''))
+    $fx=New-PendingFixture 'mutant-scoped-extra' -Scoped -Extra;$bad=Invoke-StageFixture $fx -Library $mutantLib -Stage approve
+    Assert-Stage 'causal removal of the Write Scope check lets a file outside it ride the carried baseline' ($bad.Exit-eq0) $bad.Output
     $needle="'(?m)^(SUBJECT: github:PUBLIC_READ:GIT_TIMEOUT|CODE: GIT_FETCH_FAILED)\r?`$'"
     if(!$body.Contains($needle)){throw 'STAGE_RETRY_MUTANT_ANCHOR'};[IO.File]::WriteAllText($path,$body.Replace($needle,"'(?m)^CODE: '"))
     $fx=New-StageFixture 'mutant-retry' -BootScript $retryNative.Replace('__N__','9').Replace('__CODE__','DIRTY_CHECKOUT');$null=Invoke-StageFixture $fx -Library $mutantLib

@@ -74,20 +74,26 @@ function Read-LiteralPlan{
     $plan
 }
 # The CR a pending top carries, or $null: walk first parents from $Head while each commit changes one change file X
-# (the same X throughout) plus only the manifest and ai-map, down to $Main or a bound record, at most 20 commits; X must
-# read [x] Cancelled at $Head and appear in the Draft's Supersedes section (CRM CANCELLED_SEGMENT_NOT_CARRIED).
+# (the same X throughout) plus only the manifest, ai-map and paths in X's Write Scope, down to $Main or a bound record, at
+# most 20 commits; X must read [x] Cancelled at $Head and appear in the Draft's Supersedes section (CRM
+# CANCELLED_SEGMENT_NOT_CARRIED). WS-048: the Write Scope bullets mirror CRM OUT_OF_SCOPE_WRITE, which judges the same
+# paths per commit at publication; CRM freezes Write Scope after approval, so reading it at $Head reads the frozen list.
 function Get-CarriedCancel([string]$Head,[string]$Main){
-    $x=$null;$c=$Head
+    $x=$null;$c=$Head;$other=@()
     for($n=0;$c-ne$Main-and!(Test-Path -LiteralPath (Join-Path $r ".orvion-certifications\$c.json"));$n++){
         if($n-ge20){return $null}
         $files=@(Invoke-RepoGit @('diff-tree','--no-commit-id','--name-only','-r','--no-renames',$c))
         $own=@($files|Where-Object{$_-like'changes/*.md'})
         if($own.Count-ne1-or($x-and$own[0]-cne$x)){return $null}
-        if(@($files|Where-Object{$_-cnotin@($own[0],'_ORVION_CANONICAL/manifest.md','ai-map.json')}).Count){return $null}
-        $x=$own[0];$c=Invoke-RepoGit @('rev-parse',"$c^")
+        $x=$own[0];$other+=@($files|Where-Object{$_-cnotin@($x,'_ORVION_CANONICAL/manifest.md','ai-map.json')})
+        $c=Invoke-RepoGit @('rev-parse',"$c^")
     }
     if(!$x){return $null}
-    if((@(Invoke-RepoGit @('show',"${Head}:$x"))-join"`n")-notmatch'(?m)^\[x\] Cancelled\s*$'){return $null}
+    $text=(@(Invoke-RepoGit @('show',"${Head}:$x"))-join"`n")-replace"`r",''
+    if($text-notmatch'(?m)^\[x\] Cancelled\s*$'){return $null}
+    $ws=[regex]::Match($text,'(?s)\n## Write Scope\n(.*?)(?=\n## |\z)')
+    $scope=@([regex]::Matches($ws.Groups[1].Value,'(?m)^-\s+(.+?)\s*$')|ForEach-Object{$_.Groups[1].Value.Trim('`')-replace'\\','/'})
+    if(@($other|Where-Object{$_-cnotin$scope}).Count){return $null}
     $sup=[regex]::Match(([IO.File]::ReadAllText($cfg.Draft)-replace"`r`n","`n"),'(?s)\n## Supersedes / Depends On\n(.*?)(?=\n## |\z)')
     if(!$sup.Success-or!$sup.Groups[1].Value.Contains($x)){return $null}
     $x
