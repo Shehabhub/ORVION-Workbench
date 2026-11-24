@@ -52,6 +52,7 @@ Rules: `WS-0NN-<slug>.md`, allocated and changed only through the native lifecyc
 | WS-046-approve-sandbox-consistency-guard.md | contracts | Workbench Change Request - WS-046 | - | - |
 | WS-047-claude-setup-survival.md | contracts | Workbench Change Request - WS-047 | - | - |
 | WS-048-carried-cancel-write-scope.md | contracts | Workbench Change Request - WS-048 | - | - |
+| WS-049-constitution-prompt-gate.md | contracts | Workbench Change Request - WS-049 | - | - |
 <!-- /organize:contents -->
 
 <!-- organize:changes (last 10 rows of docs/history/LOG.tsv for this folder; generated) -->

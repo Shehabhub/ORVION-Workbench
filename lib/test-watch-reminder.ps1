@@ -99,7 +99,8 @@ if($mode-eq'long'){'ORVION PULSE 2026-11-01 18:00 UTC';'repo     '+('R'*990);'st
             "LATENCY SessionStartMs=$($healthyTimes-join',') BaselineMs=$($baselineTimes-join',')"
             # The second SessionStart hook, Load-Constitution.ps1, over the real docs/DECISIONS.md and lib/README.md: DEC-30
             # and DEC-33 whole and every other decision title on every source, the Always section only in a new context, the
-            # 9500 bound, the retrieve line when a rule is missing, silence elsewhere; then four mutants, each must be caught.
+            # 9500 bound, the retrieve line when a rule is missing, silence elsewhere; as the UserPromptSubmit hook DEC-33 alone,
+            # bounded; then seven mutants, each must be caught.
             $realReadme=Join-Path $PSScriptRoot 'README.md';$alwaysHeadings=@([IO.File]::ReadAllLines($realReadme)|Where-Object{$_.StartsWith('## ')-and$_.Contains('Always')})
             Copy-Item -LiteralPath $realReadme -Destination (Join-Path $deadlineLib 'README.md') -Force
             $realDecisions=Join-Path (Split-Path $PSScriptRoot -Parent) 'docs\DECISIONS.md';$decisionText=[IO.File]::ReadAllText($realDecisions)-replace'\r?\n',"`n"
@@ -118,6 +119,8 @@ if($mode-eq'long'){'ORVION PULSE 2026-11-01 18:00 UTC';'repo     '+('R'*990);'st
                     if($o.Contains($alwaysHeadings[0])-ne$full-or(!$full-and!$o.Contains('Tool guidance abbreviated; see'))){$faults.Add("tool index on '$source'")}
                     if($source-eq'startup'){$script:constitutionStartup=$o}elseif($source-eq'resume'){$script:constitutionResume=$o}
                 }
+                $r=Invoke-DeadlineEvent $constitutionHook 'UserPromptSubmit' $deadlineCheckout;$o=$r.Text;$script:constitutionPrompt=$o
+                if($r.Exit-ne0-or$r.Error-or$o.Length-gt9500-or@(Get-DecisionSection 'DEC-33'|Where-Object{!$o.Contains($_)}).Count-or$o.Contains('## DEC-30 ')-or$o.Contains('Other decisions in force')-or$o.Contains('Tool guidance')){$faults.Add('DEC-33 alone on UserPromptSubmit')}
                 if((Invoke-DeadlineEvent $constitutionHook 'SessionStart' (Join-Path $t 'unrelated') 'startup').Text){$faults.Add('unrelated cwd')}
                 # The project directory Claude Code names wins over the event's cwd: a session whose shell moved still loads.
                 $env:CLAUDE_PROJECT_DIR=$deadlineCheckout;$o=(Invoke-DeadlineEvent $constitutionHook 'SessionStart' (Join-Path $t 'unrelated') 'compact').Text
@@ -132,6 +135,7 @@ if($mode-eq'long'){'ORVION PULSE 2026-11-01 18:00 UTC';'repo     '+('R'*990);'st
                 }
                 [IO.File]::WriteAllText($fixtureDecisions,$decisionText.Replace("`n1. ","`n1. $('R'*9500) "))
                 if(!(Invoke-DeadlineEvent $constitutionHook 'SessionStart' $deadlineCheckout 'startup').Text.Contains('over the 9500-character bound')){$faults.Add('constitution bound')}
+                if(!(Invoke-DeadlineEvent $constitutionHook 'UserPromptSubmit' $deadlineCheckout).Text.Contains('over the 9500-character bound')){$faults.Add('UserPromptSubmit bound')}
                 [IO.File]::WriteAllText($fixtureDecisions,$decisionText);[IO.File]::WriteAllText((Join-Path $deadlineLib 'README.md'),"## 4. Always`n"+('GUIDANCE'*1000)+"`n")
                 $r=Invoke-DeadlineEvent $constitutionHook 'SessionStart' $deadlineCheckout 'startup'
                 if($r.Text.Length-gt9500-or$r.Text.Contains('GUIDANCE')-or!$r.Text.Contains('Tool guidance abbreviated; see')-or@($ruleLines|Where-Object{!$r.Text.Contains($_)}).Count){$faults.Add('guidance gives way first')}
@@ -142,10 +146,10 @@ if($mode-eq'long'){'ORVION PULSE 2026-11-01 18:00 UTC';'repo     '+('R'*990);'st
             Copy-Item -LiteralPath $constitutionSource -Destination $constitutionHook
             $faults=@(Get-ConstitutionFault)
             Assert-That "Load-Constitution.ps1 loads the constitution on every source, bounded and fail-loud (faults: $($faults-join', '))" (!$faults.Count)
-            "BYTES Load-Constitution startup=$($constitutionStartup.Length) resume=$($constitutionResume.Length) characters"
+            "BYTES Load-Constitution startup=$($constitutionStartup.Length) resume=$($constitutionResume.Length) prompt=$($constitutionPrompt.Length) characters"
             $original=[IO.File]::ReadAllText($constitutionSource)
-            $mutants=[ordered]@{source="if(`$true){";retrieve='if($false){"$retrieve (not found:';bound='-gt99999){$guidance=$pointer}';scope="TrimEnd('\')){}";project='$cwd=if($false){'}
-            $mutated=[ordered]@{source="if(!`$e.source-or`$e.source-in'startup','clear'){";retrieve='if($missing){"$retrieve (not found:';bound='-gt9500){$guidance=$pointer}';scope="TrimEnd('\')){exit 0}";project='$cwd=if($env:CLAUDE_PROJECT_DIR){'}
+            $mutants=[ordered]@{source="if(`$true){";retrieve='if($false){"$retrieve (not found:';bound='-gt99999){$guidance=$pointer}';scope="TrimEnd('\')){}";project='$cwd=if($false){';prompt='if($false){';promptbound='if($rules.Length-gt99999)'}
+            $mutated=[ordered]@{source="if(!`$e.source-or`$e.source-in'startup','clear'){";retrieve='if($missing){"$retrieve (not found:';bound='-gt9500){$guidance=$pointer}';scope="TrimEnd('\')){exit 0}";project='$cwd=if($env:CLAUDE_PROJECT_DIR){';prompt="if(`$e.hook_event_name-eq'UserPromptSubmit'){";promptbound='if($rules.Length-gt9500)'}
             foreach($name in $mutants.Keys){
                 if(!$original.Contains($mutated[$name])){Assert-That "constitution mutant $name applies" $false;continue}
                 [IO.File]::WriteAllText($constitutionHook,$original.Replace($mutated[$name],$mutants[$name]))

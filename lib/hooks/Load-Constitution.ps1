@@ -5,7 +5,8 @@
 # Workbench root, judged by the project directory Claude Code names (CLAUDE_PROJECT_DIR), else the event's cwd, so a
 # session whose shell has moved elsewhere still gets it. A missing section or rule, or text over its bound, prints one
 # line telling the agent to read the rules itself before any governed decision. Reads the hook event from stdin; never
-# blocks and exits 0.
+# blocks and exits 0. As the UserPromptSubmit hook it prints only DEC-33's twelve rules, so each owner message puts them
+# in front of the reply; the Stop prompt hook of .claude/settings.json then checks the reply against rules 4, 5 and 10.
 $ErrorActionPreference='Stop'
 $lib=Split-Path $PSScriptRoot -Parent;$workbench=Split-Path $lib -Parent
 $retrieve="CONSTITUTION NOT LOADED: read $workbench\docs\DECISIONS.md DEC-30 and DEC-33 in full now, before any governed decision"
@@ -19,6 +20,10 @@ try{
     $dec33=[regex]::Match($text,'(?ms)^## DEC-33 .*?(?=\n## |\z)').Value.TrimEnd()
     $missing=@(if(!$dec30){'DEC-30'};if(!$dec33){'DEC-33'}else{foreach($n in 1..12){if($dec33-notmatch"(?m)^$n\. "){"DEC-33 rule $n"}}})
     if($missing){"$retrieve (not found: $($missing-join', '))."; exit 0}
+    if($e.hook_event_name-eq'UserPromptSubmit'){
+        $rules="THE CONSTITUTION, DEC-33 of $workbench\docs\DECISIONS.md (apply each rule before writing):`n$dec33"
+        if($rules.Length-gt9500){"$retrieve (over the 9500-character bound)."}else{$rules}; exit 0
+    }
     $others=@([regex]::Matches($text,'(?m)^## (DEC-\d+ .+)$')|ForEach-Object{$_.Groups[1].Value}|Where-Object{$_-notmatch'^DEC-3[03] '})
     $constitution="THE CONSTITUTION, from $workbench\docs\DECISIONS.md (decide by it):`n$dec30`n`n$dec33`n`nOther decisions in force (read the one a decision touches): $($others-join'; ')."
     $pointer="Tool guidance abbreviated; see $lib\README.md section 4."
