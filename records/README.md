@@ -33,12 +33,12 @@ Rules: added only through lib/Organize.ps1 or by the tool named in Reader.
 | WS-047/ | records | Summary of WS-047 claude setup survival | agents, the owner | 2026-11-25 |
 | WS-048/ | records | Summary of WS-048 carried cancel write scope | agents, the owner | 2026-11-25 |
 | WS-049/ | records | Summary of WS-049 constitution prompt gate | agents, the owner | 2026-11-25 |
+| WS-050/ | records | Summary of WS-050 summaries and summary check | agents, the owner | 2026-11-26 |
 <!-- /organize:contents -->
 
 <!-- organize:changes (last 10 rows of docs/history/LOG.tsv for this folder; generated) -->
 | UTC | Action | From | To | Reason |
 | --- | --- | --- | --- | --- |
-| 2026-11-25T21:23:12Z | new | - | records/WS-040 | WS-050 WS-040 summary |
 | 2026-11-25T21:23:13Z | new | - | records/WS-041 | WS-050 WS-041 summary |
 | 2026-11-25T21:23:14Z | new | - | records/WS-042 | WS-050 WS-042 summary |
 | 2026-11-25T21:23:15Z | new | - | records/WS-043 | WS-050 WS-043 summary |
@@ -48,6 +48,7 @@ Rules: added only through lib/Organize.ps1 or by the tool named in Reader.
 | 2026-11-25T21:23:19Z | new | - | records/WS-047 | WS-050 WS-047 summary |
 | 2026-11-25T21:23:20Z | new | - | records/WS-048 | WS-050 WS-048 summary |
 | 2026-11-25T21:23:21Z | new | - | records/WS-049 | WS-050 WS-049 summary |
+| 2026-11-26T15:10:22Z | new | - | records/WS-050 | WS-051 WS-050 summary |
 <!-- /organize:changes -->
 
 ## Reading a summary
@@ -85,3 +86,4 @@ reason. Not listed: test outputs of designed refusals, mutants, tools, start mar
 - [WS-047/README.md](WS-047/README.md)
 - [WS-048/README.md](WS-048/README.md)
 - [WS-049/README.md](WS-049/README.md)
+- [WS-050/README.md](WS-050/README.md)

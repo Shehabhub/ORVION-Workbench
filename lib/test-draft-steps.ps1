@@ -101,6 +101,30 @@ function Test-CreationCases{
         Assert-DraftCase 'reparse traversal refuses and leaves its target empty' ($r.Code-ne0-and$r.Text-match'DRAFT_REPARSE_PATH'-and!(Test-Path -LiteralPath (Join-Path $outside 'created.txt'))) $r.Text
     }finally{Remove-Item -LiteralPath $link -Force}
 }
+# WS-051: an Original prepare previews before approve sets the pointer; -PointerContract plans RESUME.md as approve
+# leaves it, and only in a preview, only for a changes/ path and only when exactly one None line is there.
+function Test-PointerCases{
+    $r=Join-Path $root 'pointer';New-Item -ItemType Directory -Force $r|Out-Null
+    git -C $r init -q;git -C $r config core.autocrlf false
+    $set="MARK`nActive Workbench Contract: changes/WS-9.md`nold line`n";$none=$set.Replace('changes/WS-9.md','None')
+    [IO.File]::WriteAllText("$r\RESUME.md",$set);git -C $r add RESUME.md;git -C $r -c user.name=t -c user.email=t@t commit -qm base
+    [IO.File]::WriteAllText("$r\RESUME.md",$set.Replace('old line','new line'))
+    $s=Get-DraftFileStep $r 'RESUME.md' 'MARK' 'pointer fixture'
+    $d="$r\draft.md";[IO.File]::WriteAllText($d,"## Implementation Steps`n`n1. $($s.Text)`n`n## Acceptance Criteria`n")
+    [IO.File]::WriteAllText("$r\RESUME.md",$none)
+    $run={param([string[]]$Extra)$o=& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'apply-draft-steps.ps1') -Draft $d -Root $r @Extra 2>&1|Out-String;[pscustomobject]@{Code=$LASTEXITCODE;Text=$o}}
+    $x=& $run @('-Preview')
+    Assert-DraftCase 'a preview before approve without the pointer is refused' ($x.Code-ne0) $x.Text
+    $x=& $run @('-Preview','-PointerContract','changes/WS-9.md');$v=try{$x.Text|ConvertFrom-Json}catch{$null}
+    Assert-DraftCase 'the pointer preview plans the approved blob and writes nothing' ($x.Code-eq0-and$v.Files[0].Blob-ceq$s.Blob-and[IO.File]::ReadAllText("$r\RESUME.md")-ceq$none) $x.Text
+    $x=& $run @('-PointerContract','changes/WS-9.md')
+    Assert-DraftCase 'the pointer outside a preview is refused before any write' ($x.Code-ne0-and$x.Text-match'POINTER_CONTRACT_PREVIEW_ONLY'-and[IO.File]::ReadAllText("$r\RESUME.md")-ceq$none) $x.Text
+    $x=& $run @('-Preview','-PointerContract','../RESUME.md')
+    Assert-DraftCase 'a pointer outside changes/ is refused' ($x.Code-ne0-and$x.Text-match'POINTER_CONTRACT_INVALID') $x.Text
+    [IO.File]::WriteAllText("$r\RESUME.md",$none+"Active Workbench Contract: None`n")
+    $x=& $run @('-Preview','-PointerContract','changes/WS-9.md')
+    Assert-DraftCase 'two None lines are refused' ($x.Code-ne0-and$x.Text-match'POINTER_NONE_COUNT:2') $x.Text
+}
 try{
     Test-Case 'deletion' "MARK`nkeep`ndel`nend`n" "MARK`nkeep`nend`n"
     Test-Case 'substring-ambiguous' "MARK`na`nfoo`nxfoo`nfoo2`nb`n" "MARK`na`nFOO`nxfoo`nfoo2`nb`n"
@@ -114,6 +138,7 @@ try{
         Assert-DraftCase 'the caller''s console encoding is restored' ([Console]::OutputEncoding.CodePage-eq437)
     }finally{[Console]::OutputEncoding=$savedEncoding}
     Test-CreationCases
+    Test-PointerCases
 }finally{
     $env:GIT_CONFIG_GLOBAL=$savedGitGlobal;$env:GIT_CONFIG_NOSYSTEM=$savedGitNoSystem
     $resolved=[IO.Path]::GetFullPath($root);$tempRoot=[IO.Path]::GetFullPath([IO.Path]::GetTempPath())

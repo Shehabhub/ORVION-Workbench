@@ -420,12 +420,13 @@ After every completed phase, operation or passed gate: keep raw outputs, exits a
 live state file, run the save method and verify the copies before going on. For every compact the owner gets the
 /compact line and the resume message, and types /compact by hand. One save method for every agent:
 lib/Save-State.ps1 with data/work/NOW.md. Live state lives in that one file only; other files hold evidence, and
-memory only points to it. A save never freezes or certifies an active output.
+memory only points to it. A save never freezes or certifies an active output. Lessons and gaps go to the journal
+(lib/Events.ps1), owner practice with no DEC home to agent memory, never both.
 
 Scope: every agent, after every step.
-Why: work resumes exactly where it stopped, after a compact or a lost machine.
-Changed: 2026-11-07
-History: D20, D62, D71, D87, D125
+Why: work resumes exactly where it stopped, after a compact or a lost machine; a lesson with two homes drifts.
+Changed: 2026-11-26
+History: D20, D62, D71, D87, D125, D133
 
 ## DEC-27 Backup and recovery
 
@@ -500,12 +501,17 @@ Replies, reports and questions to the owner are in English only, even when the o
 is English. Every time stated to the owner is Cairo local time, labelled Cairo where it could be misread; UTC appears
 only inside quoted evidence, and records keep their UTC stamps. A reply is short and leads to a decision or an action;
 it never re-describes what the owner already knows. The owner is never asked to open a terminal or follow GUI steps: an
-agent blocked on the owner's machine hands over a ready script and one line saying what it does.
+agent blocked on the owner's machine hands over a ready script and one line saying what it does. A question the rules
+settle is decided and recorded, not asked; one that must reach the owner carries the agent's and the constitution's
+recommendations side by side, naming the rules and saying whether they agree. A reply with a decision or action carries
+the DEC-33 check: one table, the twelve rules as rows and the steps as columns, each cell a pass naming its evidence, a
+gap, or pending; then gaps and actions (step, rule, gap, action, owner, trigger, containment, state). Any other reply
+carries one line: "Rule check: no decision or action in this reply."
 
 Scope: every message to the owner, from every agent.
-Why: the owner's instructions of 2026-10-26, 2026-10-31 and 2026-11-14, and the constitution's "no reports that produce reports".
-Changed: 2026-11-14
-History: D106, D130
+Why: the owner's instructions of 2026-10-26, 2026-10-31, 2026-11-14 and 2026-11-24, and "no reports that produce reports".
+Changed: 2026-11-26
+History: D106, D130, D133
 
 ## DEC-32 Sections and citations
 

@@ -785,3 +785,44 @@ Replaced wording of DEC-02, verbatim (the rest of the entry stands):
 > History: D12, D35, D48, D54, D65, D79, D88, D91, D106
 
 Now in: DEC-02
+
+## D133 2026-11-26 WS-051: DEC-31 carries the reply form, DEC-26 gives lessons one home
+
+The owner's words of 2026-11-26 17:00 Cairo, verbatim from data/records/batch6/owner-words/owner-2026-11-26-a2-r2-approved.txt
+(SHA256 F40071A45F166CA08F07E4711EB69A0D4B51BF042EE9C30BE9DE2DC57E1A8A53), approving
+data/records/batch6/A2/A2-PROPOSAL-R2.md section 3 (SHA256 5D092ECF6F8BFE1940C38F19417813E992C88C0EFBF0BF8BBB6B7D2E187C5006):
+
+> i accept The constitution's: approve and Your: approve
+
+The instructions it settles, verbatim from data/records/WS-048/owner-words/owner-2026-11-24-rule-check-table.txt (SHA256
+115F876FFA2E99853F12B8C0378064FE4F38D494C8BB56FB1135B2FA87E050D2) and owner-2026-11-24-ask-with-both-recommendations.txt
+(SHA256 9083F7169BA4762823F440D778F60ADBADE861AADA75680DFC69A3234F53D7E4):
+
+> I would like to establish and adopt this table as a mandatory requirement for all your future decisions, proposals, or implementations.
+>
+> if you must ask me - pls give me your recommandation along side with The constitution recommandation
+
+Both lived only in agent auto-memory. The first text put them in DEC-33, but the native markdown check refused it (a rule
+over 200 characters, 13 body lines), so R2 moved each clause to the decision that owns its subject: the reply form and the
+question form to DEC-31, the one home for lessons to DEC-26; DEC-33 is unchanged. The prompt hook prints DEC-31 after
+DEC-33 on every owner message.
+
+Replaced wording of DEC-26, verbatim (the rest of the entry stands):
+
+> memory only points to it. A save never freezes or certifies an active output.
+>
+> Scope: every agent, after every step.
+> Why: work resumes exactly where it stopped, after a compact or a lost machine.
+> Changed: 2026-11-07
+> History: D20, D62, D71, D87, D125
+
+Replaced wording of DEC-31, verbatim (the rest of the entry stands):
+
+> agent blocked on the owner's machine hands over a ready script and one line saying what it does.
+>
+> Scope: every message to the owner, from every agent.
+> Why: the owner's instructions of 2026-10-26, 2026-10-31 and 2026-11-14, and the constitution's "no reports that produce reports".
+> Changed: 2026-11-14
+> History: D106, D130
+
+Now in: DEC-26, DEC-31

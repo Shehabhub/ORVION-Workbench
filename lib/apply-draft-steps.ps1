@@ -1,7 +1,13 @@
 # Replays literal Draft file steps; this is not an approval or scope-admission authority.
 # Preflight every target, operation and filtered blob before the first implementation write.
-param([Parameter(Mandatory)][string]$Draft,[Parameter(Mandatory)][string]$Root,[Alias('Plan')][switch]$Preview)
+param([Parameter(Mandatory)][string]$Draft,[Parameter(Mandatory)][string]$Root,[Alias('Plan')][switch]$Preview,[string]$PointerContract)
+# -PointerContract (preview only): plan RESUME.md as the approve stage leaves it, its one "Active Workbench Contract: None"
+# line naming this contract, since an Original prepare previews before approve sets the pointer.
 $ErrorActionPreference='Stop'
+if($PointerContract){
+    if(!$Preview){throw 'POINTER_CONTRACT_PREVIEW_ONLY'}
+    if($PointerContract-cnotmatch'^changes/[A-Za-z0-9._-]+\.md$'){throw 'POINTER_CONTRACT_INVALID'}
+}
 . (Join-Path $PSScriptRoot 'Invoke-DraftSteps.ps1')
 $t=[IO.File]::ReadAllText($Draft)-replace"`r`n","`n"
 $section=[regex]::Match($t,'(?s)## Implementation Steps\n\n(.*?)\n## Acceptance Criteria')
@@ -19,6 +25,11 @@ foreach($it in $items){
     $exists=[IO.File]::Exists($p)
     if(Test-Path -LiteralPath $p -PathType Container){throw "TARGET_IS_DIRECTORY:$file"}
     $raw=if($exists){[IO.File]::ReadAllText($p)}else{$null}
+    if($PointerContract-and$exists-and$file-ceq'RESUME.md'){
+        $n=([regex]::Matches($raw,'Active Workbench Contract: None')).Count
+        if($n-ne1){throw "POINTER_NONE_COUNT:$n"}
+        $raw=$raw.Replace('Active Workbench Contract: None',('Active Workbench Contract: '+$PointerContract))
+    }
     if($exists-and(Get-DraftContentBlob $Root $file $raw)-eq$want){
         $plans+= [pscustomobject]@{File=$file;Path=$p;Skip=$true;Create=$false;Blob=$want}
         continue

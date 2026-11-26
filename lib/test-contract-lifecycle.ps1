@@ -112,7 +112,8 @@ while([DateTime]::UtcNow-lt$deadline){
 exit 5
 '@
 $previewStub=@'
-param([string]$Draft,[string]$Root,[switch]$Preview)
+param([string]$Draft,[string]$Root,[switch]$Preview,[string]$PointerContract)
+if(!$PointerContract){exit 6}
 if($env:LIFECYCLE_FIXTURE_REFUSE-ceq'Preview'){exit 4}
 $sha=if($env:LIFECYCLE_FIXTURE_REFUSE-ceq'PreviewWrong'){'0'*64}else{(Get-FileHash -LiteralPath $Draft).Hash}
 $blob=if($env:LIFECYCLE_FIXTURE_REFUSE-ceq'PreviewBlob'){'0'*40}else{'__TOOLBLOB__'}

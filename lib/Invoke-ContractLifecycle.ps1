@@ -317,7 +317,7 @@ switch($Stage){
         $prediction=Get-OriginalPrediction 'HEAD' $record
         if($prediction.Recipe-cne$proof.recipe){throw 'LIFECYCLE_PREDICTED_RECIPE_MISMATCH'}
         if($prediction.Fingerprint-cne$proof.fingerprint){throw 'LIFECYCLE_PREDICTED_FINGERPRINT_MISMATCH'}
-        & $hostExe -NoProfile -File (Join-Path $executionRoot 'lib/apply-draft-steps.ps1') -Draft $m.Draft -Root $executionRoot -Preview *> (Join-Path $runtime 'literal-plan.json')
+        & $hostExe -NoProfile -File (Join-Path $executionRoot 'lib/apply-draft-steps.ps1') -Draft $m.Draft -Root $executionRoot -Preview -PointerContract $m.Contract *> (Join-Path $runtime 'literal-plan.json')
         if($LASTEXITCODE){throw 'LIFECYCLE_LITERAL_PLAN_REFUSED'}
         $plan=Get-Json (Join-Path $runtime 'literal-plan.json')
         if($plan.DraftSHA256-cne$m.DraftSHA256-or$plan.Files.Count-ne@($m.Outputs).Count-or@($plan.Files|Where-Object Skip -eq $true).Count){throw 'LIFECYCLE_LITERAL_PLAN_DIFFERS'}
