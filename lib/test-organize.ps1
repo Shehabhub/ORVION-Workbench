@@ -401,6 +401,11 @@ bool ok=DeviceIoControl(h,0x900A4,b,b.Length,IntPtr.Zero,0,out r,IntPtr.Zero);in
     $clone=Join-Path $tmpRoot 'cx\W01-role';[void][IO.Directory]::CreateDirectory($clone);$kept=[IO.File]::ReadAllText($contract)
     Assert-Passes 'a run folder of an open workstream is no orphan'
     [IO.File]::WriteAllText($contract,"$kept## Status`n[x] Complete`n");Assert-Finds 'a run folder of a Complete workstream is an orphan' 'ORPHAN temporary:cx/W01-role/';[IO.File]::WriteAllText($contract,$kept);[IO.Directory]::Delete($clone)
+    # -Check: a closed contract without its summary (WS-050); the newest Complete contract is exempt, its summary comes next.
+    $closedA=Join-Path $wb 'changes\WS-097-a.md';$closedB=Join-Path $wb 'changes\WS-098-b.md'
+    Add-File $closedB "# WS-098 b`n## Status`n[x] Complete`n";$null=Invoke-Tool -Refresh;Assert-Passes 'the newest Complete contract needs no summary yet'
+    Add-File $closedA "# WS-097 a`n## Status`n[x] Complete`n";$null=Invoke-Tool -Refresh;Assert-Finds 'a closed contract without its summary is reported' 'NO_SUMMARY workbench:records/WS-097'
+    [IO.File]::Delete($closedA);[IO.File]::Delete($closedB);$null=Invoke-Tool -Refresh
 
     # -Move: every reference in an active file, in the same operation; frozen text is untouched and resolves through the LOG.
     Add-File (Join-Path $data 'records\old-folder-2\x.txt');Add-File (Join-Path $data 'records\old-folder.md') "# near`n"

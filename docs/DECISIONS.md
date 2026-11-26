@@ -35,13 +35,13 @@ never becomes an approval; if a condition fails, the affected irreversible actio
 fix an easily fixed gap or error without asking; decide a low-stakes choice with Earn it, giving a one-line reason and a
 measurable trigger for revisiting it; park a critical decision that cannot be bypassed on the owner list and work around
 it. Never inferred from that autonomy: credential, machine-setting or GitHub-protection changes, destructive cleanup,
-deletion of owner data. Improvements found during execution follow WORKSPACE-LAYOUT.md section 22. The owner's words are
-saved verbatim and carried into the work without loss.
+deletion of owner data, running as Administrator, `claude update` on a bare "update". Improvements found during execution
+follow WORKSPACE-LAYOUT.md section 22. The owner's words are saved verbatim and carried into the work without loss.
 
 Scope: every agent and every action.
 Why: autonomy that never oversteps the owner's authority.
-Changed: 2026-11-01
-History: D12, D35, D48, D54, D65, D79, D88, D91, D106
+Changed: 2026-11-25
+History: D12, D35, D48, D54, D65, D79, D88, D91, D106, D132
 
 ## DEC-04 Programme order to the Batch 6 threshold
 

@@ -3,7 +3,7 @@
 # in the same operation; -Clean -DryRun or -Apply deletes what section 8 marks deletable, through remove-owned.ps1, and
 # refuses what an active file names; -Refresh regenerates every organizer's tables from the children's own headers and
 # docs/history/LOG.tsv; -Check reports the layout, names, organizers, parent rows, LOG coverage, path budget, broken
-# links, paths, sections and citations in active files, and orphans. Only
+# links, paths, sections and citations in active files, orphans, and a closed contract without its summary. Only
 # SymbolicLink and Junction count as links, so a OneDrive cloud-only file (also a reparse point) is a file; it is never
 # opened, so nothing is hydrated. Sealed content is listed by name, never walked for the organizers; the path budget
 # walks the checkout and the data root, not temporary, whose clones are disposable. A missing place reports UNAVAILABLE.
@@ -862,6 +862,12 @@ function Get-OrganizeLogRewritten{
     $prior=$utf8.GetString($buffer.ToArray()).Replace("`r`n","`n");$now=[IO.File]::ReadAllText($logPath).Replace("`r`n","`n")
     if(!$now.StartsWith($prior,[StringComparison]::Ordinal)){'LOG_REWRITTEN workbench:docs/history/LOG.tsv'}
 }
+function Get-OrganizeNoSummary{
+    # WS-050: each Complete contract from WS-022 on has its summary README in the records folder of its number (WORKSPACE-LAYOUT section 12), except the newest Complete one, whose summary the next contract writes.
+    $changes=Join-Path $places.workbench 'changes';if(!(Test-Path -LiteralPath $changes -PathType Container)){return}
+    $closed=@(Get-ChildItem -LiteralPath $changes -Filter 'WS-*.md' -File|Where-Object{$_.Name-cmatch'^WS-(\d{3})-'-and[int]$Matches[1]-ge22-and(Test-OrganizeComplete $_)}|Sort-Object Name)
+    foreach($contract in @($closed|Select-Object -SkipLast 1)){$id=$contract.Name.Substring(0,6);if(!(Test-Path -LiteralPath ([IO.Path]::Combine($places.workbench,'records',$id,'README.md')) -PathType Leaf)){"NO_SUMMARY workbench:records/$id"}}
+}
 function Get-OrganizeGenerated([bool]$Quick){
     # G07: every generator's -Check, which regenerates in memory and writes nothing. The organizers are checked in Invoke-OrganizeCheck.
     $runs=@(@{Tool='Sync-Sessions.ps1';With=@{Check=$true;Root=$places.data}},@{Tool='Save-State.ps1';With=@{Check=$true;Checkout=$checkoutFull;Temporary=$places.temporary}})
@@ -911,7 +917,7 @@ function Invoke-OrganizeCheck([bool]$Quick){
     # The path budget (section 6). .git and the checkout's data\ are not checkout content; data has its own walk.
     if(Test-Path -LiteralPath $places.workbench){foreach($top in @(Get-ChildItem -LiteralPath $places.workbench -Force|Where-Object Name -cnotin '.git','data')){if($top.FullName.Length-ge240){$problems.Add("TOO_LONG $($top.FullName)")};if($top.PSIsContainer-and!(Test-OrganizeLink $top)){Get-ChildItem -LiteralPath $top.FullName -Recurse -Force|Where-Object{$_.FullName.Length-ge240}|ForEach-Object{$problems.Add("TOO_LONG $($_.FullName)")}}}}
     if(Test-Path -LiteralPath $places.data){Get-ChildItem -LiteralPath $places.data -Recurse -Force|Where-Object{$_.FullName.Length-ge240}|ForEach-Object{$problems.Add("TOO_LONG $($_.FullName)")}}
-    foreach($finding in @(Get-OrganizeBroken)+@(Get-OrganizeDataProblem)+@(Get-OrganizeLogRewritten)+@(Get-OrganizeGenerated $Quick)){$problems.Add($finding)}
+    foreach($finding in @(Get-OrganizeBroken)+@(Get-OrganizeDataProblem)+@(Get-OrganizeLogRewritten)+@(Get-OrganizeNoSummary)+@(Get-OrganizeGenerated $Quick)){$problems.Add($finding)}
     $problems
     $missing=@($places.Keys|Where-Object{!(Test-Path -LiteralPath $places[$_] -PathType Container)})
     foreach($placeName in $missing){"UNAVAILABLE $placeName $($places[$placeName])"}

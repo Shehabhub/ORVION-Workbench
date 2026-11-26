@@ -1936,7 +1936,7 @@ Apply the literal file steps with the accepted baseline lib/apply-draft-steps.ps
 
 ## Runtime Checkpoint
 
-Resume Step: 1
+Resume Step: DONE
 Blocker: None
 Recovery Attempt: 0
 
@@ -1950,6 +1950,7 @@ Owner Evidence SHA256: 6E6D714FDF84D1BB05F06AE9969B271AA9E3EE1FD426BC4C8328A7532
 Execution Root: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench
 Sandbox Receipt: C:\Users\My Lab\Documents\GitHub\ORVION-Workbench-temporary\sb\W50b\runtime\sandbox\own-finish-receipt.json
 Sandbox Receipt SHA256: 44B8E84E9AA0A764AEC2972ABC7AD016D0FF358A7EAFC847AABFC06091565587
+Original exact declared outputs applied by accepted native Execute; fresh own Finish and Review/Complete remain required. Other protected roots unchanged. Controller: the Original's own lib/Invoke-ContractLifecycle.ps1 (SHA256 AD768116), unchanged by this contract and used by both roles, checked by Run-Stage before each stage; the judge and native Workbench.ps1 keep every authority.
 
 ## Verification Notes
 

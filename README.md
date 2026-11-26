@@ -28,6 +28,7 @@ item goes: WORKSPACE-LAYOUT.md section 4.
 | how to do a step | [docs/RUNBOOK.md](docs/RUNBOOK.md) |
 | the layout, the method and the checks | [docs/WORKSPACE-LAYOUT.md](docs/WORKSPACE-LAYOUT.md) |
 | the engineering entry | `pwsh -NoProfile -File lib/Workbench.ps1 -Boot`, then [WORKFLOW.md](WORKFLOW.md) |
+| where each kind of work record lives | [WORKFLOW.md section 2](WORKFLOW.md#2-one-home-table) |
 | the active contract | [RESUME.md](RESUME.md) |
 | a new contract | [changes/TEMPLATE.md](changes/TEMPLATE.md); the contracts: [changes/](changes/README.md) |
 | a tool | [lib/README.md](lib/README.md) |

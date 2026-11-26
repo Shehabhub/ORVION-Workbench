@@ -18,21 +18,36 @@ Rules: added only through lib/Organize.ps1 or by the tool named in Reader.
 | WS-031/ | records | Summary of WS-031 native feature preflight | agents, the owner | 2026-11-04 |
 | WS-032/ | records | Summary of WS-032 deferred proposal (no change file) | agents, the owner | 2026-11-04 |
 | WS-033/ | records | Summary of WS-033 compact folders method | agents, the owner | 2026-11-12 |
+| WS-034/ | records | Summary of WS-034 purpose based suite and upkeep | agents, the owner | 2026-11-25 |
+| WS-035/ | records | Summary of WS-035 tracked owner files | agents, the owner | 2026-11-25 |
+| WS-036/ | records | Summary of WS-036 decision record and save state | agents, the owner | 2026-11-25 |
+| WS-037/ | records | Summary of WS-037 a6 lift record | agents, the owner | 2026-11-25 |
+| WS-038/ | records | Summary of WS-038 finish floors and upkeep | agents, the owner | 2026-11-25 |
+| WS-040/ | records | Summary of WS-040 carried cancel retry and constitution | agents, the owner | 2026-11-25 |
+| WS-041/ | records | Summary of WS-041 commit retry and ws033 summary | agents, the owner | 2026-11-25 |
+| WS-042/ | records | Summary of WS-042 improving loop | agents, the owner | 2026-11-25 |
+| WS-043/ | records | Summary of WS-043 lifecycle new scripts | agents, the owner | 2026-11-25 |
+| WS-044/ | records | Summary of WS-044 backup status reader retry | agents, the owner | 2026-11-25 |
+| WS-045/ | records | Summary of WS-045 constitution revision 3 | agents, the owner | 2026-11-25 |
+| WS-046/ | records | Summary of WS-046 approve sandbox consistency guard | agents, the owner | 2026-11-25 |
+| WS-047/ | records | Summary of WS-047 claude setup survival | agents, the owner | 2026-11-25 |
+| WS-048/ | records | Summary of WS-048 carried cancel write scope | agents, the owner | 2026-11-25 |
+| WS-049/ | records | Summary of WS-049 constitution prompt gate | agents, the owner | 2026-11-25 |
 <!-- /organize:contents -->
 
 <!-- organize:changes (last 10 rows of docs/history/LOG.tsv for this folder; generated) -->
 | UTC | Action | From | To | Reason |
 | --- | --- | --- | --- | --- |
-| 2026-11-04T17:40:37Z | new | - | records/WS-023 | T10 organizer |
-| 2026-11-04T17:40:38Z | new | - | records/WS-025 | T10 organizer |
-| 2026-11-04T17:40:39Z | new | - | records/WS-026 | T10 organizer |
-| 2026-11-04T17:40:39Z | new | - | records/WS-027 | T10 organizer |
-| 2026-11-04T17:40:40Z | new | - | records/WS-028 | T10 organizer |
-| 2026-11-04T17:40:41Z | new | - | records/WS-029 | T10 organizer |
-| 2026-11-04T17:40:41Z | new | - | records/WS-030 | T10 organizer |
-| 2026-11-04T17:40:42Z | new | - | records/WS-031 | T10 organizer |
-| 2026-11-04T17:40:43Z | new | - | records/WS-032 | T10 organizer |
-| 2026-11-12T11:29:40Z | new | - | records/WS-033 | WS-033 P9.1 summary |
+| 2026-11-25T21:23:12Z | new | - | records/WS-040 | WS-050 WS-040 summary |
+| 2026-11-25T21:23:13Z | new | - | records/WS-041 | WS-050 WS-041 summary |
+| 2026-11-25T21:23:14Z | new | - | records/WS-042 | WS-050 WS-042 summary |
+| 2026-11-25T21:23:15Z | new | - | records/WS-043 | WS-050 WS-043 summary |
+| 2026-11-25T21:23:16Z | new | - | records/WS-044 | WS-050 WS-044 summary |
+| 2026-11-25T21:23:17Z | new | - | records/WS-045 | WS-050 WS-045 summary |
+| 2026-11-25T21:23:18Z | new | - | records/WS-046 | WS-050 WS-046 summary |
+| 2026-11-25T21:23:19Z | new | - | records/WS-047 | WS-050 WS-047 summary |
+| 2026-11-25T21:23:20Z | new | - | records/WS-048 | WS-050 WS-048 summary |
+| 2026-11-25T21:23:21Z | new | - | records/WS-049 | WS-050 WS-049 summary |
 <!-- /organize:changes -->
 
 ## Reading a summary
@@ -55,3 +70,18 @@ reason. Not listed: test outputs of designed refusals, mutants, tools, start mar
 - [WS-031/README.md](WS-031/README.md)
 - [WS-032/README.md](WS-032/README.md)
 - [WS-033/README.md](WS-033/README.md)
+- [WS-034/README.md](WS-034/README.md)
+- [WS-035/README.md](WS-035/README.md)
+- [WS-036/README.md](WS-036/README.md)
+- [WS-037/README.md](WS-037/README.md)
+- [WS-038/README.md](WS-038/README.md)
+- [WS-040/README.md](WS-040/README.md)
+- [WS-041/README.md](WS-041/README.md)
+- [WS-042/README.md](WS-042/README.md)
+- [WS-043/README.md](WS-043/README.md)
+- [WS-044/README.md](WS-044/README.md)
+- [WS-045/README.md](WS-045/README.md)
+- [WS-046/README.md](WS-046/README.md)
+- [WS-047/README.md](WS-047/README.md)
+- [WS-048/README.md](WS-048/README.md)
+- [WS-049/README.md](WS-049/README.md)

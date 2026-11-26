@@ -760,3 +760,28 @@ Replaced rules of DEC-33 and their Changed line, verbatim (Scope and Why stand):
 > Changed: 2026-11-11
 
 Now in: DEC-33
+
+## D132 2026-11-25 WS-050: DEC-02 names two refusals of 2026-11-14
+
+The owner's words of 2026-11-14 ~22:04 Cairo, verbatim from
+data/records/WS-033/owner-2026-11-14-2204-improving-loop-significant-approved.txt (SHA256
+DC344EE74A7122CF97F43EC45EE797FDD89B70C6D19ACD7D77B3A88BC2A24180), lines 15-16:
+
+> **Permission 1 — Bare "update": NOT APPROVED.** Do not interpret an ambiguous "update" request as permission to execute `claude update`. CLI updates require explicit authorization identifying the intended action.
+>
+> **Permission 2 — Administrator: NOT APPROVED.** Do not record a general permission to run Claude as Administrator. A previously observed elevated session does not create permanent authority or permission to modify settings.
+
+The two refusals lived only in agent auto-memory; DEC-02's list of what autonomy never infers is their one home (DEC-33
+rule 11). The fold narrows authority in the owner's own words and grants nothing. The inbox entry that carried them
+(2026-11-14 ~22:04) is removed with the other executed entries; the frozen copy is in data/records/WS-050/owner-words/.
+
+Replaced wording of DEC-02, verbatim (the rest of the entry stands):
+
+> it. Never inferred from that autonomy: credential, machine-setting or GitHub-protection changes, destructive cleanup,
+> deletion of owner data. Improvements found during execution follow WORKSPACE-LAYOUT.md section 22. The owner's words are
+> saved verbatim and carried into the work without loss.
+>
+> Changed: 2026-11-01
+> History: D12, D35, D48, D54, D65, D79, D88, D91, D106
+
+Now in: DEC-02
