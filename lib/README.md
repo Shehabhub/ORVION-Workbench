@@ -266,7 +266,7 @@ behavior; the per-run probe measures confinement on the installed CLI, for that 
 | `Invoke-ContractStage.ps1 -Config <x>.psd1 -Stage approve\|implement\|review\|complete\|bind` | bounded native transport: exact selected Draft/filter identity, native Boot and normal hooks before transitions; whole applier Plan before writes, declared paths only, actual Git authorship; approve refuses unless `SandboxConsistency` (the sandbox's native consistency log) shows nothing beyond RECOVER-1 and the `ConsistencyAccepted` lines; an unbound pending baseline is carried only by a Cancelled CR the Draft names in Supersedes, its own commits writing nothing outside its Write Scope. Native gates remain authority. |
 | `Test-ContractReview.ps1 -Config <x>.psd1 [-FinishLog <log>]` | read-only pre-Review diagnostics plus one native range Gate; exit1 observed failure, exit2 UNPROVEN/unsupported evidence, exit0 only for the measured class. Never certifies all descriptive/native criteria or replaces independent Review. |
 | `Invoke-DraftSteps.ps1` (dot-source) | turns a sandbox diff into literal Draft steps with blobs |
-| `apply-draft-steps.ps1 -Draft <d> -Root <clone>` | proves a Draft's steps reproduce its blobs |
+| `apply-draft-steps.ps1 -Draft <d> -Root <clone>` | proves a Draft's steps reproduce its blobs; a `Delete` step removes a file still at its baseline blob |
 | `Invoke-DraftRehearsal.ps1` | bounded literal/native-entry probes in a disposable clone: deliberately interrupts Finish and uses later sandbox-specific hook/worktree arrangements. Not a complete Finish/lifecycle proof; never transplant its results as original certification. |
 | `lifecycle.ps1` (dot-source) | shared helpers, including `Stop-ProcessTreeFully` |
 

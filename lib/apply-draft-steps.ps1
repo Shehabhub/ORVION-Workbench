@@ -1,5 +1,7 @@
 # Replays literal Draft file steps; this is not an approval or scope-admission authority.
 # Preflight every target, operation and filtered blob before the first implementation write.
+# WS-052: a step "N. Delete `path`, whose baseline Git blob is <40 hex>." removes a file that still holds that blob; an
+# absent file is Already Applied, and the plan's blob for it is the null blob (40 zeros), which the lifecycle reads as absent.
 param([Parameter(Mandatory)][string]$Draft,[Parameter(Mandatory)][string]$Root,[Alias('Plan')][switch]$Preview,[string]$PointerContract)
 # -PointerContract (preview only): plan RESUME.md as the approve stage leaves it, its one "Active Workbench Contract: None"
 # line naming this contract, since an Original prepare previews before approve sets the pointer.
@@ -12,10 +14,22 @@ if($PointerContract){
 $t=[IO.File]::ReadAllText($Draft)-replace"`r`n","`n"
 $section=[regex]::Match($t,'(?s)## Implementation Steps\n\n(.*?)\n## Acceptance Criteria')
 if(!$section.Success){throw 'IMPLEMENTATION_SECTION_MISSING'}
-$items=@([regex]::Split($section.Groups[1].Value,'(?m)^(?=\d+\. )')|Where-Object{$_-match'^\d+\. Check whether '})
+$items=@([regex]::Split($section.Groups[1].Value,'(?m)^(?=\d+\. )')|Where-Object{$_-match'^\d+\. (Check whether|Delete) '})
 if(!$items.Count){throw 'NO_FILE_STEPS'}
-$plans=@();$paths=@{}
+$plans=@();$paths=@{};$nullBlob='0'*40
 foreach($it in $items){
+    if($it-match'^\d+\. Delete '){
+        $deleteMatch=[regex]::Match($it,'^\d+\. Delete `([^`]+)`, whose baseline Git blob is ([0-9a-f]{40})\.')
+        if(!$deleteMatch.Success){throw 'DELETE_STEP_INVALID'}
+        $file=$deleteMatch.Groups[1].Value;$p=Get-DraftTargetPath $Root $file
+        if($paths.ContainsKey($p)){throw "DUPLICATE_TARGET:$file"};$paths[$p]=$true
+        if(Test-Path -LiteralPath $p -PathType Container){throw "TARGET_IS_DIRECTORY:$file"}
+        if(![IO.File]::Exists($p)){$plans+=[pscustomobject]@{File=$file;Path=$p;Skip=$true;Create=$false;Delete=$true;Blob=$nullBlob};continue}
+        $found=@(git -C $Root hash-object "--path=$file" -- $p)
+        if($LASTEXITCODE-or$found.Count-ne1-or$found[0]-cne$deleteMatch.Groups[2].Value){throw "DELETE_BASELINE_BLOB_MISMATCH:$file"}
+        $plans+=[pscustomobject]@{File=$file;Path=$p;Skip=$false;Create=$false;Delete=$true;Before=[Convert]::ToBase64String([IO.File]::ReadAllBytes($p));Blob=$nullBlob}
+        continue
+    }
     $pathMatch=[regex]::Match($it,'^\d+\. Check whether `([^`]+)` contains `([^`]+)`')
     $blobMatch=[regex]::Match($it,"The resulting file's Git blob is ([0-9a-f]{40})\.")
     if(!$pathMatch.Success-or!$blobMatch.Success){throw 'FILE_STEP_INVALID'}
@@ -31,7 +45,7 @@ foreach($it in $items){
         $raw=$raw.Replace('Active Workbench Contract: None',('Active Workbench Contract: '+$PointerContract))
     }
     if($exists-and(Get-DraftContentBlob $Root $file $raw)-eq$want){
-        $plans+= [pscustomobject]@{File=$file;Path=$p;Skip=$true;Create=$false;Blob=$want}
+        $plans+= [pscustomobject]@{File=$file;Path=$p;Skip=$true;Create=$false;Delete=$false;Blob=$want}
         continue
     }
     $fences=@([regex]::Matches($it,'(?ms)^   ```text\n(.*?)^   ```(?=\n|$)')|ForEach-Object{
@@ -59,17 +73,21 @@ foreach($it in $items){
     }
     $got=Get-DraftContentBlob $Root $file $text
     if($got-ne$want){throw "DRAFT_BLOB_MISMATCH:${file}:expected=$want actual=$got"}
-    $plans+=[pscustomobject]@{File=$file;Path=$p;Skip=$false;Create=$creating;Before=$raw;Text=$text;Blob=$got}
+    $plans+=[pscustomobject]@{File=$file;Path=$p;Skip=$false;Create=$creating;Delete=$false;Before=$raw;Text=$text;Blob=$got}
 }
 if($Preview){
     [ordered]@{Schema=1;Root=[IO.Path]::GetFullPath($Root);DraftSHA256=(Get-FileHash -LiteralPath $Draft -Algorithm SHA256).Hash;
-        Files=@($plans|ForEach-Object{[ordered]@{File=$_.File;Blob=$_.Blob;Skip=$_.Skip;Create=$_.Create}})}|ConvertTo-Json -Depth 5
+        Files=@($plans|ForEach-Object{[ordered]@{File=$_.File;Blob=$_.Blob;Skip=$_.Skip;Create=$_.Create;Delete=$_.Delete}})}|ConvertTo-Json -Depth 5
     exit 0
 }
 foreach($plan in $plans){
     if($plan.Skip){"ALREADY_APPLIED: $($plan.File)";continue}
     $checked=Get-DraftTargetPath $Root $plan.File
     if($checked-cne$plan.Path){throw 'TARGET_CHANGED'}
+    if($plan.Delete){
+        if([Convert]::ToBase64String([IO.File]::ReadAllBytes($plan.Path))-cne$plan.Before){throw "TARGET_CHANGED:$($plan.File)"}
+        [IO.File]::Delete($plan.Path);"DELETED: $($plan.File)";continue
+    }
     $bytes=[Text.Encoding]::UTF8.GetBytes($plan.Text)
     if($plan.Create){
         [void][IO.Directory]::CreateDirectory((Split-Path $plan.Path -Parent))

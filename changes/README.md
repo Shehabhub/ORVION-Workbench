@@ -55,6 +55,7 @@ Rules: `WS-0NN-<slug>.md`, allocated and changed only through the native lifecyc
 | WS-049-constitution-prompt-gate.md | contracts | Workbench Change Request - WS-049 | - | - |
 | WS-050-summaries-and-summary-check.md | contracts | Workbench Change Request - WS-050 | - | - |
 | WS-051-reply-form-and-preview-pointer.md | contracts | Workbench Change Request - WS-051 | - | - |
+| WS-052-delete-step-and-live-state-route.md | contracts | Workbench Change Request - WS-052 | - | - |
 <!-- /organize:contents -->
 
 <!-- organize:changes (last 10 rows of docs/history/LOG.tsv for this folder; generated) -->

@@ -56,7 +56,7 @@ function New-ForgedChain([string]$From,[string]$Through,[scriptblock]$Edit){
     $at=[array]::IndexOf($names,$From);$end=[array]::IndexOf($names,$Through)
     $null=FixGit $sandbox reset --quiet --hard $(if($at){$chain[$at-1]}else{$baseline})
     for($i=$at;$i-lt$names.Count;$i++){
-        $null=FixGit $sandbox checkout --quiet $chain[$i] -- .
+        $null=FixGit $sandbox read-tree --reset -u $chain[$i]
         if($i-le$end){$null=& $Edit}
         $null=FixGit $sandbox add -A;$null=FixGit $sandbox commit --quiet --allow-empty -C $chain[$i]
     }
@@ -75,7 +75,7 @@ if($Actionlint-and!(Test-Path -LiteralPath $Actionlint)){exit 10}
 $resume=Join-Path $Root 'RESUME.md';$routing=[IO.File]::ReadAllText($resume);$contract=Get-WorkbenchPointer $routing
 $path=Join-Path $Root $contract;$text=[IO.File]::ReadAllText($path);$record=Get-WorkbenchFields $text
 switch($verb){
-'Execute'{if($record.Checkpoint['Resume Step']-cne'DONE'){[void][IO.Directory]::CreateDirectory((Join-Path $Root 'docs'));[IO.File]::WriteAllText((Join-Path $Root 'lib\tool.ps1'),"# tool v2`r`n");[IO.File]::WriteAllText((Join-Path $Root 'docs\new.txt'),"new`n");[IO.File]::WriteAllText((Join-Path $Root 'lib\test-new.ps1'),"# new test`r`n")}elseif($env:LIFECYCLE_FIXTURE_REFUSE-ceq'ExecuteDone'){exit 9}}
+'Execute'{if($record.Checkpoint['Resume Step']-cne'DONE'){[void][IO.Directory]::CreateDirectory((Join-Path $Root 'docs'));[IO.File]::WriteAllText((Join-Path $Root 'lib\tool.ps1'),"# tool v2`r`n");[IO.File]::WriteAllText((Join-Path $Root 'docs\new.txt'),"new`n");[IO.File]::WriteAllText((Join-Path $Root 'lib\test-new.ps1'),"# new test`r`n");[IO.File]::Delete((Join-Path $Root 'docs\old.txt'))}elseif($env:LIFECYCLE_FIXTURE_REFUSE-ceq'ExecuteDone'){exit 9}}
 'Finish'{
     $context=Get-WorkbenchContext $record;$role=Get-WorkbenchExecutionRole $Root $context;$recipe=Get-WorkbenchRecipe $Root 'HEAD' $record
     $proof=if($role-ceq'ORIGINAL'){(Assert-WorkbenchSandboxProof $Root $record $context $recipe -Implementation).digest}else{$null}
@@ -117,7 +117,7 @@ if(!$PointerContract){exit 6}
 if($env:LIFECYCLE_FIXTURE_REFUSE-ceq'Preview'){exit 4}
 $sha=if($env:LIFECYCLE_FIXTURE_REFUSE-ceq'PreviewWrong'){'0'*64}else{(Get-FileHash -LiteralPath $Draft).Hash}
 $blob=if($env:LIFECYCLE_FIXTURE_REFUSE-ceq'PreviewBlob'){'0'*40}else{'__TOOLBLOB__'}
-[ordered]@{DraftSHA256=$sha;Files=@([ordered]@{File='lib/tool.ps1';Blob=$blob;Skip=$false},[ordered]@{File='docs/new.txt';Blob='__NEWBLOB__';Skip=$false},[ordered]@{File='lib/test-new.ps1';Blob='__TESTNEWBLOB__';Skip=$false})}|ConvertTo-Json -Depth 4
+[ordered]@{DraftSHA256=$sha;Files=@([ordered]@{File='lib/tool.ps1';Blob=$blob;Skip=$false},[ordered]@{File='docs/new.txt';Blob='__NEWBLOB__';Skip=$false},[ordered]@{File='lib/test-new.ps1';Blob='__TESTNEWBLOB__';Skip=$false},[ordered]@{File='docs/old.txt';Blob=('0'*40);Skip=$false;Delete=$true})}|ConvertTo-Json -Depth 4
 '@
 
 try{
@@ -132,7 +132,7 @@ try{
     $judgeText=$evaluator.Substring(0,$cut)+"function Get-WorkbenchCITool{[ordered]@{SHA256='$((Get-FileHash -LiteralPath $actionlint).Hash)'}}`n$return`nif(`$env:LIFECYCLE_FIXTURE_REFUSE-ceq`$Mode){exit 7}`nif(`$ExpectedEvaluatorSha256-and(Get-FileHash -LiteralPath `$PSCommandPath).Hash-cne`$ExpectedEvaluatorSha256){exit 8}`n'WB_FIXTURE: admitted'`nexit 0`n"
     $toolPayload=Join-Path $root 'tool-v2.ps1';$newPayload=Join-Path $root 'new.txt';Write-Crlf $toolPayload "# tool v2`n";Write-Crlf $newPayload "new`n";$testNewPayload=Join-Path $root 'test-new.ps1';Write-Crlf $testNewPayload "# new test`n"
     $toolBlob=@(FixGit $original hash-object --path=lib/tool.ps1 -- $toolPayload)[0];$newBlob=@(FixGit $original hash-object --path=docs/new.txt -- $newPayload)[0];$testNewBlob=@(FixGit $original hash-object --path=lib/test-new.ps1 -- $testNewPayload)[0]
-    $outputs=@([pscustomobject]@{Path='lib/tool.ps1';Blob=$toolBlob},[pscustomobject]@{Path='docs/new.txt';Blob=$newBlob},[pscustomobject]@{Path='lib/test-new.ps1';Blob=$testNewBlob})
+    $outputs=@([pscustomobject]@{Path='lib/tool.ps1';Blob=$toolBlob},[pscustomobject]@{Path='docs/new.txt';Blob=$newBlob},[pscustomobject]@{Path='lib/test-new.ps1';Blob=$testNewBlob},[pscustomobject]@{Path='docs/old.txt';Blob='0'*40})
     Write-Crlf (Join-Path $original 'lib\Test-WorkbenchChange.ps1') $judgeText
     Write-Crlf (Join-Path $original 'lib\Workbench.ps1') $workbenchStub
     Write-Crlf (Join-Path $original 'lib\run_timed.ps1') $runTimedStub
@@ -141,6 +141,7 @@ try{
     Write-Crlf (Join-Path $original 'lib\apply-draft-steps.ps1') $previewStub.Replace('__TOOLBLOB__',$toolBlob).Replace('__NEWBLOB__',$newBlob).Replace('__TESTNEWBLOB__',$testNewBlob)
     foreach($name in 'lib\Events.ps1','lib\Hunt.ps1','lib\test-x.ps1','tests.ps1','changes\README.md'){Write-Crlf (Join-Path $original $name) "# fixture`n"}
     Write-Crlf (Join-Path $original 'lib\tool.ps1') "# tool v1`n"
+    Write-Crlf (Join-Path $original 'docs\old.txt') "old`n"
     Write-Crlf (Join-Path $original 'RESUME.md') "# Resume`nActive Workbench Contract: None`n"
     Write-Crlf (Join-Path $original '.gitignore') ".workbench-*`n"
     $null=FixGit $original add -A;$null=FixGit $original commit --quiet -m 'baseline'
@@ -172,6 +173,7 @@ $baseline
 - lib/tool.ps1
 - docs/new.txt
 - lib/test-new.ps1
+- docs/old.txt
 
 ## Out of Scope
 Everything else.

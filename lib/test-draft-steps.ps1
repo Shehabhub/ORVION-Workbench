@@ -125,6 +125,35 @@ function Test-PointerCases{
     $x=& $run @('-Preview','-PointerContract','changes/WS-9.md')
     Assert-DraftCase 'two None lines are refused' ($x.Code-ne0-and$x.Text-match'POINTER_NONE_COUNT:2') $x.Text
 }
+# WS-052: a Delete step removes a file only while it holds the declared baseline blob, preflighted with every other step.
+function Test-DeleteCases{
+    $r=Join-Path $root 'delete';New-Item -ItemType Directory -Force (Join-Path $r 'docs')|Out-Null
+    git -C $r init -q;git -C $r config core.autocrlf true
+    [IO.File]::WriteAllText("$r\docs\old.txt","old`r`nbody`r`n");[IO.File]::WriteAllText("$r\keep.txt","MARK`nkeep`n")
+    git -C $r add .;git -C $r -c user.name=t -c user.email=t@t commit -qm base
+    $old=@(git -C $r rev-parse HEAD:docs/old.txt)[0]
+    [IO.File]::WriteAllText("$r\keep.txt","MARK`nkept`n");$s=Get-DraftFileStep $r 'keep.txt' 'MARK' 'delete fixture';git -C $r checkout -q -- keep.txt
+    $del="Delete ``docs/old.txt``, whose baseline Git blob is $old."
+    $d="$r\draft.md";$write={param([string[]]$Steps)$n=0;[IO.File]::WriteAllText($d,"## Implementation Steps`n`n"+(($Steps|ForEach-Object{$n++;"$n. $_"})-join"`n`n")+"`n`n## Acceptance Criteria`n")}
+    $run={param([string[]]$Extra)$o=& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'apply-draft-steps.ps1') -Draft $d -Root $r @Extra 2>&1|Out-String;[pscustomobject]@{Code=$LASTEXITCODE;Text=$o}}
+    $target="$r\docs\old.txt"
+    & $write @($del,$s.Text);$x=& $run @('-Preview');$v=try{$x.Text|ConvertFrom-Json}catch{$null};$e=@($v.Files|Where-Object File -CEQ 'docs/old.txt')
+    Assert-DraftCase 'a delete preview plans the null blob and keeps the file' ($x.Code-eq0-and$e.Count-eq1-and$e[0].Delete-eq$true-and$e[0].Skip-eq$false-and$e[0].Blob-ceq('0'*40)-and(Test-Path -LiteralPath $target)) $x.Text
+    & $write @($s.Text.Replace($s.Blob,'0'*40),$del);$x=& $run @()
+    Assert-DraftCase 'a later blob mismatch refuses before an earlier delete' ($x.Code-ne0-and$x.Text-match'DRAFT_BLOB_MISMATCH'-and(Test-Path -LiteralPath $target)) $x.Text
+    & $write @($del.Replace($old,'1'*40));$x=& $run @()
+    Assert-DraftCase 'a delete of other bytes than the baseline blob is refused' ($x.Code-ne0-and$x.Text-match'DELETE_BASELINE_BLOB_MISMATCH'-and(Test-Path -LiteralPath $target)) $x.Text
+    & $write @($del.Replace('docs/old.txt','../old.txt'));$x=& $run @()
+    Assert-DraftCase 'a delete outside the root is refused' ($x.Code-ne0-and$x.Text-match'DRAFT_PATH_INVALID') $x.Text
+    & $write @($del.Replace('docs/old.txt','docs'));$x=& $run @()
+    Assert-DraftCase 'a delete of a directory is refused' ($x.Code-ne0-and$x.Text-match'TARGET_IS_DIRECTORY'-and(Test-Path -LiteralPath $target)) $x.Text
+    & $write @("Delete docs/old.txt.");$x=& $run @()
+    Assert-DraftCase 'a malformed delete step is refused' ($x.Code-ne0-and$x.Text-match'DELETE_STEP_INVALID'-and(Test-Path -LiteralPath $target)) $x.Text
+    & $write @($del,$s.Text);$x=& $run @()
+    Assert-DraftCase 'a delete step removes the file with the other steps' ($x.Code-eq0-and$x.Text-match'DELETED: docs/old.txt'-and!(Test-Path -LiteralPath $target)-and@(git -C $r hash-object -- keep.txt)[0]-ceq$s.Blob) $x.Text
+    $x=& $run @()
+    Assert-DraftCase 'a resumed delete records Already Applied' ($x.Code-eq0-and$x.Text-match'ALREADY_APPLIED: docs/old.txt'-and!(Test-Path -LiteralPath $target)) $x.Text
+}
 try{
     Test-Case 'deletion' "MARK`nkeep`ndel`nend`n" "MARK`nkeep`nend`n"
     Test-Case 'substring-ambiguous' "MARK`na`nfoo`nxfoo`nfoo2`nb`n" "MARK`na`nFOO`nxfoo`nfoo2`nb`n"
@@ -139,6 +168,7 @@ try{
     }finally{[Console]::OutputEncoding=$savedEncoding}
     Test-CreationCases
     Test-PointerCases
+    Test-DeleteCases
 }finally{
     $env:GIT_CONFIG_GLOBAL=$savedGitGlobal;$env:GIT_CONFIG_NOSYSTEM=$savedGitNoSystem
     $resolved=[IO.Path]::GetFullPath($root);$tempRoot=[IO.Path]::GetFullPath([IO.Path]::GetTempPath())

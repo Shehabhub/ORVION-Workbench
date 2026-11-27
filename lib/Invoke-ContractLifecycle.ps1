@@ -49,6 +49,10 @@ if($Stage-cne'dryrun'){foreach($dir in $runtime,$env:TEMP,$env:WORKBENCH_TEST_RO
 # Standard output only: a CRLF warning on stderr must never read as the blob a caller takes from the first line.
 function Invoke-RootGit([string[]]$Arguments){$lines=@(& git --no-optional-locks -C $executionRoot -c core.quotepath=false @Arguments 2>&1);if($LASTEXITCODE){throw "LIFECYCLE_GIT_FAILED:$($Arguments-join' '):$($lines-join' ')"};$lines|Where-Object{$_-isnot[Management.Automation.ErrorRecord]}|ForEach-Object{"$_"}}
 function Get-RootHead{@(Invoke-RootGit @('rev-parse','HEAD'))[0]}
+# WS-052: an output whose blob is the null blob (40 zeros) is a file the Draft deletes, so absent reads as that blob.
+$nullBlob='0'*40
+function Get-TreeBlob([string]$Tree,[string]$Path){$row=@(Invoke-RootGit @('ls-tree',$Tree,'--',$Path));if($row.Count){($row[0]-split'\s')[2]}else{$nullBlob}}
+function Get-LiveBlob([string]$Path){$file=Join-Path $executionRoot $Path;if(Test-Path -LiteralPath $file){@(Invoke-RootGit @('hash-object',('--path='+$Path),'--',$file))[0]}else{$nullBlob}}
 function Assert-CleanRoot{
     $null=Assert-WorkbenchRoot $executionRoot
     if(@(Invoke-RootGit @('status','--porcelain','--untracked-files=all')).Count){throw 'LIFECYCLE_ROOT_DIRTY'}
@@ -181,7 +185,7 @@ function Get-OriginalPrediction([string]$Tree,$Record){
         [void][IO.Directory]::CreateDirectory((Join-Path $scratch 'objects'))
         $env:GIT_INDEX_FILE=Join-Path $scratch 'index';$env:GIT_OBJECT_DIRECTORY=Join-Path $scratch 'objects';$env:GIT_ALTERNATE_OBJECT_DIRECTORIES=$objects-join[IO.Path]::PathSeparator
         $null=Invoke-RootGit @('read-tree',$Tree)
-        foreach($output in $m.Outputs){$row=@(Invoke-RootGit @('ls-tree',$Tree,'--',$output.Path));$mode=if($row.Count){($row[0]-split' ')[0]}else{'100644'};$null=Invoke-RootGit @('update-index','--add','--cacheinfo',"$mode,$($output.Blob),$($output.Path)")}
+        foreach($output in $m.Outputs){$row=@(Invoke-RootGit @('ls-tree',$Tree,'--',$output.Path));$mode=if($row.Count){($row[0]-split' ')[0]}else{'100644'};if($output.Blob-ceq$nullBlob){$null=Invoke-RootGit @('update-index','--force-remove','--',$output.Path)}else{$null=Invoke-RootGit @('update-index','--add','--cacheinfo',"$mode,$($output.Blob),$($output.Path)")}}
         $predicted=@(Invoke-RootGit @('write-tree','--missing-ok'))[0]
         $recipe=Get-WorkbenchRecipe $executionRoot $predicted $Record
         $rows=[Collections.Generic.SortedDictionary[string,string]]::new([StringComparer]::Ordinal)
@@ -212,14 +216,14 @@ function Assert-FinishEvidence($Receipt,[string]$Tree,[switch]$Live){
     # RESUME.md is the pointer; dedupe keeps exact set equality.
     $allowed=@(@('RESUME.md',$m.Contract)+@($m.Outputs.Path)|Sort-Object -Unique)
     if(@(Compare-Object $allowed @(Invoke-WorkbenchGit $executionRoot @('diff','--name-only',$m.Baseline,$Tree))).Count){throw 'LIFECYCLE_CARRYING_SCOPE_DIFFERS'}
-    foreach($output in $m.Outputs){if(@(Invoke-RootGit @('rev-parse',"${Tree}:$($output.Path)"))[0]-cne$output.Blob){throw 'LIFECYCLE_COMMITTED_OUTPUT_DIFFERS'}}
+    foreach($output in $m.Outputs){if((Get-TreeBlob $Tree $output.Path)-cne$output.Blob){throw 'LIFECYCLE_COMMITTED_OUTPUT_DIFFERS'}}
     $log=[IO.File]::ReadAllText($Receipt.runLog);$watcherLog=[IO.File]::ReadAllText((Join-Path $runtime 'finish-watcher.log'))
     if([IO.File]::ReadAllLines($Receipt.runLog)[0]-cne$Receipt.runStart-or$log-notmatch'END exit=0 '-or$watcherLog-notmatch'END exit=0'-or[regex]::Matches($log,'TESTS: all passed in ').Count-ne1-or$log-notmatch'(?m)^\[\+[^]]+\] PASS the real journal is untouched by the checks\r?$'){throw 'LIFECYCLE_FINISH_LOG_NOT_SUCCESS'}
     $last=-1;foreach($test in $recipe.Material.tests){$found=[regex]::Matches($log,'(?m)^\[\+[^]]+\] PASS '+[regex]::Escape([IO.Path]::GetFileName($test))+'\r?$');if($found.Count-ne1-or$found[0].Index-le$last){throw 'LIFECYCLE_ORDERED_TEST_MISSING'};$last=$found[0].Index}
     if($Live){
         if((Get-FileHash -LiteralPath (Join-Path $executionRoot 'lib\Test-WorkbenchChange.ps1')).Hash-cne$m.JudgeSHA256){throw 'LIFECYCLE_ROOT_EVALUATOR_CHANGED'}
         if(@(Invoke-RootGit @('status','--porcelain','--untracked-files=all')).Count){throw 'LIFECYCLE_ROOT_DIRTY'}
-        foreach($output in $m.Outputs){if(@(Invoke-RootGit @('hash-object',('--path='+$output.Path),'--',(Join-Path $executionRoot $output.Path)))[0]-cne$output.Blob){throw 'LIFECYCLE_LIVE_OUTPUT_DIFFERS'}}
+        foreach($output in $m.Outputs){if((Get-LiveBlob $output.Path)-cne$output.Blob){throw 'LIFECYCLE_LIVE_OUTPUT_DIFFERS'}}
         $launch=Get-Json (Join-Path $runtime 'launch-resources.json')
         if((Get-FileHash -LiteralPath $launch.RealJournal).Hash-cne$launch.JournalBeforeSHA256){throw 'LIFECYCLE_REAL_JOURNAL_CHANGED'}
     }
@@ -381,7 +385,7 @@ switch($Stage){
     Write-RootText $contractPath (Get-BegunText $text)
     Save-RootCommit @($m.Contract) 'begin' 'begin-commit.log'
     Invoke-Native 'Execute' 'LIFECYCLE_NATIVE_EXECUTE_REFUSED'
-    foreach($output in $m.Outputs){if(@(Invoke-RootGit @('hash-object',('--path='+$output.Path),'--',(Join-Path $executionRoot $output.Path)))[0]-cne$output.Blob){throw 'LIFECYCLE_NATIVE_OUTPUT_DIFFERS'}}
+    foreach($output in $m.Outputs){if((Get-LiveBlob $output.Path)-cne$output.Blob){throw 'LIFECYCLE_NATIVE_OUTPUT_DIFFERS'}}
     Write-RootText $contractPath (Get-ImplementedText ([IO.File]::ReadAllText($contractPath)))
     Save-RootCommit (@($m.Contract)+@($m.Outputs.Path)) 'implement' 'implementation-commit.log'
     Invoke-Native 'Execute' 'LIFECYCLE_NATIVE_DONE_REFUSED'

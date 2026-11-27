@@ -1,2 +1,2 @@
 Active Workbench Contract: changes/WS-052-delete-step-and-live-state-route.md
-Live state: lib/Pulse.ps1 (resolved data root); if unavailable use the newest RESUME HERE journal entry through lib/Events.ps1 -Find 'resume here'; see lib/README.md.
+Live state: data/work/NOW.md in the resolved data root, written only by lib/Save-State.ps1 (DEC-26); lib/Pulse.ps1 shows what runs; see lib/README.md.
