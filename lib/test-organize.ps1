@@ -14,7 +14,7 @@ function Assert-TextFinds([string]$Name,[string]$Path,[string]$Extra,[string]$Co
 function Assert-TextPasses([string]$Name,[string]$Path,[string]$Extra){$kept=[IO.File]::ReadAllText($Path);[IO.File]::AppendAllText($Path,"$Extra`n");Assert-Passes $Name;[IO.File]::WriteAllText($Path,$kept)}
 function Assert-Refused([string]$Name,[string]$Code,[string[]]$Arguments){$refused=@(& pwsh -NoProfile -File $script @Arguments -Checkout $wb -Temporary $tmpRoot -Root $data 2>&1|ForEach-Object{"$_"});$exit=$LASTEXITCODE;Assert-That $Name ($exit-ne0-and($refused-join"`n")-cmatch$Code)}
 try{
-    foreach($file in 'AGENTS.md','RESUME.md','WORKFLOW.md','HANDOFF.md','tests.ps1','.gitignore','.gitattributes','.githooks/h','.github/g','config/README.md','lib/README.md','lib/Tool.ps1','lib/Organize.ps1','lib/hooks/w.ps1','README.md'){Add-File (Join-Path $wb $file) "# $file`n"}
+    foreach($file in 'AGENTS.md','RESUME.md','WORKFLOW.md','tests.ps1','.gitignore','.gitattributes','.githooks/h','.github/g','config/README.md','lib/README.md','lib/Tool.ps1','lib/Organize.ps1','lib/hooks/w.ps1','README.md'){Add-File (Join-Path $wb $file) "# $file`n"}
     Add-File (Join-Path $wb 'README.md') "# README.md`nThe tools and documents: Tool.ps1, RUNBOOK.md, RECOVERY.md, DECISIONS.md, WORKSPACE-LAYOUT.md.`n"
     foreach($folder in 'changes','docs','docs/history','docs/owner','records'){[void][IO.Directory]::CreateDirectory((Join-Path $wb $folder))}
     foreach($folder in 'changes','docs','docs\history','docs\owner','docs\owner\recovery-inputs','records'){Add-Organizer (Join-Path $wb $folder)}

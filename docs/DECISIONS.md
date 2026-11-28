@@ -59,8 +59,10 @@ Watch: `(?i)owner lift.{0,120}batch 6|batch 6.{0,120}owner lift`
 
 ## DEC-05 Lift criteria and accepted open risks
 
-The owner decides the Lift on the closure criteria of HANDOFF section 12 as amended. Criterion 5, amended when the
-owner cancelled the Windows reinstall: the isolated restore of orvion-backup-20261026T201821Z.7z (done 2026-10-26)
+The owner lifted the Batch 6 hold on 2026-11-07 on closure criteria 1-5 as amended. WS-053 retired the closure file; the
+criteria and the Lift line stay at `dbc0fc7:HANDOFF.md` sections 11-12, the evidence in
+data\records\delegation-20261026\LIFT-EVIDENCE.md. Criterion 5, amended when the owner cancelled the Windows
+reinstall: the isolated restore of orvion-backup-20261026T201821Z.7z (done 2026-10-26)
 plus one isolated run of the released Restore-ORVION.cmd against a fresh package (same-machine PASS on 2026-10-28:
 records/WS-029/package/successor/step3/attempt-20261028T180229Z-r2/result.json). With the reinstall cancelled,
 clean-Windows recovery (contract C2) is not a Lift condition. Stated as open wherever the Lift is discussed:
@@ -71,7 +73,7 @@ At Lift, all seven legacy folders stay. Later deletion requires DEC-10 and owner
 
 Scope: the Owner Lift and every report that mentions it.
 Why: the Lift must rest on what was proven, with every open risk visible.
-Changed: 2026-11-07
+Changed: 2026-11-28
 History: D2, D3, D4, D26, D34, D38, D46, D58, D126
 
 ## DEC-06 WS-033 scope
@@ -515,7 +517,7 @@ History: D106, D130, D133
 
 ## DEC-32 Sections and citations
 
-In each active document (README, WORKFLOW, HANDOFF, RUNBOOK, DECISIONS, WORKSPACE-LAYOUT, lib/README and NOW.md) every
+In each active document (README, WORKFLOW, RUNBOOK, DECISIONS, WORKSPACE-LAYOUT, lib/README and NOW.md) every
 `##` heading starts with its ID: a number (`## 10. Title`, with `### 10.1 Title` under it) or, in DECISIONS.md,
 `DEC-NN`. An ID is unique in its file and permanent: a new section takes the next unused number wherever it stands, and
 a removed section's number is never reused. Only a purpose of at most three lines stands between the title and the first

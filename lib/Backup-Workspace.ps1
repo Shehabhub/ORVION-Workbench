@@ -3,6 +3,7 @@
 #   repos\<name>\         ignored receipts (.orvion-local-certification.json, .orvion-certifications\), .claude\settings*.json,
 #                         local git config (identity, remote, per-account credential pin: commands only, never tokens), HEAD
 #   owner-tools\          the data root, ORVION-Workbench\data (sessions archive, events journal, work) minus work\sandboxes
+#                         with -Package, first records\machine\inventory-<UTC date>: the A1 machine inventory (WS-053)
 #   claude\               user settings, statusline, keybindings, hooks\, own skills\ (not the cloud-synced skills\synced), the
 #                         local-marketplace\ plugins (the usage meter; no generated types or node_modules) (WS-047);
 #                         never .credentials.json. Memory lives in owner-tools\claude-memory (records\ before WS-033)
@@ -155,6 +156,69 @@ $ownerTools=[IO.Path]::GetFullPath($ownerTools).TrimEnd('\')
 if(Get-Item -LiteralPath (Join-Path $ownerTools '.git') -Force -ErrorAction SilentlyContinue){throw 'BACKUP_DATA_ROOT_GIT_REFUSED'}
 . (Join-Path $PSScriptRoot 'workspace-layout.ps1')
 $TemporaryRoot=Initialize-OrvionTemporaryRoot -Checkout $tools
+# A1 recovery (WS-053): what a fresh Windows needs reinstalled or re-set, written once per UTC day into the data root
+# before it is packaged (docs/RECOVERY.md, Machine restore). Secret values are never read out: MCP env and header values,
+# token prefixes, URL passwords, key query values and secret-named variables are masked. A missing tool is recorded as
+# missing and a failed item as failed; neither fails the backup. A half-written day is never reused.
+function Save-MachineInventory([string]$Root){
+    $Root=[IO.Path]::GetFullPath($Root);$parent=Join-Path $Root 'records\machine';$final=Join-Path $parent ('inventory-'+[DateTime]::UtcNow.ToString('yyyyMMdd'))
+    if(Test-Path -LiteralPath $final -PathType Container){"MACHINE INVENTORY: $final (reused)";return}
+    $out=$final+'.partial';if([IO.Directory]::Exists($out)){[IO.Directory]::Delete($out,$true)}
+    # Tools run here write caches to TEMP (node's compile cache, winget logs): they go to a private folder removed after.
+    $scratch=$final+'.tmp';if([IO.Directory]::Exists($scratch)){[IO.Directory]::Delete($scratch,$true)};[void][IO.Directory]::CreateDirectory($scratch)
+    $savedTemp=$env:TEMP,$env:TMP;$env:TEMP=$env:TMP=$scratch
+    try{
+    [void][IO.Directory]::CreateDirectory($out);$h=$env:USERPROFILE;$status=[Collections.Generic.List[string]]::new()
+    $secretKey='(?i)(token|secret|password|passwd|api_?key|private_?key|bearer|cookie|credential|session|_pat$|_pat_)'
+    function Protect-InventoryValue($v){
+        if($v-is[Collections.IDictionary]){$o=[ordered]@{};foreach($k in $v.Keys){$o[$k]=if($k-in'env','headers'-and$v[$k]-is[Collections.IDictionary]){$e=[ordered]@{};foreach($ek in $v[$k].Keys){$e[$ek]='<masked>'};$e}elseif($k-match$secretKey-and$v[$k]-isnot[Collections.IDictionary]){'<masked>'}else{Protect-InventoryValue $v[$k]}};$o}
+        elseif($v-is[string]){$v-replace'(?i)(sbp_|ghp_|gho_|github_pat_|sk-|eyJ)[A-Za-z0-9_\-\.]+','<masked>'-replace'(://[^:/@\s]+:)[^@\s]+@','$1<masked>@'-replace'(?i)([?&](key|token|api_key|apikey)=)[^&\s"]+','$1<masked>'}
+        elseif($v-is[Collections.IEnumerable]){,@($v|ForEach-Object{Protect-InventoryValue $_})}else{$v}
+    }
+    function Write-Item([string]$Name,[scriptblock]$Body,[string]$Needs){
+        if($Needs-and!(Get-Command $Needs -ErrorAction SilentlyContinue)){$status.Add("$Name`tmissing`t$Needs");return}
+        try{$text=@(& $Body)-join"`n";$file=Join-Path $out $Name;[void][IO.Directory]::CreateDirectory((Split-Path $file -Parent))
+            [IO.File]::WriteAllText($file,(Protect-InventoryValue $text),[Text.UTF8Encoding]::new($false));$status.Add("$Name`tok`t")}
+        catch{$status.Add("$Name`tfailed`t$((Protect-InventoryValue "$($_.Exception.Message)")-replace'\s+',' ')")}
+    }
+    $claudeJson=Join-Path $h '.claude.json'
+    if(Test-Path -LiteralPath $claudeJson -PathType Leaf){Write-Item 'claude-mcp-servers.masked.json' {
+        $j=[IO.File]::ReadAllText($claudeJson)|ConvertFrom-Json -AsHashtable;$mcp=[ordered]@{user=(Protect-InventoryValue $j.mcpServers);projects=[ordered]@{}}
+        foreach($p in @($j.projects.Keys)){if($j.projects[$p].mcpServers.Count){$mcp.projects[$p]=Protect-InventoryValue $j.projects[$p].mcpServers}}
+        $mcp|ConvertTo-Json -Depth 12}}else{$status.Add("claude-mcp-servers.masked.json`tmissing`t.claude.json")}
+    foreach($name in 'installed_plugins.json','known_marketplaces.json'){$file=Join-Path $h ".claude\plugins\$name"
+        if(Test-Path -LiteralPath $file -PathType Leaf){Write-Item "claude-plugins-$name" {Protect-InventoryValue ([IO.File]::ReadAllText($file)|ConvertFrom-Json -AsHashtable)|ConvertTo-Json -Depth 12}}}
+    Write-Item 'scoop-export.json' {scoop export 2>$null} 'scoop'
+    Write-Item 'winget-export.json' {$file=Join-Path $out 'winget-export.raw.json';$null=winget export -o $file --include-versions --accept-source-agreements --disable-interactivity 2>&1
+        if(!(Test-Path -LiteralPath $file)){throw "winget export wrote nothing (exit $LASTEXITCODE)"};$text=[IO.File]::ReadAllText($file);[IO.File]::Delete($file);$text} 'winget'
+    Write-Item 'npm-global.json' {npm ls -g --depth=0 --json 2>$null} 'npm'
+    Write-Item 'bun-global.txt' {bun pm ls -g 2>$null} 'bun'
+    Write-Item 'vscode-extensions.txt' {code --list-extensions --show-versions 2>$null} 'code'
+    Write-Item 'wsl.txt' {(wsl.exe -l -v 2>&1|Out-String)-replace"`0",''} 'wsl.exe'
+    Write-Item 'installed-programs.tsv' {"Name`tVersion`tPublisher"
+        @(foreach($k in 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*','HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*'){
+            Get-ItemProperty $k -ErrorAction SilentlyContinue|Where-Object DisplayName})|Sort-Object DisplayName -Unique|ForEach-Object{"$($_.DisplayName)`t$($_.DisplayVersion)`t$($_.Publisher)"}}
+    Write-Item 'store-apps.txt' {Get-AppxPackage|Where-Object{!$_.IsFramework-and$_.SignatureKind-ne'System'}|Sort-Object Name|ForEach-Object{"$($_.Name)`t$($_.Version)"}} 'Get-AppxPackage'
+    Write-Item 'tool-versions.txt' {foreach($c in 'git','pwsh','node','npm','bun','docker','supabase','gh','codex','claude','gitleaks','7z','scoop','code'){$g=Get-Command $c -ErrorAction SilentlyContinue|Select-Object -First 1;"$c`t$($g.Source)`t$($g.Version)"}}
+    $vscode=Join-Path "$env:APPDATA" 'Code\User'
+    foreach($name in 'settings.json','keybindings.json','tasks.json','mcp.json'){$file=Join-Path $vscode $name;if(Test-Path -LiteralPath $file -PathType Leaf){Write-Item "vscode-user\$name" {[IO.File]::ReadAllText($file)}}}
+    if(Test-Path -LiteralPath (Join-Path $vscode 'snippets') -PathType Container){foreach($f in Get-ChildItem -LiteralPath (Join-Path $vscode 'snippets') -File){Write-Item "vscode-user\snippets\$($f.Name)" {[IO.File]::ReadAllText($f.FullName)}}}
+    Write-Item 'gitconfig-global.txt' {git config --global --list 2>$null} 'git'
+    Write-Item 'environment-variables.tsv' {"Scope`tName`tValue";foreach($scope in 'User','Machine'){$vars=[Environment]::GetEnvironmentVariables($scope);foreach($k in ($vars.Keys|Sort-Object)){"$scope`t$k`t$(if($k-match$secretKey){'<secret: value not recorded>'}else{$vars[$k]})"}}}
+    if(Get-Command Get-ScheduledTask -ErrorAction SilentlyContinue){foreach($task in Get-ScheduledTask -TaskPath '\' -ErrorAction SilentlyContinue|Where-Object{$_.TaskName-notmatch'^(MicrosoftEdge|OneDrive|GoogleUpdate|Opera|npcap|User_Feed)'}){
+        Write-Item ("scheduled-tasks\"+($task.TaskName-replace'[\\/:*?"<>|]','_')+'.xml') {Export-ScheduledTask -TaskName $task.TaskName -TaskPath $task.TaskPath}}}else{$status.Add("scheduled-tasks`tmissing`tGet-ScheduledTask")}
+    $pinned=Join-Path $TemporaryRoot 'tools'
+    if(Test-Path -LiteralPath $pinned -PathType Container){Write-Item 'temporary-tools.tsv' {"Path`tSHA256`tBytes"
+        Get-ChildItem -LiteralPath $pinned -File|ForEach-Object{"$($_.Name)`t$((Get-FileHash -LiteralPath $_.FullName).Hash)`t$($_.Length)"}
+        Get-ChildItem -LiteralPath $pinned -Directory|ForEach-Object{"$($_.Name)\`t(dir)`t$((Get-ChildItem -LiteralPath $_.FullName -Recurse -File|Measure-Object Length -Sum).Sum)"}}
+        $ts=Join-Path $pinned 'typescript\package.json';if(Test-Path -LiteralPath $ts -PathType Leaf){Write-Item 'temporary-typescript-package.json' {[IO.File]::ReadAllText($ts)}}}
+    else{$status.Add("temporary-tools.tsv`tmissing`t$pinned")}
+    [IO.File]::WriteAllLines((Join-Path $out 'inventory-status.tsv'),[string[]](@("Item`tState`tDetail")+$status),[Text.UTF8Encoding]::new($false))
+    }finally{$env:TEMP,$env:TMP=$savedTemp;try{[IO.Directory]::Delete($scratch,$true)}catch{"MACHINE INVENTORY: temporary folder left: $scratch"}}
+    [IO.Directory]::Move($out,$final)
+    $count={param($s)@($status|Where-Object{$_-match"`t$s`t"}).Count}
+    "MACHINE INVENTORY: $final ($(& $count 'ok') ok, $(& $count 'missing') missing, $(& $count 'failed') failed)"
+}
 function Invoke-Git{param([string]$Repo)$o=& git -C $Repo @args 2>&1;if($LASTEXITCODE){throw "GIT_FAILED $Repo git $($args[0]) (exit $LASTEXITCODE)`n$("$o"-replace'://[^/@\s]+@','://***@')"};$o|Where-Object{$_-isnot[Management.Automation.ErrorRecord]}}
 function Get-SevenZip{$z=(Get-Command 7z -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1).Source;if(!$z){$z=Join-Path $env:ProgramFiles '7-Zip\7z.exe'};if(!(Test-Path -LiteralPath $z)){throw 'PACKAGE_7ZIP_REQUIRED'};$z}
 function Get-SafeConfig([string]$Repo){
@@ -301,6 +365,7 @@ if($workbenchPresent){
     $plan.workbenchRecovery=[ordered]@{schema=1;inputs=$recovery;receiptFiles=@(Get-ChildItem -LiteralPath (Join-Path $out 'repos/ORVION-Workbench/.workbench-certifications') -File|ForEach-Object{$_.Name})}
 }
 if($Package-and@(Get-ChildItem -LiteralPath (Join-Path $ownerTools 'work\sandboxes') -Recurse -File -Force -ErrorAction SilentlyContinue).Count){throw 'PACKAGE_OWNER_SANDBOXES_NOT_PRESERVED: work\sandboxes holds files; capture or remove them first'}
+if($Package){Save-MachineInventory $ownerTools}
 Copy-Tree $ownerTools (Join-Path $out 'owner-tools') {param($rel)$rel-like'work\sandboxes\*'}
 Copy-Tree "$env:USERPROFILE\.claude\settings.json" (Join-Path $out 'claude')
 Copy-Tree "$env:USERPROFILE\.claude\statusline.ps1" (Join-Path $out 'claude')

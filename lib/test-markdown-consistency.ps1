@@ -22,9 +22,8 @@ function New-MarkdownFixture([string]$Name){
     $null=Invoke-MarkdownFixtureGit $fixture @('init','--quiet')
     $seed=[ordered]@{
         'AGENTS.md'="# Arrival$nl[Start](README.md)$nl"
-        'README.md'="# Purpose$nl[Governance](WORKFLOW.md) [Resume](RESUME.md) [Closure](HANDOFF.md) [Guide](docs/guide.md#section)$nl[data](data/work/NOW.md) [private](C:/private/missing.md)$nl${nl}## 1. Start$nl${nl}[Decisions](docs/DECISIONS.md) [Runbook](docs/RUNBOOK.md) [History](docs/history/README.md)$nl"
+        'README.md'="# Purpose$nl[Governance](WORKFLOW.md) [Resume](RESUME.md) [Guide](docs/guide.md#section)$nl[data](data/work/NOW.md) [private](C:/private/missing.md)$nl${nl}## 1. Start$nl${nl}[Decisions](docs/DECISIONS.md) [Runbook](docs/RUNBOOK.md) [History](docs/history/README.md)$nl"
         'RESUME.md'="Active Workbench Contract: None${nl}Live state: data/work/NOW.md$nl"
-        'HANDOFF.md'="# Closure$nl${nl}Unique closure boundary.$nl${nl}## 12. Criteria$nl${nl}Closure criteria.$nl"
         'docs/RUNBOOK.md'="# Runbook$nl${nl}The procedures.$nl${nl}## 1. Steps$nl${nl}Step one.$nl"
         'docs/DECISIONS.md'="# Decisions$nl${nl}Every rule, once.$nl${nl}## ${d}01 First$nl${nl}First decision.$nl${nl}Scope: all.${nl}Why: one line.${nl}Changed: 2026-11-01${nl}History: D1$nl${nl}## ${d}02 Second$nl${nl}Second decision.$nl${nl}Scope: all.${nl}Why: one line.${nl}Changed: 2026-11-01${nl}History: D2${nl}Watch: ``(?i)\bwidget\b.{0,40}\bcount\b``$nl"
         'docs/WORKSPACE-LAYOUT.md'="# Layout$nl${nl}Only this file describes storage.$nl"
@@ -46,7 +45,6 @@ function New-MarkdownFixture([string]$Name){
 | Arrival | [arrival](AGENTS.md#arrival) |
 | Purpose | [purpose](README.md#purpose) |
 | Active contract | [pointer](RESUME.md) |
-| Batch 6 closure | [closure](HANDOFF.md#closure) |
 | Decisions and rules | [decisions](docs/DECISIONS.md#decisions) |
 | Procedures | [runbook](docs/RUNBOOK.md#runbook) |
 | Workspace layout | [layout](docs/WORKSPACE-LAYOUT.md#layout) |
@@ -105,8 +103,8 @@ $cases=[ordered]@{
     homeOwner=@('MD_HOME_OWNER',{param($directory) Edit-MarkdownFixture $directory 'WORKFLOW.md' 'AGENTS.md#arrival' 'README.md#purpose'})
     homeTableDuplicate=@('MD_HOME_TABLE',{param($directory) Edit-MarkdownFixture $directory 'WORKFLOW.md' '## 2. Notes' ('## 3. One-home table'+$nl+$nl+'## 2. Notes')})
     homeFormat=@('MD_HOME_FORMAT',{param($directory) Edit-MarkdownFixture $directory 'WORKFLOW.md' '| Concept | Sole home |' ('| Concept | Sole home |'+$nl+'| Extra | malformed |')})
-    pointer=@('MD_POINTER_HOME',{param($directory) Edit-MarkdownFixture $directory 'HANDOFF.md' 'Unique closure boundary.' 'Active Workbench Contract: None'})
-    pointerFence=@('MD_POINTER_HOME',{param($directory) Edit-MarkdownFixture $directory 'HANDOFF.md' 'Unique closure boundary.' ('~~~text'+$nl+'Active Workbench Contract: None'+$nl+'~~~')})
+    pointer=@('MD_POINTER_HOME',{param($directory) Edit-MarkdownFixture $directory 'docs/RUNBOOK.md' 'The procedures.' 'Active Workbench Contract: None'})
+    pointerFence=@('MD_POINTER_HOME',{param($directory) Edit-MarkdownFixture $directory 'docs/RUNBOOK.md' 'The procedures.' ('~~~text'+$nl+'Active Workbench Contract: None'+$nl+'~~~')})
     budget=@('MD_BUDGET',{param($directory) Write-MarkdownFixture (Join-Path $directory 'AGENTS.md') (Add-MarkdownBytes ([IO.File]::ReadAllText((Join-Path $directory 'AGENTS.md'))) 1537)})
     activeMissing=@('MD_ROOT_MISSING',{param($directory) [IO.File]::Delete((Join-Path $directory 'docs/RUNBOOK.md'))})
     sectionIdMissing=@('MD_SECTION_ID',{param($directory) Edit-MarkdownFixture $directory 'WORKFLOW.md' 'Workflow notes.' ('Workflow notes.'+$nl+$nl+'## Notes without an ID')})
@@ -127,8 +125,8 @@ $cases=[ordered]@{
     decisionMissing=@('MD_SECTION_MISSING',{param($directory) Edit-MarkdownFixture $directory 'docs/guide.md' '# Guide' ('# Guide'+$nl+"See ${d}77.")})
     routerHop=@('MD_ROUTER_HOP',{param($directory) Edit-MarkdownFixture $directory 'docs/guide.md' '# Guide' ('# Guide'+$nl+"See README.md$s 1.")})
     toolCitation=@('MD_ROUTER_HOP',{param($directory) Edit-MarkdownFixture $directory 'lib/Tool.ps1' '# Tool:' "# Tool (AGENTS.md$s 7):"})
-    duplicate=@('MD_DUPLICATE_PROSE',{param($directory) $prose=1..25-join' ';foreach($path in @('HANDOFF.md','docs/guide.md')){Write-MarkdownFixture (Join-Path $directory $path) ([IO.File]::ReadAllText((Join-Path $directory $path))+$nl+$nl+$prose)}})
-    fenceExclusion=@('',{param($directory) $prose=1..25-join' ';foreach($path in @('HANDOFF.md','docs/guide.md')){Write-MarkdownFixture (Join-Path $directory $path) ([IO.File]::ReadAllText((Join-Path $directory $path))+$nl+$nl+'~~~text'+$nl+$prose+$nl+'[missing](no.md)'+$nl+'~~~'+$nl)}})
+    duplicate=@('MD_DUPLICATE_PROSE',{param($directory) $prose=1..25-join' ';foreach($path in @('docs/RUNBOOK.md','docs/guide.md')){Write-MarkdownFixture (Join-Path $directory $path) ([IO.File]::ReadAllText((Join-Path $directory $path))+$nl+$nl+$prose)}})
+    fenceExclusion=@('',{param($directory) $prose=1..25-join' ';foreach($path in @('docs/RUNBOOK.md','docs/guide.md')){Write-MarkdownFixture (Join-Path $directory $path) ([IO.File]::ReadAllText((Join-Path $directory $path))+$nl+$nl+'~~~text'+$nl+$prose+$nl+'[missing](no.md)'+$nl+'~~~'+$nl)}})
     contractExclusion=@('',{param($directory) $prose=1..25-join' ';foreach($path in @('changes/WS-001-history.md','docs/history/archive.md')){Write-MarkdownFixture (Join-Path $directory $path) ([IO.File]::ReadAllText((Join-Path $directory $path))+$nl+$nl+$prose)}})
     staleDate=@('MD_STALE_DATE',{param($directory) Edit-MarkdownFixture $directory 'docs/guide.md' '# Guide' ('# Guide'+$nl+$nl+'Updated 2026-10-20'+$nl+$nl+'Amended 2026-10-27')})
     currentDate=@('',{param($directory) Edit-MarkdownFixture $directory 'docs/guide.md' '# Guide' ('# Guide'+$nl+$nl+'Version 2 | 2026-10-27 | Selected'+$nl+$nl+'Amended 2026-10-27')})
@@ -147,6 +145,11 @@ $cases=[ordered]@{
     frozenOrphan=@('MD_ORPHAN',{param($directory) Add-FrozenFixture $directory "# Text$nl${nl}The widget count is 6.$nl" -Unlinked})
     frozenRetired=@('MD_RETIRED_ROUTE',{param($directory) Add-FrozenFixture $directory "# Text$nl${nl}Run Documents\ORVION-Sandbox\old.ps1$nl"})
     frozenCitation=@('MD_SECTION_MISSING',{param($directory) Add-FrozenFixture $directory "# Text$nl${nl}See ${d}77.$nl"})
+    retiredPresent=@('MD_RETIRED_PRESENT: HANDOFF.md',{param($directory) Write-MarkdownFixture (Join-Path $directory 'HANDOFF.md') "# Closure$nl"})
+    retiredReference=@('MD_RETIRED_REFERENCE: docs/guide.md names HANDOFF.md',{param($directory) Edit-MarkdownFixture $directory 'docs/guide.md' '# Guide' ('# Guide'+$nl+$nl+'Read HANDOFF.md first.')})
+    retiredToolReference=@('MD_RETIRED_REFERENCE: lib/Tool.ps1 names HANDOFF.md',{param($directory) Edit-MarkdownFixture $directory 'lib/Tool.ps1' '# Tool:' '# Tool (reads HANDOFF.md):'})
+    retiredPinned=@('',{param($directory) Edit-MarkdownFixture $directory 'docs/guide.md' '# Guide' ('# Guide'+$nl+$nl+'The closure text stays at `dbc0fc7:HANDOFF.md`.')})
+    retiredHistory=@('',{param($directory) Edit-MarkdownFixture $directory 'changes/WS-001-history.md' '# Frozen history' ('# Frozen history'+$nl+'Read HANDOFF.md first.')})
     emptyInventory=@('MD_INPUT_EMPTY',{param($directory) $null=Invoke-MarkdownFixtureGit $directory @('rm','-r','--cached','--quiet','.')})
 }
 function Add-FrozenFixture([string]$Directory,[string]$Text,[string]$Path='docs/owner/t/TEXT.md',[string]$Pinned=$Text,[switch]$Unlinked){
@@ -171,7 +174,7 @@ function Add-DecisionBytes([string]$Text,[int]$Limit){
     }
     return $Text
 }
-$budgetLimits=@{'AGENTS.md'=1536;'README.md'=8192;'RESUME.md'=900;'HANDOFF.md'=4500;'WORKFLOW.md'=20300;'docs/DECISIONS.md'=49152}
+$budgetLimits=@{'AGENTS.md'=1536;'README.md'=8192;'RESUME.md'=900;'WORKFLOW.md'=20300;'docs/DECISIONS.md'=49152}
 $cases['atBudgets']=@('',{param($directory)
     foreach($budgetPath in $budgetLimits.Keys){
         $text=[IO.File]::ReadAllText((Join-Path $directory $budgetPath))
@@ -282,6 +285,7 @@ try{
             homeDuplicate="throw 'MD_HOME_ROW'";homeTableDuplicate="throw 'MD_HOME_TABLE'"
             pointer='throw "MD_POINTER_HOME: $path"';budget='throw "MD_BUDGET: $path"'
             duplicate='throw "MD_DUPLICATE_PROSE: $($paragraphs[$normalized]), $path"';staleDate='throw "MD_STALE_DATE: $path"'
+            retiredPresent='throw "MD_RETIRED_PRESENT: $name"';retiredReference='throw "MD_RETIRED_REFERENCE: $path names $name"'
             retired='throw "MD_RETIRED_ROUTE: $path"';disguisedInstruction='throw "MD_RETIRED_INSTRUCTION: $path"'
             activeMissing='throw "MD_ROOT_MISSING: $path"';sectionIdMissing='throw "MD_SECTION_ID: $Path ''$line'' (IDs: $($ids-join'', ''))"'
             preamble='throw "MD_PREAMBLE: $Path has $preamble lines before its first section (IDs: $($ids-join'', ''))"'
@@ -312,6 +316,8 @@ try{
             frozenOrphan=@('if(!$reachable.Contains($path)-and!$history.Contains($path)){','if(!$reachable.Contains($path)-and!$history.Contains($path)-and!$FrozenOwnerTexts.ContainsKey($path)){')
             frozenRetired=@('if($routing-match$retired-and$routing-notmatch ''^Historical citation:''){','if($routing-match$retired-and$routing-notmatch ''^Historical citation:''-and!$FrozenOwnerTexts.ContainsKey($path)){')
             frozenCitation=@('Assert-MarkdownCitations $path $text $sections','if(!$frozen){Assert-MarkdownCitations $path $text $sections}')
+            retiredPinned=@('$named=''(?<![0-9a-f]{7}:)(?<![\w./-])''+','$named=''(?<![\w./-])''+')
+            retiredHistory=@('if($history.Contains($path)-or$path-clike''changes/WS-*.md''-or$path-clike''docs/history/*''-or','if(')
         }
         foreach($caseName in $widened.Keys){
             if(!$source.Contains($widened[$caseName][0])){throw "MD_MUTANT_STALE: $caseName"}

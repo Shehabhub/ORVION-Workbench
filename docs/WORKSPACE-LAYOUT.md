@@ -57,7 +57,6 @@ ORVION-Workbench/
 ├── AGENTS.md               auto-loaded stub (<= 1.5 KB): "start at README.md", the non-negotiables, "NOW.md is injected"
 ├── RESUME.md               native contract pointer; written only by the native lifecycle
 ├── WORKFLOW.md             only the parts the trusted checker and the Markdown guard read
-├── HANDOFF.md              Lift record and programme closure criteria only
 ├── tests.ps1               test entry point
 ├── .gitignore              ignores data/, ai-map.*, certification files, .omc/
 ├── changes/                README.md + contracts WS-0NN-<slug>.md (each = the chosen Draft of that workstream)
@@ -227,7 +226,7 @@ An orphan is anything that fails "Earn it": no active reader, kept only as histo
 | replaced active text | until replaced | deleted; Git history keeps it |
 | the owner's words, decision text and its archive, the event journal, the session index, workstream summaries, cited files (section 23) | permanent | never deleted |
 | raw transcripts in `data/sessions/raw/` | 60 days | deleted by `-Clean`'s retention tier (slice S7) |
-| backup packages and their sidecars | the last 7, plus any package an active file names (HANDOFF.md and DEC-05 name orvion-backup-20261026T201821Z.7z) | deleted by `-Clean`'s retention tier, which Backup-Workspace runs after each verified package (slice S7, DEC-27); a package carrying the OneDrive pin attribute is kept and reported |
+| backup packages and their sidecars | the last 7, plus any package an active file names (DEC-05 names orvion-backup-20261026T201821Z.7z) | deleted by `-Clean`'s retention tier, which Backup-Workspace runs after each verified package (slice S7, DEC-27); a package carrying the OneDrive pin attribute is kept and reported |
 | files in `data/records/` that are not cited | until the Lift's C1 pass | deleted by `-Clean` from the list the owner confirms once (DEC-10; PLAN P9.3) |
 | `restore-staging/` | until the owner decides | kept and reported, never deleted automatically (DEC-10) |
 
@@ -241,7 +240,7 @@ is never edited and resolves through LOG.tsv.
 | Rule | Why |
 | --- | --- |
 | `lib/Test-WorkbenchChange.ps1` (the accepted evaluator) is never changed, except once by WS-034 through the full method (DEC-07) | it is the trusted judge, pinned by hash; the WS-034 release sets the new pin |
-| RESUME.md, WORKFLOW.md, HANDOFF.md, AGENTS.md, docs/RECOVERY.md, docs/WORKSPACE-LAYOUT.md keep their names | the evaluator, the Markdown guard and Restore-ORVION read them; Map-Repos treats them as entry documents (records/WS-033/MIGRATION-MAP.tsv W02-W04, W06, W07, W12) |
+| RESUME.md, WORKFLOW.md, AGENTS.md, docs/RECOVERY.md, docs/WORKSPACE-LAYOUT.md keep their names | the evaluator, the Markdown guard and Restore-ORVION read them; Map-Repos treats them as entry documents (records/WS-033/MIGRATION-MAP.tsv W02-W04, W06, W07, W12) |
 | `lib/` stays flat and keeps every tool name | the evaluator's profiles, the Finish schedule, scheduled tasks and client hooks call them by path |
 | every commit to the Workbench goes through a contract and the staged gate | the native lifecycle checks every commit; that is why `data/` is git-ignored |
 | `lib/Map-Repos.ps1`, `lib/Backup-Workspace.ps1`, `lib/hooks/Watch-Reminder.ps1` keep their paths | scheduled tasks and client hooks run them |
@@ -489,7 +488,7 @@ its startup context is measured before and after.
 | --- | --- | --- |
 | `Organize -Check` | Hunt Quick (so Pulse and Finish see it) | layout, names, organizers, orphans, LOG coverage, broken references (DEC-10) |
 | guards and stale checks (slice S11, DEC-28) | `Organize -Check` and the owning tests | a schema check for each TSV, JSON and JSONL data file; each derived file regenerated and compared with its stored copy; the write guards that P1.1e proves the client enforces |
-| Markdown guard (lib/Test-MarkdownConsistency.ps1; read-only: the working tree, the index or a Git tree, never an outside path) | the Finish schedule | every tracked Markdown file reachable from README.md or AGENTS.md through local links, unless it is history (an allocated contract, or a link in the History index of docs/history/README.md); links and anchors resolved case-sensitively from their file; the One-home table of WORKFLOW.md (each concept once, in its fixed home); only RESUME.md declares the active contract pointer; no duplicate prose paragraph of 25 words or more; no header date older than a body amendment; a retired path never as an instruction; DEC-ID uniqueness, watch patterns (never on a frozen owner text whose exact bytes the guard pins, and no other check is skipped), archive append-only with every item naming an existing entry, size budgets in bytes after CRLF to LF (AGENTS.md 1.5 KB, NOW.md 6 KB, README.md 8 KB, DECISIONS.md 48 KB, RESUME.md 900 B, HANDOFF.md 4,500 B, WORKFLOW.md 20,300 B, injected hook text), links and line length (<= 200; table rows exempt) in active files; section IDs and citations (records/WS-033/signposting.md section 5) |
+| Markdown guard (lib/Test-MarkdownConsistency.ps1; read-only: the working tree, the index or a Git tree, never an outside path) | the Finish schedule | every tracked Markdown file reachable from README.md or AGENTS.md through local links, unless it is history (an allocated contract, or a link in the History index of docs/history/README.md); links and anchors resolved case-sensitively from their file; the One-home table of WORKFLOW.md (each concept once, in its fixed home); only RESUME.md declares the active contract pointer; no duplicate prose paragraph of 25 words or more; no header date older than a body amendment; a retired path never as an instruction; DEC-ID uniqueness, watch patterns (never on a frozen owner text whose exact bytes the guard pins, and no other check is skipped), archive append-only with every item naming an existing entry, size budgets in bytes after CRLF to LF (AGENTS.md 1.5 KB, NOW.md 6 KB, README.md 8 KB, DECISIONS.md 48 KB, RESUME.md 900 B, WORKFLOW.md 20,300 B, injected hook text), links and line length (<= 200; table rows exempt) in active files; section IDs and citations (records/WS-033/signposting.md section 5) |
 | Hunt C2 | Hunt Quick | every archive item and every mapped D-number names an existing DEC entry |
 | secret scan | Save-State and the contract's staged gate | every file entering Git |
 | native gates | the lifecycle | unchanged |

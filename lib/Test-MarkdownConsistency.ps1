@@ -4,7 +4,8 @@ param([string]$Root=(Split-Path $PSScriptRoot -Parent),[string]$Tree='Working')
 $ErrorActionPreference='Stop'
 # The active documents of DEC-32. NOW.md, written only by Save-State (DEC-26): its sections in order and its pointer limit
 # are WORKSPACE-LAYOUT.md section 14.2, its budget section 19; test-markdown-consistency compares all three with the text.
-$MarkdownActive=@('README.md','WORKFLOW.md','HANDOFF.md','docs/RUNBOOK.md','docs/DECISIONS.md','docs/WORKSPACE-LAYOUT.md','lib/README.md')
+$MarkdownActive=@('README.md','WORKFLOW.md','docs/RUNBOOK.md','docs/DECISIONS.md','docs/WORKSPACE-LAYOUT.md','lib/README.md')
+$RetiredFiles=@('HANDOFF.md')
 $NowSections=@('Now','Done last','Next','Owner questions','Pending decisions','Running','Pointers');$NowPointers=8;$NowBudget=6144
 # A frozen text (WORKSPACE-LAYOUT.md section 23) keeps its words: these exact bytes, after CRLF to LF, skip the watch patterns and no other check.
 $FrozenOwnerTexts=[Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal)
@@ -190,7 +191,7 @@ function Test-MarkdownConsistency([string]$Root,[string]$Tree='Working'){
     $files=[Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal)
     foreach($path in $inputs.Keys){if($path-match '(?i)\.md$'){$files.Add($path,$inputs[$path])}else{$tools[$path]=$inputs[$path]}}
     # Byte budgets after CRLF to LF: WORKSPACE-LAYOUT.md section 19.
-    $budgets=@{'AGENTS.md'=1536;'README.md'=8192;'RESUME.md'=900;'HANDOFF.md'=4500;'WORKFLOW.md'=20300;'docs/DECISIONS.md'=49152}
+    $budgets=@{'AGENTS.md'=1536;'README.md'=8192;'RESUME.md'=900;'WORKFLOW.md'=20300;'docs/DECISIONS.md'=49152}
     $active=$MarkdownActive
     $index='docs/history/README.md'
     foreach($path in @($budgets.Keys)+$active+$index){if(!$files.ContainsKey($path)){throw "MD_ROOT_MISSING: $path"}}
@@ -218,8 +219,8 @@ function Test-MarkdownConsistency([string]$Root,[string]$Tree='Working'){
     foreach($path in $files.Keys){
         $edges[$path]=if($history.Contains($path)){@()}else{@(foreach($link in (Get-MarkdownLinks $files[$path])){Resolve-MarkdownLink $path $link $targets $anchors})}
     }
-    $expected=@('Arrival','Purpose','Active contract','Batch 6 closure','Decisions and rules','Procedures','Workspace layout','Recovery','Tool catalogue','Contract template')
-    $owners=@{'Arrival'='AGENTS.md';'Purpose'='README.md';'Active contract'='RESUME.md';'Batch 6 closure'='HANDOFF.md';'Decisions and rules'='docs/DECISIONS.md';'Procedures'='docs/RUNBOOK.md';'Workspace layout'='docs/WORKSPACE-LAYOUT.md';'Recovery'='docs/RECOVERY.md';'Tool catalogue'='lib/README.md';'Contract template'='changes/TEMPLATE.md'}
+    $expected=@('Arrival','Purpose','Active contract','Decisions and rules','Procedures','Workspace layout','Recovery','Tool catalogue','Contract template')
+    $owners=@{'Arrival'='AGENTS.md';'Purpose'='README.md';'Active contract'='RESUME.md';'Decisions and rules'='docs/DECISIONS.md';'Procedures'='docs/RUNBOOK.md';'Workspace layout'='docs/WORKSPACE-LAYOUT.md';'Recovery'='docs/RECOVERY.md';'Tool catalogue'='lib/README.md';'Contract template'='changes/TEMPLATE.md'}
     $homes=[regex]::Matches($workflow,'(?ms)^## (?:\d+\. )?One-home table\r?\n(.*?)(?=^## |\z)')
     if($homes.Count-ne1){throw 'MD_HOME_TABLE'}
     $rows=[regex]::Matches($homes[0].Groups[1].Value,'(?m)^\| ([^|]+?) \| \[[^\]]+\]\(([^)]+)\) \|\r?$');$concepts=@{};$locations=@{}
@@ -231,6 +232,17 @@ function Test-MarkdownConsistency([string]$Root,[string]$Tree='Working'){
         $concepts[$concept]=$true;$locations[$location]=$true
     }
     if($concepts.Count-ne$expected.Count){throw 'MD_HOME_MISSING'}
+    # A retired file (DEC-05) stays absent and is named only at its last commit (`<sha7>:path`); history, records, owner
+    # texts and this check keep their words.
+    foreach($name in $RetiredFiles){
+        if($targets.ContainsKey($name)){throw "MD_RETIRED_PRESENT: $name"}
+        $named='(?<![0-9a-f]{7}:)(?<![\w./-])'+[regex]::Escape($name)
+        foreach($path in @($files.Keys)+@($tools.Keys)){
+            if($history.Contains($path)-or$path-clike'changes/WS-*.md'-or$path-clike'docs/history/*'-or$path-clike'docs/owner/*'-or$path-clike'records/*'-or$path-cin'lib/Test-MarkdownConsistency.ps1','lib/test-markdown-consistency.ps1'){continue}
+            $text=if($tools.ContainsKey($path)){$tools[$path]}else{$files[$path]}
+            if($text-cmatch$named){throw "MD_RETIRED_REFERENCE: $path names $name"}
+        }
+    }
     $reachable=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal);$queue=[Collections.Generic.Queue[string]]::new()
     $queue.Enqueue('README.md');$queue.Enqueue('AGENTS.md')
     while($queue.Count){$path=$queue.Dequeue();if($reachable.Add($path)){foreach($next in $edges[$path]){if($files.ContainsKey($next)){$queue.Enqueue($next)}}}}

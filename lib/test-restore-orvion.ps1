@@ -237,6 +237,7 @@ try{
     $r=Invoke-Scenario skip-products;Assert-That 'SkipProducts avoids both product entries' ($r.Exit-eq0-and($r.Calls-join' ')-notmatch'workstation.cmd')
     foreach($caseName in 'product','product-missing'){$r=Invoke-Scenario $caseName;Assert-That "$caseName records failure and still runs ORVION; restored files retained" ($r.Exit-ne0-and$r.Stage-and$r.Output-notmatch'(?m)^READY: '-and($r.Calls-join' ').Contains('ORVION\workstation.cmd')-and(Test-Path (Join-Path $r.Root 'target\ORVION\workstation.cmd')))}
     $r=Invoke-Scenario claude-list;Assert-That 'checklist obtains injected claude plugin list and suppresses installed commands' ($r.Exit-eq0-and($r.Calls-join' ').Contains('claude plugin list')-and!$r.Output.Contains('claude plugin install ponytail@ponytail'))
+    Assert-That 'checklist names the machine inventory and its RECOVERY section (WS-053)' ($r.Output-cmatch'(?m)^ACTION: from the newest .+\\data\\records\\machine\\inventory-<date> reinstall programs.+Machine restore')
     $r=Invoke-Scenario claude-list-fail;Assert-That 'failed claude list records uncertainty/exit and prints enabled commands' ($r.Exit-eq26-and$r.Output.Contains('plugin presence is unverified')-and$r.Output.Contains('claude plugin install ponytail@ponytail --scope user'))
     Import-RecoveryFunctions $source
     $savedPath=$env:PATH;$savedProgramFiles=$env:ProgramFiles

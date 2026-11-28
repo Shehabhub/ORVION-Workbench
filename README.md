@@ -32,7 +32,7 @@ item goes: WORKSPACE-LAYOUT.md section 4.
 | the active contract | [RESUME.md](RESUME.md) |
 | a new contract | [changes/TEMPLATE.md](changes/TEMPLATE.md); the contracts: [changes/](changes/README.md) |
 | a tool | [lib/README.md](lib/README.md) |
-| the criteria that close the programme | [HANDOFF.md](HANDOFF.md) |
+| the criteria that close the programme | [DEC-05](docs/DECISIONS.md#dec-05-lift-criteria-and-accepted-open-risks) |
 | recovery after a lost machine | [docs/RECOVERY.md](docs/RECOVERY.md) |
 | the documents and their history | [docs/](docs/README.md) and the [history index](docs/history/README.md) |
 | configuration examples | [config/README.md](config/README.md) |

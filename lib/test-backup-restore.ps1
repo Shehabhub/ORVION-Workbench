@@ -109,6 +109,8 @@ try{
     foreach($directory in $github,$data,$managed,$probe,(Join-Path $data 'events'),(Join-Path $data 'sessions/raw')){[void][IO.Directory]::CreateDirectory($directory)}
     [IO.File]::WriteAllText((Join-Path $data 'events/events.jsonl'),'{"synthetic":true}')
     [IO.File]::WriteAllText((Join-Path $data 'sessions/raw/s.jsonl'),'synthetic session')
+    # WS-053: these packages reuse a seeded machine inventory (today and tomorrow UTC); the real read is checked once below.
+    foreach($day in 0,1){[void][IO.Directory]::CreateDirectory((Join-Path $data ('records/machine/inventory-'+[DateTime]::UtcNow.AddDays($day).ToString('yyyyMMdd'))))}
     # Reuse public clone objects via LOCAL clone, with independent object stores. No commits/push/reset.
     foreach($repoName in 'CRM','ORVION','CRM-trusted-main','ORVION-trusted-main','ORVION-Workbench','ORVION-Workbench-trusted-main'){
         $repo=Join-Path $github $repoName
@@ -785,6 +787,9 @@ try{
     $cloud=Join-Path $t 'cloud';$pkgTemp=Join-Path $t 'pkg-temp';[void][IO.Directory]::CreateDirectory($pkgTemp)
     # A token-shaped value built at run time, so this file never holds one: the scan must name it without its value.
     $planted='ghp_'+-join((48..57)+(65..90)+(97..122)|Get-Random -Count 36|ForEach-Object{[char]$_});[void][IO.Directory]::CreateDirectory((Join-Path $data 'records'));[IO.File]::WriteAllText((Join-Path $data 'records/leak.txt'),"token=$planted")
+    # WS-053: a token-shaped MCP value built at run time, in every place the inventory masks.
+    $mcpSecret=-join((48..57)+(97..102)|Get-Random -Count 16|ForEach-Object{[char]$_})*2
+    [ordered]@{mcpServers=[ordered]@{fixture=[ordered]@{command='fixture-mcp';args=@('--key',"sbp_$mcpSecret");env=[ordered]@{FIXTURE_VALUE=$mcpSecret}}};projects=[ordered]@{'C:/fixture'=[ordered]@{mcpServers=[ordered]@{web=[ordered]@{type='http';url="https://user:$mcpSecret@example.invalid/mcp?key=$mcpSecret";headers=[ordered]@{Authorization="Bearer $mcpSecret"}}}}}}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $env:USERPROFILE '.claude.json')
     $savedPackageTemporaryRoot=$env:WORKBENCH_TEMP_ROOT;$env:WORKBENCH_TEMP_ROOT=$pkgTemp
     $savedTemp=$env:TEMP;$savedTmp=$env:TMP;$env:TEMP=$pkgTemp;$env:TMP=$pkgTemp
     try{
@@ -793,6 +798,12 @@ try{
         & git clone -q $remote (Join-Path $gh 'ORVION-trusted-main') 2>&1|Out-Null;if($LASTEXITCODE){throw 'PRODUCT_FIXTURE_FAILED ORVION-trusted-main'}
         $pkg=@(& pwsh -NoProfile -File "$probeLib\Backup-Workspace.ps1" -Destination $cloud -RecoveryInputs $inputs -Package 2>&1)
         $pkgExit=$LASTEXITCODE;Assert-That 'a failed retention run never fails the backup' ($pkgExit-eq0);if($pkgExit){throw ('PACKAGE_FIXTURE_FAILED: '+($pkg-join' '))}
+        # WS-053: the first package writes the machine inventory into the data root; MCP secrets never leave masked.
+        $inventory=@(Get-ChildItem -LiteralPath (Join-Path $data 'records/machine') -Directory -Filter 'inventory-*')
+        $mcpText=if($inventory.Count-eq1){[IO.File]::ReadAllText((Join-Path $inventory[0].FullName 'claude-mcp-servers.masked.json'))}else{''}
+        $inventoryStatus=if($inventory.Count-eq1){[IO.File]::ReadAllText((Join-Path $inventory[0].FullName 'inventory-status.tsv'))}else{''}
+        Assert-That 'a package writes one machine inventory with a status table' ($inventory.Count-eq1-and($pkg-join"`n")-cmatch'(?m)^MACHINE INVENTORY: .*inventory-\d{8} \(\d+ ok, \d+ missing, \d+ failed\)'-and$inventoryStatus-cmatch'(?m)^claude-mcp-servers\.masked\.json	ok	') @($pkg)
+        Assert-That 'the inventory masks MCP env, headers, token prefixes, URL passwords and key query values' ($mcpText.Contains('<masked>')-and!$mcpText.Contains($mcpSecret)-and$mcpText.Contains('"command": "fixture-mcp"')) @($mcpText)
         $archive=@(Get-ChildItem $cloud -Filter *.7z -Force)[0].FullName;$scan="$archive.secret-scan.txt"
         Assert-That 'package destination holds archive, scan, hash and both launchers; staging is removed' (@(Get-ChildItem $cloud -Force).Count-eq5-and(Test-Path $scan)-and$archive-and@(Get-ChildItem (Join-Path $pkgTemp 'tmp') -Force).Count-eq0-and($pkg-join' ')-match'PACKAGE: .*unencrypted'-and[IO.File]::ReadAllText("$archive.sha256").Trim()-ceq((Get-FileHash $archive).Hash+' *'+(Split-Path $archive -Leaf))-and(Get-FileHash "$cloud\Restore-ORVION.cmd").Hash-ceq(Get-FileHash "$lib\Restore-ORVION.cmd").Hash-and(Get-FileHash "$cloud\Restore-ORVION.ps1").Hash-ceq(Get-FileHash "$lib\Restore-ORVION.ps1").Hash)
         $packageStatus=[IO.File]::ReadAllText("$cloud.status\latest.json")|ConvertFrom-Json
@@ -806,7 +817,7 @@ try{
             foreach($day in 1..9){$seed='orvion-backup-202001{0:00}T000000Z.7z' -f $day;foreach($suffix in '','.sha256','.secret-scan.txt'){[IO.File]::WriteAllText((Join-Path $Folder "$seed$suffix"),'seed')}}
         }
         $retVault=Join-Path $t 'cloud-retention';Add-SeedVault $retVault;$namedSeed='orvion-backup-20200101T000000Z.7z'
-        $namingFile=Join-Path (Split-Path $probeLib -Parent) 'HANDOFF.md';[IO.File]::WriteAllText($namingFile,"Restore from $namedSeed.`n")
+        $namingFile=Join-Path (Split-Path $probeLib -Parent) 'README.md';[IO.File]::WriteAllText($namingFile,"Restore from $namedSeed.`n")
         $retained=@(& pwsh -NoProfile -File "$probeLib\Backup-Workspace.ps1" -Destination $retVault -RecoveryInputs $inputs -Package 2>&1);$retainedExit=$LASTEXITCODE
         $retPackages=@(Get-ChildItem -LiteralPath $retVault -Filter *.7z -File|ForEach-Object Name);$retStatus=[IO.File]::ReadAllText("$retVault.status\latest.json")|ConvertFrom-Json
         $retKeptSeeds=@(4..9|ForEach-Object{'orvion-backup-202001{0:00}T000000Z.7z' -f $_})+$namedSeed

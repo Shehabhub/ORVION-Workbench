@@ -35,12 +35,12 @@ Rules: added only through lib/Organize.ps1 or by the tool named in Reader.
 | WS-049/ | records | Summary of WS-049 constitution prompt gate | agents, the owner | 2026-11-25 |
 | WS-050/ | records | Summary of WS-050 summaries and summary check | agents, the owner | 2026-11-26 |
 | WS-051/ | records | Summary of WS-051 reply form and preview pointer | agents, the owner | 2026-11-26 |
+| WS-052/ | records | Summary of WS-052 delete step and live state route | agents, the owner | 2026-11-28 |
 <!-- /organize:contents -->
 
 <!-- organize:changes (last 10 rows of docs/history/LOG.tsv for this folder; generated) -->
 | UTC | Action | From | To | Reason |
 | --- | --- | --- | --- | --- |
-| 2026-11-25T21:23:14Z | new | - | records/WS-042 | WS-050 WS-042 summary |
 | 2026-11-25T21:23:15Z | new | - | records/WS-043 | WS-050 WS-043 summary |
 | 2026-11-25T21:23:16Z | new | - | records/WS-044 | WS-050 WS-044 summary |
 | 2026-11-25T21:23:17Z | new | - | records/WS-045 | WS-050 WS-045 summary |
@@ -50,6 +50,7 @@ Rules: added only through lib/Organize.ps1 or by the tool named in Reader.
 | 2026-11-25T21:23:21Z | new | - | records/WS-049 | WS-050 WS-049 summary |
 | 2026-11-26T15:10:22Z | new | - | records/WS-050 | WS-051 WS-050 summary |
 | 2026-11-26T19:54:27Z | new | - | records/WS-051 | WS-052 WS-051 summary |
+| 2026-11-28T08:03:13Z | new | - | records/WS-052 | WS-053 WS-052 summary |
 <!-- /organize:changes -->
 
 ## Reading a summary
@@ -89,3 +90,4 @@ reason. Not listed: test outputs of designed refusals, mutants, tools, start mar
 - [WS-049/README.md](WS-049/README.md)
 - [WS-050/README.md](WS-050/README.md)
 - [WS-051/README.md](WS-051/README.md)
+- [WS-052/README.md](WS-052/README.md)

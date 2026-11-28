@@ -116,7 +116,8 @@ function Write-RecoveryChecklist([string]$Target,[string]$ClaudeHome,[string]$Co
     Write-RecoveryPluginChecklist (Join-Path $ClaudeHome 'settings.json') $installed
     foreach($product in 'CRM','ORVION'){Write-Host "ACTION: in $Target\$product run pwsh -NoProfile -File scripts\check_agent_continuity.ps1 -Boot; require ORVION: READY"}
     Write-Host "ACTION: in $Target\ORVION-Workbench run pwsh -NoProfile -File lib\Workbench.ps1 -Boot; require WORKBENCH: READY"
-    Write-Host "ACTION: the data root is the restored ORVION-Workbench\data (repair/unset ORVION_DATA_ROOT if needed); record C2 with restore and all three Boot outputs per HANDOFF.md section 12"
+    Write-Host "ACTION: the data root is the restored ORVION-Workbench\data (repair/unset ORVION_DATA_ROOT if needed); record the restore and all three Boot outputs (DEC-05, docs/RECOVERY.md)"
+    Write-Host "ACTION: from the newest $Target\ORVION-Workbench\data\records\machine\inventory-<date> reinstall programs, pinned tools, MCP servers, environment values and global git (docs/RECOVERY.md, Machine restore)"
 }
 function Invoke-OrvionRecovery([string]$PackageDir,[string]$Staging,[string]$Target,[string]$ClaudeHome,[string]$LegacyTarget,[string]$CodexHome,[switch]$AllowNewProfile,[switch]$SkipProducts){
     $script:RecoveryExit=0;$ownsStaging=$false

@@ -1,6 +1,6 @@
 # Workbench recovery: before and after reinstalling Windows
 
-Updated 2026-10-30 (WS027 V3 candidate, not installed approval). [Workspace layout](WORKSPACE-LAYOUT.md) owns the source/private/disposable boundary.
+Updated 2026-11-28 (WS-053: machine restore). [Workspace layout](WORKSPACE-LAYOUT.md) owns the source/private/disposable boundary.
 
 Owner procedure. GitHub alone does not restore this workstation: sessions, the event journal, ignored receipts,
 approvals, evidence and Claude memory exist only locally. The selected coverage below travels in ONE compressed package
@@ -98,7 +98,7 @@ The launcher invokes both the narrow -Temporary rebuild and Map-Repos -Install a
 
 Run `pwsh -NoProfile -File scripts\check_agent_continuity.ps1 -Boot` in CRM and ORVION: both must print `ORVION: READY`.
 Run `pwsh -NoProfile -File lib\Workbench.ps1 -Boot` in Workbench: require `WORKBENCH: READY`.
-Record the restore result and all three Boot outputs. (Lift criterion 5 in HANDOFF section 12 was amended by the owner
+Record the restore result and all three Boot outputs. (Lift criterion 5 of DEC-05 was amended by the owner
 on 2026-10-27: no reinstallation is planned. Clean-Windows recovery remains unproven until a real reinstall succeeds.)
 
 ### Manual fallback
@@ -124,6 +124,27 @@ plus `git fetch <unique.bundle> HEAD` only if `git bundle list-heads <unique.bun
 HEAD, run `git apply --index staged.diff` and `git apply worktree.diff` where present, and copy `untracked\` and the
 restored ignored files back. Keep a sandbox's push disabled: `git remote set-url --push origin DISABLED`.
 
+## Machine restore
+
+Each `Backup-Workspace -Package` first writes a machine inventory to `records\machine\inventory-<UTC date>` in the data
+root (one per UTC day; a day already written is reused), so the package carries it and Restore-Workspace brings it back
+with the data. It records programs and settings, never a secret value: MCP environment and header values, token shapes
+and secret-named environment values are masked. `inventory-status.tsv` names each source as ok, missing or failed.
+After Restore-ORVION, from the newest inventory folder:
+
+1. Programs: `scoop import scoop-export.json`; `winget import -i winget-export.json --accept-package-agreements`;
+   `npm i -g` each name in npm-global.json; `code --install-extension <id>` for each line of vscode-extensions.txt,
+   then copy `vscode-user\*` to `%APPDATA%\Code\User`.
+2. Pinned tools: download PowerShell-7.6.8-win-x64.zip from the official v7.6.8 release, check its SHA-256 against
+   temporary-tools.tsv and unzip it to `ORVION-Workbench-temporary\tools\pwsh-portable-7.6.8`;
+   `npm i typescript@7.0.2 --prefix <temporary>\tools\typescript`.
+3. MCP: re-add each server in claude-mcp-servers.masked.json with `claude mcp add`; supply masked values from their own
+   sign-ins.
+4. Environment: set the non-secret values in environment-variables.tsv; re-create each masked secret value from its
+   provider.
+5. Global git: apply the lines in gitconfig-global.txt with `git config --global`.
+
+Marketing-MCP and every sign-in stay the owner's (DEC-09).
 ## Daily backup opt-in and observation
 
 WS027 V3 extends the existing engine with explicit `-Install`; an ordinary backup does not register or start a task.

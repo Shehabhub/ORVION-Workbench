@@ -40,7 +40,7 @@ $generatedBlock='(?ms:^<!-- organize:(?<block>contents|changes) .*?^<!-- /organi
 function New-OrganizeRule([string]$Format='organizer',[string[]]$Need=@(),[string]$Allow='^$',[switch]$Live,[switch]$Dynamic){[pscustomobject]@{Format=$Format;Need=$Need;Allow=$Allow;Live=[bool]$Live;Dynamic=[bool]$Dynamic}}
 $runName='^W\d{2,}-\d{8}T\d{6}Z-[a-z0-9-]+/$'
 $layout=@{
-    'workbench:'=New-OrganizeRule 'router' @('README.md','AGENTS.md','RESUME.md','WORKFLOW.md','HANDOFF.md','tests.ps1','.gitignore','.gitattributes','changes/','config/','docs/','lib/','records/','.githooks/','.github/') '^(\.git/?|\.claude/|data/|workstation/|ai-map\.(html|json)|\.workbench-local-certification\.json|\.workbench-certifications/|\.omc/)$'
+    'workbench:'=New-OrganizeRule 'router' @('README.md','AGENTS.md','RESUME.md','WORKFLOW.md','tests.ps1','.gitignore','.gitattributes','changes/','config/','docs/','lib/','records/','.githooks/','.github/') '^(\.git/?|\.claude/|data/|workstation/|ai-map\.(html|json)|\.workbench-local-certification\.json|\.workbench-certifications/|\.omc/)$'
     'workbench:changes'=New-OrganizeRule 'organizer' @('TEMPLATE.md') '^WS-\d{3}-[a-z0-9-]+\.md$' -Live
     'workbench:config'=New-OrganizeRule 'index' @() '.'
     'workbench:docs'=New-OrganizeRule 'organizer' @('DECISIONS.md','RUNBOOK.md','WORKSPACE-LAYOUT.md','RECOVERY.md','owner/','history/')
